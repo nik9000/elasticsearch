@@ -1,12 +1,20 @@
 language: java
 jdk:
-  - openjdk6
   - openjdk7
   - oraclejdk7
+#  - openjdk6       Not recommended so disabled to save executors
+#  - oraclejdk8     Not yet run to save executors
 
 env:
+  # We want to keep each run around 30 minutes if possible because travis starts
+  # timing out jobs around 40 minutes.
   - ES_TEST_LOCAL=true
-  - ES_TEST_LOCAL=false
+  - ES_TEST_LOCAL=false ES_TRAVIS_BATCH_1=true
+  - ES_TEST_LOCAL=false ES_TRAVIS_BATCH_2=true
+
+# Disable the mvn install that Travis wants to run because builds a bunch of
+# things we don't need.  Test should be good enough.
+install: echo Skipping install
 
 notifications:
   email: false

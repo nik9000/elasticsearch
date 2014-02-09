@@ -1193,4 +1193,74 @@
             </plugins>
         </pluginManagement>
     </build>
+    <profiles>
+        <!-- The next two profiles split the tests into two groups so that each group takes under half an hour to run
+            even with ES_TEST_LOCAL=false.  This is important because Travis CI times out tests after about 40 minutes. -->
+        <profile>
+            <id>Travis Batch One</id>
+            <activation>
+                <property>
+                    <name>env.ES_TRAVIS_BATCH_1</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.carrotsearch.randomizedtesting</groupId>
+                        <artifactId>junit4-maven-plugin</artifactId>
+                        <version>2.0.15</version>
+                        <executions>
+                            <execution>
+                                <id>tests</id>
+                                <configuration>
+                                    <includes>
+                                        <include>org/elasticsearch/cluster/**/*Tests.class</include>
+                                        <include>org/elasticsearch/cluster/**/*Test.class</include>
+                                        <include>org/elasticsearch/gateway/**/*Tests.class</include>
+                                        <include>org/elasticsearch/gateway/**/*Test.class</include>
+                                        <include>org/elasticsearch/indices/**/*Tests.class</include>
+                                        <include>org/elasticsearch/indices/**/*Test.class</include>
+                                        <include>org/elasticsearch/search/**/*Tests.class</include>
+                                        <include>org/elasticsearch/search/**/*Test.class</include>
+                                    </includes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>Travis Batch Two</id>
+            <activation>
+                <property>
+                    <name>env.ES_TRAVIS_BATCH_2</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.carrotsearch.randomizedtesting</groupId>
+                        <artifactId>junit4-maven-plugin</artifactId>
+                        <version>2.0.15</version>
+                        <executions>
+                            <execution>
+                                <id>tests</id>
+                                <configuration>
+                                    <excludes>
+                                        <exclude>**/Abstract*.class</exclude>
+                                        <exclude>**/*StressTest.class</exclude>
+                                        <exclude>org/elasticsearch/cluster/**</exclude>
+                                        <exclude>org/elasticsearch/gateway/**</exclude>
+                                        <exclude>org/elasticsearch/indices/**</exclude>
+                                        <exclude>org/elasticsearch/search/**</exclude>
+                                    </excludes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
