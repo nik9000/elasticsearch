@@ -11,10 +11,12 @@ env:
   - ES_TEST_LOCAL=true
   - ES_TEST_LOCAL=false ES_TRAVIS_BATCH_1=true
   - ES_TEST_LOCAL=false ES_TRAVIS_BATCH_2=true
+  - ES_TEST_LOCAL=false ES_TRAVIS_BATCH_3=true
 
 # Disable the mvn install that Travis wants to run because builds a bunch of
 # things we don't need.  Test should be good enough.
 install: echo Skipping install
+script: mvn test -B -q
 
 notifications:
   email: false
