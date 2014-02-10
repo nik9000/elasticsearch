@@ -15,6 +15,7 @@ env:
 
 # Disable the mvn install that Travis wants to run because builds a bunch of
 # things we don't need.  Test should be good enough.
+before_install: ifconfig
 install: echo Skipping install
 script: mvn test -B -q
 
