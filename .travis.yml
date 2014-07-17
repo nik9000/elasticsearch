@@ -3,8 +3,8 @@ jdk:
   - openjdk7
 
 env:
-  - ES_TEST_LOCAL=true
-  - ES_TEST_LOCAL=false
+  - TRAVIS=true ES_TEST_LOCAL=true
+  - TRAVIS=true ES_TEST_LOCAL=false
 
 notifications:
   email: false

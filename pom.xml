@@ -1378,6 +1378,27 @@
           </plugins>
         </build>
       </profile>
+      <!-- Travis profile - fewer concurrent tests -->
+      <profile>
+        <id>default</id>
+        <activation>
+          <property>
+            <name>travis</name>
+            <value>true</value>
+          </property>
+        </activation>
+        <build>
+          <plugins>
+            <plugin>
+              <groupId>com.carrotsearch.randomizedtesting</groupId>
+              <artifactId>junit4-maven-plugin</artifactId>
+              <configuration>
+                <parallelism>2</parallelism>
+              </configuration>
+            </plugin>
+          </plugins>
+        </build>
+      </profile>
       <!-- license profile, to generate third party license file -->
       <profile>
         <id>license</id>
