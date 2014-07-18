@@ -1380,7 +1380,7 @@
       </profile>
       <!-- Travis profile - fewer concurrent tests -->
       <profile>
-        <id>default</id>
+        <id>travis</id>
         <activation>
           <property>
             <name>travis</name>
