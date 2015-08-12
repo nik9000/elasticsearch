@@ -23,29 +23,40 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.action.RestActionModule;
+import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  *
  */
 public class RestModule extends AbstractModule {
-
     private final Settings settings;
-    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
-
-    public void addRestAction(Class<? extends BaseRestHandler> restAction) {
-        restPluginsActions.add(restAction);
-    }
+    private final List<Class<? extends BaseRestHandler>> restPluginsActions = new ArrayList<>();
+    private final List<Class<? extends AbstractCatAction>> catActions = new ArrayList<>();
 
     public RestModule(Settings settings) {
         this.settings = settings;
     }
 
+    /**
+     * Register a REST handler.
+     */
+    public void addRestAction(Class<? extends BaseRestHandler> handler) {
+        restPluginsActions.add(handler);
+    }
+
+    /**
+     * Register a cat action.
+     */
+    public void addCatAction(Class<? extends AbstractCatAction> action) {
+        catActions.add(action);
+    }
 
     @Override
     protected void configure() {
         bind(RestController.class).asEagerSingleton();
-        new RestActionModule(restPluginsActions).configure(binder());
+        new RestActionModule(restPluginsActions, catActions).configure(binder());
     }
 }

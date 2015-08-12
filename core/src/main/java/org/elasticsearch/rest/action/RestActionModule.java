@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action;
 
-import com.google.common.collect.Lists;
-
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -116,10 +114,13 @@ import java.util.List;
  *
  */
 public class RestActionModule extends AbstractModule {
-    private List<Class<? extends BaseRestHandler>> restPluginsActions = Lists.newArrayList();
+    private final List<Class<? extends BaseRestHandler>> restPluginsActions;
+    private final List<Class<? extends AbstractCatAction>> catActions;
 
-    public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions) {
+    public RestActionModule(List<Class<? extends BaseRestHandler>> restPluginsActions,
+            List<Class<? extends AbstractCatAction>> catActions) {
         this.restPluginsActions = restPluginsActions;
+        this.catActions = catActions;
     }
 
     @Override
@@ -251,6 +252,9 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestPluginsAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestFielddataAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestNodeAttrsAction.class).asEagerSingleton();
+        for (Class<? extends AbstractCatAction> catAction : catActions) {
+            catActionMultibinder.addBinding().to(catAction).asEagerSingleton();
+        }
         // no abstract cat action
         bind(RestCatAction.class).asEagerSingleton();
     }

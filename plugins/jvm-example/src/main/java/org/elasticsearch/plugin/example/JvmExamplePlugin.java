@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 
 import java.io.Closeable;
@@ -117,6 +118,14 @@ public class JvmExamplePlugin implements Plugin {
     public void onModule(RepositoriesModule repositoriesModule) {
     }
 
+    public void onModule(RestModule restModule) {
+        /*
+         * Note: you can't onModule RestActionModule because its not really a
+         * first class module.
+         */
+        restModule.addCatAction(ExampleCatAction.class);
+    }
+
     /**
      * Module decalaring some example configuration and a _cat action that uses
      * it.
@@ -124,9 +133,7 @@ public class JvmExamplePlugin implements Plugin {
     public static class ConfiguredExampleModule extends AbstractModule {
         @Override
         protected void configure() {
-          bind(ExamplePluginConfiguration.class).asEagerSingleton();
-          Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);
-          catActionMultibinder.addBinding().to(ExampleCatAction.class).asEagerSingleton();
+            bind(ExamplePluginConfiguration.class).asEagerSingleton();
         }
     }
 }
