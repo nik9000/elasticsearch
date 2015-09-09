@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.junit.Test;
@@ -102,6 +103,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
 
     private TransportClient newTransportClient() {
         Settings settings = Settings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
+                .put("path.home", PathUtils.get(".").toAbsolutePath())
                 .put("node.name", "transport_client_" + getTestName()).build();
         return TransportClient.builder().settings(settings).build();
     }

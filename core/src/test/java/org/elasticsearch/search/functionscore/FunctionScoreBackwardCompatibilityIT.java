@@ -46,7 +46,6 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
     /**
      * Simple upgrade test for function score
      */
-    @Test
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
 
         assertAcked(prepareCreate("test").addMapping(
@@ -62,7 +61,7 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
                         .endObject()
                         .endObject()
                         .endObject()
-                        .endObject()));
+                    .endObject()).setSettings("number_of_shards", 1));
         ensureYellow();
 
         int numDocs = 10;

@@ -605,6 +605,12 @@ public class Version {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
+        // Temporary hack because there isn't a 2.0.0 release version to test against
+        // Allows testing against 2.0.0-beta1 and should be removed once 2.0.0 has a
+        // release.
+        if (major == 2) {
+            return Version.smallest(this, fromId(major * 1000000));
+        }
         return Version.smallest(this, fromId(major * 1000000 + 99));
     }
 

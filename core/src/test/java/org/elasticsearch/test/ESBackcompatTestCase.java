@@ -85,6 +85,7 @@ import static org.hamcrest.Matchers.is;
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
 @ESBackcompatTestCase.Backwards
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
+@org.elasticsearch.test.junit.annotations.TestLogging("_root:DEBUG")
 public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
     /**
@@ -101,7 +102,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     /**
      * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
      */
-    private static final String TESTS_COMPATIBILITY = "tests.compatibility";
+    public static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
     private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
@@ -114,7 +115,8 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         if (version == null || version.isEmpty()) {
             throw new IllegalArgumentException("Must specify backwards test version with property " + TESTS_BACKWARDS_COMPATIBILITY_VERSION);
         }
-        if (Version.fromString(version).before(Version.CURRENT.minimumCompatibilityVersion())) {
+        Version v = Version.fromString(version);
+        if (v.before(Version.CURRENT.minimumCompatibilityVersion())) {
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }

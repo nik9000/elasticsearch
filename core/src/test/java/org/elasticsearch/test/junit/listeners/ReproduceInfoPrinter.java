@@ -38,6 +38,10 @@ import java.util.TimeZone;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
+import static org.elasticsearch.test.ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY;
+import static org.elasticsearch.test.ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_VERSION;
+import static org.elasticsearch.test.ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_PATH;
+import static org.elasticsearch.test.ESBackcompatTestCase.TESTS_COMPATIBILITY;
 import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SPEC;
@@ -160,8 +164,10 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER, InternalTestCluster.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", 
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
+            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
+                             "tests.client.ratio", "tests.heap.size", TESTS_BACKWARDS_COMPATIBILITY,
+                             TESTS_BACKWARDS_COMPATIBILITY_VERSION, TESTS_BACKWARDS_COMPATIBILITY_PATH,
+                             TESTS_COMPATIBILITY);
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

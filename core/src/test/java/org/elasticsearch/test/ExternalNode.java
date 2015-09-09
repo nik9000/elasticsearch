@@ -36,6 +36,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.transport.TransportModule;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -117,6 +118,7 @@ final class ExternalNode implements Closeable {
                 case DiscoveryModule.DISCOVERY_TYPE_KEY:
                 case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
+                case "logger.level":
                     continue;
                 default:
                     externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());
@@ -130,6 +132,10 @@ final class ExternalNode implements Closeable {
 
         params.add("-Des.path.home=" + PathUtils.get(".").toAbsolutePath());
         params.add("-Des.path.conf=" + path + "/config");
+        // Security manager is getting in the way. We should turn it back on though.
+        params.add("-Dsecurity.manager.enabled=false");
+        // The cluster runs at 9400 instead of 9200 to keep it out of the way but the defaults won't find it.
+        params.add("-Ddiscovery.zen.ping.unicast.hosts=localhost:9400,localhost:9401,localhost:9402,localhost:9403");
 
         ProcessBuilder builder = new ProcessBuilder(params);
         builder.directory(path.toFile());
@@ -144,7 +150,14 @@ final class ExternalNode implements Closeable {
                 assert nodeInfo != null;
                 logger.info("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
-                throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster");
+                logger.error("Node [{}] didn't join the cluster.", nodeName);
+                try (BufferedReader log = Files.newBufferedReader(PathUtils.get("logs", clusterName + ".log").toAbsolutePath())) {
+                    String line;
+                    while ((line = log.readLine()) != null) {
+                        logger.error(line);
+                    }
+                }
+                throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster.");
             }
             success = true;
         } finally {
@@ -199,6 +212,7 @@ final class ExternalNode implements Closeable {
             Settings clientSettings = settingsBuilder().put(externalNodeSettings)
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
+                    .put("path.home", PathUtils.get(".").toAbsolutePath())
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
             TransportClient client = TransportClient.builder().settings(clientSettings).build();
             client.addTransportAddress(addr);
@@ -231,6 +245,9 @@ final class ExternalNode implements Closeable {
         }
     }
 
+    public Path dataPath() {
+        return PathUtils.get("data").toAbsolutePath();
+    }
 
     synchronized boolean running() {
         return process != null;

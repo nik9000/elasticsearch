@@ -50,7 +50,7 @@ import static org.junit.Assert.assertThat;
 public class CompositeTestCluster extends TestCluster {
     private final InternalTestCluster cluster;
     private final ExternalNode[] externalNodes;
-    private final ExternalClient client = new ExternalClient();
+    private ExternalClient client;
     private static final String NODE_PREFIX = "external_";
 
     public CompositeTestCluster(InternalTestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
@@ -84,6 +84,7 @@ public class CompositeTestCluster extends TestCluster {
             }
             externalNodes[i].reset(random.nextLong());
         }
+        this.client = new ExternalClient();
         if (size() > 0) {
             client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
         }
@@ -144,9 +145,12 @@ public class CompositeTestCluster extends TestCluster {
             final Client existingClient = cluster.client();
             ExternalNode externalNode = RandomPicks.randomFrom(random, runningNodes);
             externalNode.stop();
+            nodeSettings = Settings.builder().put(nodeSettings).put("path.data", externalNode.dataPath().toString()).build();
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
             assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
+            // Rebuild the client, potentially using the new list of nodes
+            client = new ExternalClient();
             return true;
         }
         return false;
