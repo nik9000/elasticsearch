@@ -602,7 +602,9 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(response.isMatch(), equalTo(true));
         assertThat(response.getExplanation(), notNullValue());
         assertThat(response.getExplanation().isMatch(), equalTo(true));
-        assertThat(response.getExplanation().getDetails().length, equalTo(1));
+        System.err.println(response.getExplanation().getDetails().length);
+        System.err.println(java.util.Arrays.deepToString(response.getExplanation().getDetails()));
+        assertThat(response.getExplanation().getDetails().length, equalTo(2));
     }
 
     @Test

@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.is;
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
 @ESBackcompatTestCase.Backwards
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
-@org.elasticsearch.test.junit.annotations.TestLogging("_root:DEBUG")
 public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
     /**
