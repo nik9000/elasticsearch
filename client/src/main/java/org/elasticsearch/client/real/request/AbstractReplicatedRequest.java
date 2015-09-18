@@ -19,12 +19,14 @@
 
 package org.elasticsearch.client.real.request;
 
+import org.elasticsearch.action.WriteConsistencyLevel;
+
 import java.util.concurrent.TimeUnit;
 
 /**
  * Abstract base for requests that are replicated.
  */
-public abstract class AbstractReplicatedRequest<Request extends AbstractReplicatedRequest> extends AbstractRequest<Request> {
+public abstract class AbstractReplicatedRequest<Self extends AbstractReplicatedRequest> extends AbstractRequest<Self> {
     /**
      * The index this request is targeting.
      */
@@ -33,11 +35,15 @@ public abstract class AbstractReplicatedRequest<Request extends AbstractReplicat
      * A timeout. Hopefully in Elasticsearch's timeout format but not validated.
      */
     private String timeout;
+    /**
+     * The consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
+     */
+    private WriteConsistencyLevel consistencyLevel;
 
     /**
      * The index this request is targeting.
      */
-    public final Request setIndex(String index) {
+    public final Self setIndex(String index) {
         this.index = index;
         return self();
     }
@@ -46,7 +52,7 @@ public abstract class AbstractReplicatedRequest<Request extends AbstractReplicat
      * The timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>. The format of
      * the string is documented TODO here. This format is not validated by the client.
      */
-    public final Request setTimeout(String timeout) {
+    public final Self setTimeout(String timeout) {
         this.timeout = timeout;
         return self();
     }
@@ -55,7 +61,7 @@ public abstract class AbstractReplicatedRequest<Request extends AbstractReplicat
      * Set the timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>. This is a
      * convenience wrapper around {@link #setTimeout(String)} with parameters more familiar to Java developers.
      */
-    public final Request setTimeout(long duration, TimeUnit unit) {
+    public final Self setTimeout(long duration, TimeUnit unit) {
         switch (unit) {
             case DAYS:
                 return setTimeout(duration + "d");
@@ -68,5 +74,13 @@ public abstract class AbstractReplicatedRequest<Request extends AbstractReplicat
             default:
                 throw new IllegalArgumentException("Unsupported TimeUnit:  " + unit);
         }
+    }
+
+    /**
+     * The consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
+     */
+    public Self setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        this.consistencyLevel = consistencyLevel;
+        return self();
     }
 }

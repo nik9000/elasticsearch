@@ -17,14 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.client.real.request;
+package org.elasticsearch.action;
+
+import org.apache.lucene.util.LuceneTestCase;
 
 /**
- * Base for requests.
+ * NOCOMMIT - remove me.
  */
-public abstract class AbstractRequest<Self extends AbstractRequest> {
-    /**
-     * Get a reference to this safely cast as request. Used for chaining.
-     */
-    protected abstract Self self();
+public class DummyTests extends LuceneTestCase {
+    public void testNothing() {
+        assertTrue(true);
+    }
 }
