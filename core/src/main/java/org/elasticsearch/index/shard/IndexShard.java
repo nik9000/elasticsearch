@@ -20,7 +20,10 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -41,7 +44,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
@@ -63,7 +65,15 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineClosedException;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.RefreshFailedEngineException;
+import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -72,11 +82,15 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -85,14 +99,15 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.translog.TranslogWriter;
@@ -113,7 +128,15 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -197,6 +220,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     private volatile long lastWriteNS;
     private final IndexingMemoryController indexingMemoryController;
+
+    /**
+     * List of refresh listeners. Synchronize on it to modify or read it.
+     */
+    private final List<RefreshListener> refreshListeners = new LinkedList<>();
 
     @Inject
     public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) {
@@ -511,8 +539,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             logger.trace("refresh with source: {}", source);
         }
         long time = System.nanoTime();
-        getEngine().refresh(source);
+        Translog.Location refreshLocation = getEngine().refresh(source);
         refreshMetric.inc(System.nanoTime() - time);
+        callRefreshListeners(refreshLocation);
     }
 
     public RefreshStats refreshStats() {
@@ -1236,6 +1265,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule
             if (!getEngine().refreshNeeded()) {
                 reschedule();
+                callRefreshListeners(null);
                 return;
             }
             threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
@@ -1244,6 +1274,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                     try {
                         if (getEngine().refreshNeeded()) {
                             refresh("schedule");
+                        } else {
+                            callRefreshListeners(null);
                         }
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
@@ -1571,4 +1603,45 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return false;
     }
 
+    public void addRefreshListener(Translog.Location location, Runnable action) {
+        synchronized (refreshListeners) {
+            refreshListeners.add(new RefreshListener(location, action));
+            // TODO if there are too many then force a refresh right now
+        }
+    }
+
+    private void callRefreshListeners(Translog.Location refreshedLocation) {
+        List<Runnable> actions = new ArrayList<Runnable>();
+
+        synchronized (refreshListeners) {
+            if (refreshedLocation == null) {
+                refreshListeners.addAll(refreshListeners);
+                refreshListeners.clear();
+            } else {
+                for (Iterator<RefreshListener> itr = refreshListeners.iterator(); itr.hasNext();) {
+                    RefreshListener listener = itr.next();
+                    if (listener.location.compareTo(refreshedLocation) <= 0) {
+                        actions.add(listener.action);
+                        itr.remove();
+                    }
+                }
+            }
+        }
+
+        // TODO on which thread do we fire the listeners?
+        for (Runnable action : actions) {
+            action.run();
+        }
+    }
+
+
+    private static class RefreshListener {
+        private final Translog.Location location;
+        private final Runnable action;
+
+        public RefreshListener(Location location, Runnable action) {
+            this.location = location;
+            this.action = action;
+        }
+    }
 }

@@ -19,8 +19,21 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
@@ -62,7 +75,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -512,9 +530,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {
+    public Translog.Location refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
+        Translog.Location refreshLocation = translog.getLastLocation();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
@@ -534,6 +553,7 @@ public class InternalEngine extends Engine {
         maybePruneDeletedTombstones();
         versionMapRefreshPending.set(false);
         mergeScheduler.refreshConfig();
+        return refreshLocation;
     }
 
     @Override
@@ -1104,6 +1124,7 @@ public class InternalEngine extends Engine {
         commitIndexWriter(writer, translog, null);
     }
 
+    @Override
     public void onSettingsChanged() {
         mergeScheduler.refreshConfig();
         updateIndexWriterSettings();
@@ -1113,6 +1134,7 @@ public class InternalEngine extends Engine {
         maybePruneDeletedTombstones();
     }
 
+    @Override
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
     }

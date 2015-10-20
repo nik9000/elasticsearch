@@ -20,21 +20,19 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -49,30 +47,43 @@ import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
-import java.nio.file.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
-
-    private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");
-
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected Translog translog;
@@ -184,18 +195,33 @@ public class TranslogTests extends ESTestCase {
 
     @Test
     public void testRead() throws IOException {
+        assertThat(translog.getLastLocation(), nullValue());
         Translog.Location loc1 = translog.add(new Translog.Index("test", "1", new byte[]{1}));
+        assertThat(translog.getLastLocation().generation, is(translog.currentFileGeneration()));
+        assertThat(translog.getLastLocation().translogLocation, is(43L));
         Translog.Location loc2 = translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        assertThat(translog.getLastLocation().generation, is(translog.currentFileGeneration()));
+        assertThat(translog.getLastLocation().translogLocation, is(89L));
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
         translog.sync();
+        assertThat(translog.getLastLocation().generation, is(translog.currentFileGeneration()));
+        assertThat(translog.getLastLocation().translogLocation, is(89L));
         assertThat(translog.read(loc1).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{1})));
         assertThat(translog.read(loc2).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{2})));
+
         Translog.Location loc3 = translog.add(new Translog.Index("test", "2", new byte[]{3}));
+        assertThat(translog.getLastLocation().generation, is(translog.currentFileGeneration()));
+        assertThat(translog.getLastLocation().translogLocation, is(135L));
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.sync();
+        assertThat(translog.getLastLocation().generation, is(translog.currentFileGeneration()));
+        assertThat(translog.getLastLocation().translogLocation, is(135L));
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
+        long lastGeneration = translog.currentFileGeneration();
         translog.prepareCommit();
+        assertThat(translog.getLastLocation().generation, is(lastGeneration));
+        assertThat(translog.getLastLocation().translogLocation, is(135L));
         assertThat(translog.read(loc3).getSource().source.toBytesArray(), equalTo(new BytesArray(new byte[]{3})));
         translog.commit();
         assertNull(translog.read(loc1));

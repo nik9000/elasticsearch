@@ -53,8 +53,15 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -127,8 +134,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             assert removed : "View was never set but was supposed to be removed";
         }
     };
-
-
+    private volatile Location lastWriteLocation;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogConfig} has
@@ -393,6 +399,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     current.sync();
                 }
                 assert current.assertBytesAtLocation(location, bytes);
+                lastWriteLocation = location;
                 return location;
             }
         } catch (Throwable e) {
@@ -1350,6 +1357,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
         }
         return false;
+    }
+
+    public Translog.Location getLastLocation() {
+        try (ReleasableLock lock = readLock.acquire()) {
+            return lastWriteLocation;
+        }
     }
 
     long getFirstOperationPosition() { // for testing
