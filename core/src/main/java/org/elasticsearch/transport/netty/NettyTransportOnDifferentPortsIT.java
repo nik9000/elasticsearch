@@ -24,9 +24,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportInfo;
 
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -40,22 +37,22 @@ public class NettyTransportOnDifferentPortsIT extends ESIntegTestCase {
     public void testDifferentPorts() throws Exception {
         logger.info("--> starting a node on ipv4 only");
         Settings ipv4Settings = Settings.builder().put("network.host", "127.0.0.1").build();
-        Future<String> ipv4Node = internalCluster().startNodeAsync(ipv4Settings);
+        String ipv4Node = internalCluster().startNode(ipv4Settings);
 
         logger.info("--> starting a node on ipv4 and ipv6");
         Settings bothSettings = Settings.builder().put("network.host", "_local_").build();
-        Future<String> bothNode = internalCluster().startNodeAsync(bothSettings);
+        String bothNode = internalCluster().startNode(bothSettings);
 
-        logger.info("--> waiting for nodes to start");
-        ipv4Node.get(20, TimeUnit.SECONDS);
-        bothNode.get(20, TimeUnit.SECONDS);
+        logger.info("--> waiting for the clsuter to declare itself stable");
+        ensureStableCluster(2); // This will timeout if the publish_address is funky
 
         logger.info("--> checking that we reproduced the funky port bindings");
-        BoundPorts ipv4Ports = new BoundPorts(ipv4Node.get());
+        // These will fail if we didn't reproduce the problem properly
+        BoundPorts ipv4Ports = new BoundPorts(ipv4Node);
         assertThat("ipv4 node should bind ipv4", ipv4Ports.ipv4, not(equalTo(0)));
         assertThat("ipv4 node shouldn't bind ipv6", ipv4Ports.ipv6, equalTo(0));
 
-        BoundPorts bothPorts = new BoundPorts(bothNode.get());
+        BoundPorts bothPorts = new BoundPorts(bothNode);
         assertThat("both node should bind ipv4", bothPorts.ipv4, not(equalTo(0)));
         assertThat("both node should bind ipv6", bothPorts.ipv6, not(equalTo(0)));
         assertThat("both node shouldn't bind ipv4 and ipv6 to the same port", bothPorts.ipv6, not(equalTo(bothPorts.ipv4)));
