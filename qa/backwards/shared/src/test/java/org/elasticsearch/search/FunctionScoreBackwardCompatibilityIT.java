@@ -18,16 +18,19 @@
  */
 package org.elasticsearch.search;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESBackcompatTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -46,14 +49,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 /**
  * Validates that groovy works across a mixed version cluster.
  */
-@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/13522")
 public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
-
     /**
      * Simple upgrade test for function score
      */
     public void testSimpleFunctionScoreParsingWorks() throws IOException, ExecutionException, InterruptedException {
-
+        // NORELEASE Groovy is temporarily not in the packages for 2.2.0
+        // It'll move back in the pages before release
+        assumeTrue("Groovy isn't bundled with 2.2.0", backwardsCompatibilityVersion().before(Version.V_2_2_0));
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject()
@@ -109,6 +112,17 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
     protected Settings commonNodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.commonNodeSettings(nodeOrdinal))
                 .put("script.inline", "on").build();
+    }
+
+    /**
+     * This makes sure that groovy is loaded in the embedded Elasticsearch
+     * instances. The distribution itself makes sure that groovy is loaded in
+     * the external elasticsearches.
+     */
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        // Note that when groovy is no longer used this will need a different security policy
+        return pluginList(GroovyPlugin.class);
     }
 
     private void checkFunctionScoreStillWorks(String... ids) throws ExecutionException, InterruptedException, IOException {

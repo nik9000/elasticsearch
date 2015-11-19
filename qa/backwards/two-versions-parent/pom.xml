@@ -21,13 +21,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.elasticsearch.distribution.tar</groupId>
-            <artifactId>elasticsearch</artifactId>
-            <version>${project.version}</version>
-            <type>tar.gz</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <!-- This just picks up ExternalNodeService which is all we need because
                 we grab the tests using testClassesDirectory. -->
             <groupId>org.elasticsearch.qa.backwards</groupId>
@@ -64,14 +57,8 @@
                             <useBaseVersion>true</useBaseVersion>
                             <outputDirectory>${integ.deps}/plugins</outputDirectory>
                             <artifactItems>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.distribution.tar</groupId>
-                                    <artifactId>elasticsearch</artifactId>
-                                    <version>${project.version}</version>
-                                    <type>tar.gz</type>
-                                    <overWrite>true</overWrite>
-                                    <outputDirectory>${tests.bwc.path}</outputDirectory>
-                                </artifactItem>
+                                <!-- 2.x distributions include lang-groovy
+                                  preinstalled -->
                                 <artifactItem>
                                     <groupId>org.elasticsearch.distribution.tar</groupId>
                                     <artifactId>elasticsearch</artifactId>
