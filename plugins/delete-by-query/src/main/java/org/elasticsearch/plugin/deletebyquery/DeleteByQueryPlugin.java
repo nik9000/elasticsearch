@@ -27,6 +27,7 @@ import org.elasticsearch.action.indexbysearch.TransportIndexBySearchAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
+import org.elasticsearch.script.ScriptModule;
 
 public class DeleteByQueryPlugin extends Plugin {
 
@@ -51,4 +52,7 @@ public class DeleteByQueryPlugin extends Plugin {
         restModule.addRestAction(RestDeleteByQueryAction.class);
     }
 
+    public void onModule(ScriptModule scriptModule) {
+        scriptModule.registerScriptContext(TransportIndexBySearchAction.SCRIPT_CONTEXT);
+    }
 }

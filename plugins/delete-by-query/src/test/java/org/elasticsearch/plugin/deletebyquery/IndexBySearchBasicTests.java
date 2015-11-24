@@ -20,37 +20,23 @@
 package org.elasticsearch.plugin.deletebyquery;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchAction;
 import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = SUITE, transportClientRatio = 0) // Required to use plugins?
-public class IndexBySearchTests extends ESIntegTestCase {
-    @Override
-    @SuppressWarnings("unchecked")
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(DeleteByQueryPlugin.class);
-    }
-
+public class IndexBySearchBasicTests extends IndexBySearchTestCase {
     public void testBasicsIntoExistingIndex() throws Exception {
         basics(true);
     }
@@ -183,15 +169,6 @@ public class IndexBySearchTests extends ESIntegTestCase {
 
         // Make sure parent/child is intact on that type
         assertNotNull(client().prepareGet("test", "dest", "has_ttl").get().getField("_ttl"));
-    }
-
-    private IndexBySearchRequestBuilder newIndexBySearch() {
-        return new IndexBySearchRequestBuilder(client(), IndexBySearchAction.INSTANCE);
-    }
-
-    private void assertResponse(IndexBySearchResponse response, long expectedIndexed, long expectedCreated) {
-        assertThat(response.indexed(), equalTo(expectedIndexed));
-        assertThat(response.created(), equalTo(expectedCreated));
     }
 
     /**

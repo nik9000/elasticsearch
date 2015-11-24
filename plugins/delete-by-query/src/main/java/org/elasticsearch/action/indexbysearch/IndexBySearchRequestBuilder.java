@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.script.Script;
 
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -58,8 +59,14 @@ public class IndexBySearchRequestBuilder
         return index;
     }
 
+    public IndexBySearchRequestBuilder script(Script script) {
+        request.script(script);
+        return this;
+    }
+
     @Override
     protected IndexBySearchRequest beforeExecute(IndexBySearchRequest request) {
+        // Force syncing the source into the request
         search.request().source(search.internalBuilder());
         return request;
     }

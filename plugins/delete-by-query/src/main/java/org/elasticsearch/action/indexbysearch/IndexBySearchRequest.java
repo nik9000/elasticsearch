@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 
@@ -45,6 +46,8 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
      */
     private IndexRequest index;
 
+    private Script script;
+
     public IndexBySearchRequest() {
     }
 
@@ -55,6 +58,15 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         search.scroll(DEFAULT_SCROLL_TIMEOUT);
     }
 
+    public Script script() {
+        return script;
+    }
+
+    public IndexBySearchRequest script(Script script) {
+        this.script = script;
+        return this;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = search.validate();
@@ -62,7 +74,11 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
             e = addValidationError("source is specified", e);
         }
         for (String validationError: index.validate().validationErrors()) {
+            // TODO these are hacky
             if ("source is missing".equals(validationError)) {
+                continue;
+            }
+            if ("type is missing".equals(validationError)) {
                 continue;
             }
             e = addValidationError(validationError, e);
