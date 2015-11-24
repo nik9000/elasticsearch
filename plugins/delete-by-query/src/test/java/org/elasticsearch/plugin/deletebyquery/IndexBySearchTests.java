@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexbysearch.IndexBySearchAction;
 import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
 import org.elasticsearch.action.indexbysearch.IndexBySearchResponse;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -41,9 +43,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = SUITE, transportClientRatio = 0) // TODO why?
+@ClusterScope(scope = SUITE, transportClientRatio = 0) // Required to use plugins?
 public class IndexBySearchTests extends ESIntegTestCase {
     @Override
+    @SuppressWarnings("unchecked")
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(DeleteByQueryPlugin.class);
     }
@@ -138,6 +141,48 @@ public class IndexBySearchTests extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't specify parent if no parent field has been configured"));
         }
+    }
+
+    public void testTimestamp() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("source", "{\"_timestamp\": {\"enabled\": true}}")
+                .addMapping("dest", "{\"_timestamp\": {\"enabled\": true}}"));
+        ensureGreen();
+
+        indexRandom(true,
+                client().prepareIndex("test", "source", "has_timestamp").setSource("foo", "bar"));
+
+        assertSearchHits(client().prepareSearch("test").setTypes("source").setQuery(existsQuery("_timestamp")).get(), "has_timestamp");
+
+        // Copy the child to a new type
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.index().setIndex("test").setType("dest");
+        assertResponse(copy.get(), 1, 0);
+        refresh();
+
+        // Make sure parent/child is intact on that type
+        assertSearchHits(client().prepareSearch("test").setTypes("dest").setQuery(existsQuery("_timestamp")).get(), "has_timestamp");
+    }
+
+    public void testTTL() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("source", "{\"_ttl\": {\"enabled\": true}}")
+                .addMapping("dest", "{\"_ttl\": {\"enabled\": true}}"));
+        ensureGreen();
+
+        indexRandom(true,
+                client().prepareIndex("test", "source", "has_ttl").setTTL(TimeValue.timeValueMinutes(10).millis()).setSource("foo", "bar"));
+
+        assertNotNull(client().prepareGet("test", "source", "has_ttl").get().getField("_ttl"));
+
+        // Copy the child to a new type
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.index().setIndex("test").setType("dest");
+        assertResponse(copy.get(), 1, 0);
+        refresh();
+
+        // Make sure parent/child is intact on that type
+        assertNotNull(client().prepareGet("test", "dest", "has_ttl").get().getField("_ttl"));
     }
 
     private IndexBySearchRequestBuilder newIndexBySearch() {
