@@ -19,9 +19,19 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -46,7 +56,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.geo.builders.ShapeBuilderRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -74,8 +83,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -93,6 +100,7 @@ import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -108,18 +116,9 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -200,6 +199,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 Client.class.getClassLoader(),
                 new Class[]{Client.class},
                 clientInvocationHandler);
+        namedWriteableRegistry = new NamedWriteableRegistry();
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings, new SettingsFilter(settings)),
@@ -208,9 +208,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     @Override
                     public void configure() {
                         // skip services
-                        bindQueryParsersExtension();
                         bindMapperExtension();
-                        bind(ShapeBuilderRegistry.class).asEagerSingleton();
                     }
                 },
                 new ScriptModule(settings) {
@@ -234,20 +232,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         } catch(IOException e) {
                             throw new IllegalStateException("error while binding ScriptService", e);
                         }
-
-
                     }
                 },
                 new IndexSettingsModule(index, indexSettings),
+                new SearchModule(settings, namedWriteableRegistry) {
+                    @Override
+                    protected void configureSearch() {
+                        // Skip me
+                    }
+                    @Override
+                    protected void configureSuggesters() {
+                        // Skip me
+                    }
+                },
                 new AbstractModule() {
                     @Override
                     protected void configure() {
                         bind(Client.class).toInstance(proxy);
-                        Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
-                        bind(ScoreFunctionParserMapper.class).asEagerSingleton();
                         bind(ClusterService.class).toProvider(Providers.of(clusterService));
                         bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        bind(NamedWriteableRegistry.class).asEagerSingleton();
+                        bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     }
                 }
         ).createInjector();

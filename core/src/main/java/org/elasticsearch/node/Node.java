@@ -19,6 +19,20 @@
 
 package org.elasticsearch.node;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -37,6 +51,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -70,7 +85,6 @@ import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorService;
@@ -96,20 +110,6 @@ import org.elasticsearch.tribe.TribeModule;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
-
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -166,6 +166,7 @@ public class Node implements Releasable {
         final NetworkService networkService = new NetworkService(settings);
         final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -180,7 +181,7 @@ public class Node implements Releasable {
             modules.add(new SettingsModule(this.settings, settingsFilter));
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new ScriptModule(this.settings));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
             modules.add(new ClusterNameModule(this.settings));
@@ -188,7 +189,7 @@ public class Node implements Releasable {
             modules.add(new DiscoveryModule(this.settings));
             modules.add(new ClusterModule(this.settings));
             modules.add(new IndicesModule());
-            modules.add(new SearchModule());
+            modules.add(new SearchModule(settings, namedWriteableRegistry));
             modules.add(new ActionModule(false));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
