@@ -19,68 +19,26 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.PostRegistrationSingleton;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.indices.breaker.CircuitBreakerModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.function.BiFunction;
 
 /**
  *
  */
-public class NodeModule extends AbstractModule implements PostRegistrationSingleton.Holder {
-
-    public static final String CIRCUIT_BREAKER_TYPE = "indices.breaker.type";
-
+public class NodeModule extends AbstractModule {
     private final Node node;
     private final MonitorService monitorService;
 
-    private final PostRegistrationSingleton<PageCacheRecycler> pageCacheRecycler;
-    private final PostRegistrationSingleton<BigArrays> bigArrays;
-
-    // pkg private so tests can mock
-    BiFunction<Settings, ThreadPool, PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler::new;
-    BiFunction<PageCacheRecycler, CircuitBreakerService, BigArrays> bigArraysImpl = BigArrays::new;
-
-    public NodeModule(Node node, MonitorService monitorService, ThreadPool threadPool, SettingsModule settingsModule,
-            CircuitBreakerModule circuitBreakerModule) {
+    public NodeModule(Node node, MonitorService monitorService) {
         this.node = node;
         this.monitorService = monitorService;
-        pageCacheRecycler = new PostRegistrationSingleton<>(() -> pageCacheRecyclerImpl.apply(settingsModule.settings(), threadPool));
-        bigArrays = new PostRegistrationSingleton<>(
-                () -> bigArraysImpl.apply(pageCacheRecycler(), circuitBreakerModule.circuitBreakerService()));
-    }
-
-    public PageCacheRecycler pageCacheRecycler() {
-        return pageCacheRecycler.get();
-    }
-
-    public BigArrays bigArrays() {
-        return bigArrays.get();
     }
 
     @Override
     protected void configure() {
-        bind(PageCacheRecycler.class).toProvider(pageCacheRecycler);
-        bind(BigArrays.class).toProvider(bigArrays);
-
         bind(Node.class).toInstance(node);
         bind(MonitorService.class).toInstance(monitorService);
         bind(NodeService.class).asEagerSingleton();
-    }
-
-    @Override
-    public Collection<PostRegistrationSingleton<?>> postRegistrationSingletons() {
-        return Arrays.asList(pageCacheRecycler, bigArrays);
     }
 }

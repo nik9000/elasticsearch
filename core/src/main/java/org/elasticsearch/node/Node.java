@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -182,7 +183,8 @@ public class Node implements Releasable {
             modules.add(new PluginsModule(pluginsService));
             modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
-            modules.add(new NodeModule(this, monitorService, threadPool, settingsModule, circuitBreakerModule));
+            modules.add(new NodeModule(this, monitorService));
+            modules.add(new BigArraysModule(threadPool, settingsModule, circuitBreakerModule));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new ScriptModule(this.settings));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));

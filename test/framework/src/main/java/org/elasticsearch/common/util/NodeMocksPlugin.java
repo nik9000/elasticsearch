@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.node;
+package org.elasticsearch.common.util;
 
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.plugins.Plugin;
 
 public class NodeMocksPlugin extends Plugin {
@@ -34,7 +33,7 @@ public class NodeMocksPlugin extends Plugin {
         return "a plugin to setup mocks for node level classes";
     }
 
-    public void onModule(NodeModule module) {
+    public void onModule(BigArraysModule module) {
         module.pageCacheRecyclerImpl = MockPageCacheRecycler::new;
         module.bigArraysImpl = MockBigArrays::new;
     }

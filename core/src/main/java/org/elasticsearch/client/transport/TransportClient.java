@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -141,6 +142,7 @@ public class TransportClient extends AbstractClient {
                 }
                 modules.add(new PluginsModule(pluginsService));
                 modules.add(settingsModule);
+                modules.add(new BigArraysModule(threadPool, settingsModule, null));
                 modules.add(new NetworkModule(networkService, this.settings, true, namedWriteableRegistry));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));

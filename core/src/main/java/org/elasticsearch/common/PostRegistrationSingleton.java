@@ -26,9 +26,9 @@ import java.util.function.Supplier;
 
 /**
  * Wraps a Supplier for a singleton that is constructed after registration.
- * Makes only one guarantee: if the supplier is called it'll be called just one,
- * after {@link #postRegisration()} has been called. This class is not thread
- * safe because it is only used during initialization.
+ * Makes only one guarantee: if the supplier is called it'll be called just
+ * once, after {@link #postRegisration()} has been called. This class is not
+ * thread safe because it is only used during initialization.
  *
  * Implements Guice's Provider interface to make use with guice simpler while
  * Elasticsearch transitions from guice.
@@ -50,6 +50,9 @@ public class PostRegistrationSingleton<T> implements Provider<T> {
                 throw new IllegalStateException("Registration has not completed!");
             }
             instance = supplier.get();
+            if (instance == null) {
+                throw new IllegalStateException("Supplier returned null [" + supplier + "]");
+            }
         }
         return instance;
     }
