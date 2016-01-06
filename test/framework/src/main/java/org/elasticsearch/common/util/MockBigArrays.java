@@ -21,11 +21,11 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -74,7 +74,6 @@ public class MockBigArrays extends BigArrays {
     private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
 
-    @Inject
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService) {
         this(recycler, breakerService, false);
     }
@@ -371,7 +370,7 @@ public class MockBigArrays extends BigArrays {
         public void fill(long fromIndex, long toIndex, int value) {
             in.fill(fromIndex, toIndex, value);
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));
@@ -416,7 +415,7 @@ public class MockBigArrays extends BigArrays {
         public void fill(long fromIndex, long toIndex, long value) {
             in.fill(fromIndex, toIndex, value);
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             return Collections.singleton(Accountables.namedAccountable("delegate", in));

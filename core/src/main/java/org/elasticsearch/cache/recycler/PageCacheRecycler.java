@@ -21,7 +21,6 @@ package org.elasticsearch.cache.recycler;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +67,6 @@ public class PageCacheRecycler extends AbstractComponent {
         }
     }
 
-    @Inject
     public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings);
         final Type type = Type.parse(settings.get(TYPE));

@@ -28,6 +28,7 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.common.PostRegistrationSingleton;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -213,6 +214,13 @@ public class PluginsService extends AbstractComponent {
     public void processModules(Iterable<Module> modules) {
         for (Module module : modules) {
             processModule(module);
+        }
+        for (Module module : modules) {
+            if (module instanceof PostRegistrationSingleton.Holder) {
+                for (PostRegistrationSingleton<?> singleton : ((PostRegistrationSingleton.Holder) module).postRegistrationSingletons()) {
+                    singleton.postRegisration();
+                }
+            }
         }
     }
 

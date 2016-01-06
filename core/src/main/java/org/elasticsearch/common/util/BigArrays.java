@@ -26,7 +26,6 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -368,7 +367,6 @@ public class BigArrays {
     final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
 
-    @Inject
     public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService) {
         // Checking the breaker is disabled if not specified
         this(recycler, breakerService, false);

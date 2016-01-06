@@ -19,40 +19,45 @@
 
 package org.elasticsearch.indices.breaker;
 
+import org.elasticsearch.common.PostRegistrationSingleton;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.SettingsModule;
 
-public class CircuitBreakerModule extends AbstractModule {
+import java.util.Collection;
+
+import static java.util.Collections.singleton;
+
+public class CircuitBreakerModule extends AbstractModule implements PostRegistrationSingleton.Holder {
 
     public static final String TYPE_KEY = "indices.breaker.type";
 
-    private final SettingsModule settingsModule;
-
-    private CircuitBreakerService circuitBreakerService;
+    private final PostRegistrationSingleton<CircuitBreakerService> circuitBreakerService;
 
     public CircuitBreakerModule(SettingsModule settingsModule) {
-        this.settingsModule = settingsModule;
-    }
-
-    public CircuitBreakerService circuitBreakerService() {
-        if (circuitBreakerService == null) {
+        circuitBreakerService = new PostRegistrationSingleton<>(() -> {
             String type = settingsModule.settings().get(TYPE_KEY, "hierarchy");
             switch (type) {
             case "hierarchy":
-                circuitBreakerService = new HierarchyCircuitBreakerService(settingsModule.settings(), settingsModule.clusterSettings());
-                break;
+                return new HierarchyCircuitBreakerService(settingsModule.settings(), settingsModule.clusterSettings());
             case "none":
-                circuitBreakerService = new NoneCircuitBreakerService();
-                break;
+                return new NoneCircuitBreakerService();
             default:
                 throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
             }
-        }
-        return circuitBreakerService;
+        });
+    }
+
+    public CircuitBreakerService circuitBreakerService() {
+        return circuitBreakerService.get();
     }
 
     @Override
     protected void configure() {
-        bind(CircuitBreakerService.class).toInstance(circuitBreakerService());
+        bind(CircuitBreakerService.class).toProvider(circuitBreakerService);
+    }
+
+    @Override
+    public Collection<PostRegistrationSingleton<?>> postRegistrationSingletons() {
+        return singleton(circuitBreakerService);
     }
 }

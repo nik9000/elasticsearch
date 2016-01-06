@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cache.recycler;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -60,7 +59,6 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     private final Random random;
 
-    @Inject
     public MockPageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
         final long seed = settings.getAsLong(InternalTestCluster.SETTING_CLUSTER_NODE_SEED, 0L);
