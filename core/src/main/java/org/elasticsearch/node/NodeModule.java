@@ -21,39 +21,64 @@ package org.elasticsearch.node;
 
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.indices.breaker.CircuitBreakerModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.function.BiFunction;
 
 /**
  *
  */
 public class NodeModule extends AbstractModule {
 
+    public static final String CIRCUIT_BREAKER_TYPE = "indices.breaker.type";
+
     private final Node node;
     private final MonitorService monitorService;
+    private final ThreadPool threadPool;
+    private final SettingsModule settingsModule;
+    private final CircuitBreakerModule circuitBreakerModule;
+
+    private PageCacheRecycler pageCacheRecycler;
+    private BigArrays bigArrays;
 
     // pkg private so tests can mock
-    Class<? extends PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler.class;
-    Class<? extends BigArrays> bigArraysImpl = BigArrays.class;
+    BiFunction<Settings, ThreadPool, PageCacheRecycler> pageCacheRecyclerImpl = PageCacheRecycler::new;
+    BiFunction<PageCacheRecycler, CircuitBreakerService, BigArrays> bigArraysImpl = BigArrays::new;
 
-    public NodeModule(Node node, MonitorService monitorService) {
+    public NodeModule(Node node, MonitorService monitorService, ThreadPool threadPool, SettingsModule settingsModule,
+            CircuitBreakerModule circuitBreakerModule) {
         this.node = node;
         this.monitorService = monitorService;
+        this.threadPool = threadPool;
+        this.settingsModule = settingsModule;
+        this.circuitBreakerModule = circuitBreakerModule;
+    }
+
+    public PageCacheRecycler pageCacheRecycler() {
+        if (pageCacheRecycler == null) {
+            pageCacheRecycler = pageCacheRecyclerImpl.apply(settingsModule.settings(), threadPool);
+        }
+        return pageCacheRecycler;
+    }
+
+    public BigArrays bigArrays() {
+        if (bigArrays == null) {
+            bigArrays = bigArraysImpl.apply(pageCacheRecycler(), circuitBreakerModule.circuitBreakerService());
+        }
+        return bigArrays;
     }
 
     @Override
     protected void configure() {
-        if (pageCacheRecyclerImpl == PageCacheRecycler.class) {
-            bind(PageCacheRecycler.class).asEagerSingleton();
-        } else {
-            bind(PageCacheRecycler.class).to(pageCacheRecyclerImpl).asEagerSingleton();
-        }
-        if (bigArraysImpl == BigArrays.class) {
-            bind(BigArrays.class).asEagerSingleton();
-        } else {
-            bind(BigArrays.class).to(bigArraysImpl).asEagerSingleton();
-        }
+        bind(PageCacheRecycler.class).toInstance(pageCacheRecycler());
+        bind(BigArrays.class).toInstance(bigArrays());
 
         bind(Node.class).toInstance(node);
         bind(MonitorService.class).toInstance(monitorService);

@@ -19,10 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -58,6 +54,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -132,6 +132,7 @@ public class TransportClient extends AbstractClient {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             boolean success = false;
             try {
+                SettingsModule settingsModule = new SettingsModule(this.settings, settingsFilter);
                 ModulesBuilder modules = new ModulesBuilder();
                 modules.add(new Version.Module(version));
                 // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -139,7 +140,7 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(this.settings, settingsFilter ));
+                modules.add(settingsModule);
                 modules.add(new NetworkModule(networkService, this.settings, true, namedWriteableRegistry));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
@@ -150,7 +151,7 @@ public class TransportClient extends AbstractClient {
                     }
                 });
                 modules.add(new ActionModule(true));
-                modules.add(new CircuitBreakerModule(this.settings));
+                modules.add(new CircuitBreakerModule(settingsModule));
 
                 pluginsService.processModules(modules);
 

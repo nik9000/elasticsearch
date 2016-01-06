@@ -19,20 +19,6 @@
 
 package org.elasticsearch.node;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.concurrent.TimeUnit;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -111,6 +97,20 @@ import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
@@ -170,17 +170,19 @@ public class Node implements Releasable {
         boolean success = false;
         try {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
+            SettingsModule settingsModule = new SettingsModule(this.settings, settingsFilter);
+            CircuitBreakerModule circuitBreakerModule = new CircuitBreakerModule(settingsModule);
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
-            modules.add(new CircuitBreakerModule(settings));
+            modules.add(circuitBreakerModule);
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.nodeModules()) {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(this.settings, settingsFilter));
+            modules.add(settingsModule);
             modules.add(new EnvironmentModule(environment));
-            modules.add(new NodeModule(this, monitorService));
+            modules.add(new NodeModule(this, monitorService, threadPool, settingsModule, circuitBreakerModule));
             modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new ScriptModule(this.settings));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));

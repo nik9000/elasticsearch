@@ -20,29 +20,39 @@
 package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 
 public class CircuitBreakerModule extends AbstractModule {
 
     public static final String TYPE_KEY = "indices.breaker.type";
 
-    private final Settings settings;
+    private final SettingsModule settingsModule;
 
-    public CircuitBreakerModule(Settings settings) {
-        this.settings = settings;
+    private CircuitBreakerService circuitBreakerService;
+
+    public CircuitBreakerModule(SettingsModule settingsModule) {
+        this.settingsModule = settingsModule;
+    }
+
+    public CircuitBreakerService circuitBreakerService() {
+        if (circuitBreakerService == null) {
+            String type = settingsModule.settings().get(TYPE_KEY, "hierarchy");
+            switch (type) {
+            case "hierarchy":
+                circuitBreakerService = new HierarchyCircuitBreakerService(settingsModule.settings(), settingsModule.clusterSettings());
+                break;
+            case "none":
+                circuitBreakerService = new NoneCircuitBreakerService();
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
+            }
+        }
+        return circuitBreakerService;
     }
 
     @Override
     protected void configure() {
-        String type = settings.get(TYPE_KEY);
-        Class<? extends CircuitBreakerService> impl;
-        if (type == null || type.equals("hierarchy")) {
-            impl = HierarchyCircuitBreakerService.class;
-        } else if (type.equals("none")) {
-            impl = NoneCircuitBreakerService.class;
-        } else {
-            throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
-        }
-        bind(CircuitBreakerService.class).to(impl).asEagerSingleton();
+        bind(CircuitBreakerService.class).toInstance(circuitBreakerService());
     }
 }

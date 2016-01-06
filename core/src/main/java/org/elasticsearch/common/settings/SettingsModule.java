@@ -36,6 +36,7 @@ public class SettingsModule extends AbstractModule {
     private final SettingsFilter settingsFilter;
     private final Map<String, Setting<?>> clusterDynamicSettings = new HashMap<>();
 
+    private ClusterSettings clusterSettings;
 
     public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
         this.settings = settings;
@@ -45,12 +46,22 @@ public class SettingsModule extends AbstractModule {
         }
     }
 
+    public Settings settings() {
+        return settings;
+    }
+
+    public ClusterSettings clusterSettings() {
+        if (clusterSettings == null) {
+            clusterSettings = new ClusterSettings(settings, new HashSet<>(clusterDynamicSettings.values()));
+        }
+        return clusterSettings;
+    }
+
     @Override
     protected void configure() {
         bind(Settings.class).toInstance(settings);
         bind(SettingsFilter.class).toInstance(settingsFilter);
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(clusterDynamicSettings.values()));
-        bind(ClusterSettings.class).toInstance(clusterSettings);
+        bind(ClusterSettings.class).toInstance(clusterSettings());
     }
 
     public void registerSetting(Setting<?> setting) {

@@ -110,7 +110,6 @@ public class InternalTestClusterTests extends ESTestCase {
         NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
-        int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();

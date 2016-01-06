@@ -35,7 +35,7 @@ public class NodeMocksPlugin extends Plugin {
     }
 
     public void onModule(NodeModule module) {
-        module.pageCacheRecyclerImpl = MockPageCacheRecycler.class;
-        module.bigArraysImpl = MockBigArrays.class;
+        module.pageCacheRecyclerImpl = MockPageCacheRecycler::new;
+        module.bigArraysImpl = MockBigArrays::new;
     }
 }
