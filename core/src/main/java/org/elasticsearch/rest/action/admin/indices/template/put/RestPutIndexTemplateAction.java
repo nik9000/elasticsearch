@@ -41,7 +41,6 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));

@@ -344,7 +344,6 @@ public class TransportActionFilterChainTests extends ESTestCase {
             return order;
         }
 
-        @SuppressWarnings("unchecked")
         @Override
         public void apply(Task task, String action, ActionRequest actionRequest, ActionListener actionListener, ActionFilterChain actionFilterChain) {
             this.runs.incrementAndGet();

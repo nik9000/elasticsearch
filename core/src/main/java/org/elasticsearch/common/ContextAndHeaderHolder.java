@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 import java.util.Collections;
@@ -63,7 +64,6 @@ public class ContextAndHeaderHolder implements HasContextAndHeaders {
         return context != null ? (V) context.get(key) : null;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public final synchronized <V> V getFromContext(Object key, V defaultValue) {
         V value = getFromContext(key);
@@ -111,7 +111,6 @@ public class ContextAndHeaderHolder implements HasContextAndHeaders {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public final void putHeader(String key, Object value) {
         if (headers == null) {

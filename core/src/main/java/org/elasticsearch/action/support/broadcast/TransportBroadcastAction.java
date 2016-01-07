@@ -200,7 +200,6 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest,
             }
         }
 
-        @SuppressWarnings({"unchecked"})
         void onOperation(@Nullable ShardRouting shard, final ShardIterator shardIt, int shardIndex, Throwable t) {
             // we set the shard failure always, even if its the first in the replication group, and the next one
             // will work (it will just override it...)

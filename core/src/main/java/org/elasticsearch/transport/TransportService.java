@@ -750,7 +750,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     processResponse(handler, response);
                 } else {
                     threadPool.executor(executor).execute(new Runnable() {
-                        @SuppressWarnings({"unchecked"})
                         @Override
                         public void run() {
                             processResponse(handler, response);
@@ -780,7 +779,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     processException(handler, rtx);
                 } else {
                     threadPool.executor(handler.executor()).execute(new Runnable() {
-                        @SuppressWarnings({"unchecked"})
                         @Override
                         public void run() {
                             processException(handler, rtx);

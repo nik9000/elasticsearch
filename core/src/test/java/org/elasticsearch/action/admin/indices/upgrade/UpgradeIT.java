@@ -255,7 +255,6 @@ public class UpgradeIT extends ESBackcompatTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     static Collection<IndexUpgradeStatus> getUpgradeStatus(Client client, String... indices) throws Exception {
         UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(indices).get();
         assertNoFailures(upgradeStatusResponse);

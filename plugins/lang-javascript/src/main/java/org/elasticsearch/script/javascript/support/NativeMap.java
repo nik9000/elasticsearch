@@ -59,6 +59,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Wrapper#unwrap()
      */
 
+    @Override
     public Object unwrap() {
         return map;
     }
@@ -67,6 +68,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#getClassName()
      */
 
+    @Override
     public String getClassName() {
         return "NativeMap";
     }
@@ -75,6 +77,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#get(java.lang.String, org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public Object get(String name, Scriptable start) {
         // get the property from the underlying QName map
         if ("length".equals(name)) {
@@ -88,10 +91,11 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#get(int, org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public Object get(int index, Scriptable start) {
         Object value = null;
         int i = 0;
-        Iterator itrValues = map.values().iterator();
+        Iterator<Object> itrValues = map.values().iterator();
         while (i++ <= index && itrValues.hasNext()) {
             value = itrValues.next();
         }
@@ -102,6 +106,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#has(java.lang.String, org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public boolean has(String name, Scriptable start) {
         // locate the property in the underlying map
         return map.containsKey(name);
@@ -111,6 +116,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#has(int, org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public boolean has(int index, Scriptable start) {
         return (index >= 0 && map.values().size() > index);
     }
@@ -119,7 +125,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#put(java.lang.String, org.mozilla.javascript.Scriptable, java.lang.Object)
      */
 
-    @SuppressWarnings("unchecked")
+    @Override
     public void put(String name, Scriptable start, Object value) {
         map.put(name, value);
     }
@@ -128,6 +134,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#put(int, org.mozilla.javascript.Scriptable, java.lang.Object)
      */
 
+    @Override
     public void put(int index, Scriptable start, Object value) {
         // TODO: implement?
     }
@@ -136,6 +143,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#delete(java.lang.String)
      */
 
+    @Override
     public void delete(String name) {
         map.remove(name);
     }
@@ -144,9 +152,10 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#delete(int)
      */
 
+    @Override
     public void delete(int index) {
         int i = 0;
-        Iterator itrKeys = map.keySet().iterator();
+        Iterator<Object> itrKeys = map.keySet().iterator();
         while (i <= index && itrKeys.hasNext()) {
             Object key = itrKeys.next();
             if (i == index) {
@@ -160,6 +169,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#getPrototype()
      */
 
+    @Override
     public Scriptable getPrototype() {
         return this.prototype;
     }
@@ -168,6 +178,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#setPrototype(org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public void setPrototype(Scriptable prototype) {
         this.prototype = prototype;
     }
@@ -176,6 +187,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#getParentScope()
      */
 
+    @Override
     public Scriptable getParentScope() {
         return this.parentScope;
     }
@@ -184,6 +196,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#setParentScope(org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public void setParentScope(Scriptable parent) {
         this.parentScope = parent;
     }
@@ -192,6 +205,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#getIds()
      */
 
+    @Override
     public Object[] getIds() {
         return map.keySet().toArray();
     }
@@ -200,6 +214,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#getDefaultValue(java.lang.Class)
      */
 
+    @Override
     public Object getDefaultValue(Class hint) {
         return null;
     }
@@ -208,6 +223,7 @@ public class NativeMap implements Scriptable, Wrapper {
      * @see org.mozilla.javascript.Scriptable#hasInstance(org.mozilla.javascript.Scriptable)
      */
 
+    @Override
     public boolean hasInstance(Scriptable value) {
         if (!(value instanceof Wrapper))
             return false;

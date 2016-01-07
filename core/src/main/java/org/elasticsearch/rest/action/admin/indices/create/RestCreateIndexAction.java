@@ -42,7 +42,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));

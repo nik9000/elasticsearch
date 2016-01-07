@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -123,6 +124,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         customPrototypes.put(type, proto);
     }
 
+    @SuppressWarnings("unchecked")
     @Nullable
     public static <T extends Custom> T lookupPrototype(String type) {
         //noinspection unchecked
@@ -131,6 +133,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     public static <T extends Custom> T lookupPrototypeSafe(String type) {
         //noinspection unchecked
+        @SuppressWarnings("unchecked")
         T proto = (T) customPrototypes.get(type);
         if (proto == null) {
             throw new IllegalArgumentException("No custom metadata prototype registered for type [" + type + "], node likely missing plugins");
@@ -170,7 +173,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     private final SortedMap<String, AliasOrIndex> aliasAndIndexLookup;
 
-    @SuppressWarnings("unchecked")
     MetaData(String clusterUUID, long version, Settings transientSettings, Settings persistentSettings, ImmutableOpenMap<String, IndexMetaData> indices, ImmutableOpenMap<String, IndexTemplateMetaData> templates, ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] allOpenIndices, String[] allClosedIndices, SortedMap<String, AliasOrIndex> aliasAndIndexLookup) {
         this.clusterUUID = clusterUUID;
         this.version = version;

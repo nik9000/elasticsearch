@@ -41,7 +41,6 @@ public class IsFalseAssertion extends Assertion {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] doesn't have a true value (field: [{}])", actualValue, getField());
 

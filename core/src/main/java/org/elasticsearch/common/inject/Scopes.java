@@ -45,7 +45,6 @@ public class Scopes {
 
                 // DCL on a volatile is safe as of Java 5, which we obviously require.
                 @Override
-                @SuppressWarnings("DoubleCheckedLocking")
                 public T get() {
                     if (instance == null) {
                         /*

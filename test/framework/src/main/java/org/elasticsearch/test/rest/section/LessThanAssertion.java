@@ -41,7 +41,6 @@ public class LessThanAssertion extends Assertion {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is less than [{}] (field: [{}])", actualValue, expectedValue, getField());
         assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])", actualValue, instanceOf(Comparable.class));

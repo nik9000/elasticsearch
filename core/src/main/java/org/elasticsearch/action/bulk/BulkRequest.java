@@ -201,7 +201,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public List<? extends IndicesRequest> subRequests() {
         List<IndicesRequest> indicesRequests = new ArrayList<>();
         for (ActionRequest request : requests) {

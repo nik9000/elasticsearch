@@ -267,7 +267,6 @@ public class InternalSearchHit implements SearchHit {
         return sourceAsString();
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
@@ -465,7 +464,7 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         for (SearchHitField field : metaFields) {
-            builder.field(field.name(), (Object) field.value());
+            builder.field(field.name(), field.<Object>value());
         }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);

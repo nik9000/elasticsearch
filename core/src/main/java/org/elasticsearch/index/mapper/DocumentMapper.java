@@ -207,7 +207,6 @@ public class DocumentMapper implements ToXContent {
         return metadataMapper(UidFieldMapper.class);
     }
 
-    @SuppressWarnings({"unchecked"})
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
         return mapping.metadataMapper(type);
     }

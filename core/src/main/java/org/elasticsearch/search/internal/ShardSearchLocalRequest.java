@@ -177,7 +177,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         return profile;
     }
 
-    @SuppressWarnings("unchecked")
     protected void innerReadFrom(StreamInput in) throws IOException {
         index = in.readString();
         shardId = in.readVInt();
