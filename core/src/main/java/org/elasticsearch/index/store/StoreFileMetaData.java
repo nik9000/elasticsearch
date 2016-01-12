@@ -84,9 +84,8 @@ public class StoreFileMetaData implements Streamable {
     }
 
     /**
-     * Returns a string representation of the files checksum. Since Lucene 4.8 this is a CRC32 checksum written
-     * by lucene. Previously we use Adler32 on top of Lucene as the checksum algorithm, if {@link #hasLegacyChecksum()} returns
-     * <code>true</code> this is a Adler32 checksum.
+     * Returns a string representation of the files checksum. This is a CRC32
+     * checksum written by lucene.
      */
     @Nullable
     public String checksum() {
@@ -139,14 +138,6 @@ public class StoreFileMetaData implements Streamable {
      */
     public Version writtenBy() {
         return writtenBy;
-    }
-
-    /**
-     * Returns <code>true</code>  iff the checksum is not <code>null</code> and if the file has NOT been written by
-     * a Lucene version greater or equal to Lucene 4.8
-     */
-    public boolean hasLegacyChecksum() {
-        return checksum != null && (writtenBy == null || writtenBy.onOrAfter(Version.LUCENE_4_8) == false);
     }
 
     /**

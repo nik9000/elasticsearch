@@ -395,8 +395,6 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
                 recoveryStatus.indexShard().deleteShardState(); // we have to delete it first since even if we fail to rename the shard might be invalid
                 recoveryStatus.renameAllTempFiles();
                 final Store store = recoveryStatus.store();
-                // now write checksums
-                recoveryStatus.legacyChecksums().write(store);
                 Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
                 try {
                     store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
@@ -474,8 +472,6 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
                         // we are done
                         indexOutput.close();
                     }
-                    // write the checksum
-                    recoveryStatus.legacyChecksums().add(request.metadata());
                     final String temporaryFileName = recoveryStatus.getTempNameForFile(request.name());
                     assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
                     store.directory().sync(Collections.singleton(temporaryFileName));

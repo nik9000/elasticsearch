@@ -66,7 +66,6 @@ public class RecoveryStatus extends AbstractRefCounted {
     private final AtomicBoolean finished = new AtomicBoolean();
 
     private final ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    private final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
     private final CancellableThreads cancellableThreads = new CancellableThreads();
 
@@ -133,10 +132,6 @@ public class RecoveryStatus extends AbstractRefCounted {
 
     public RecoveryState.Stage stage() {
         return state().getStage();
-    }
-
-    public Store.LegacyChecksums legacyChecksums() {
-        return legacyChecksums;
     }
 
     /** renames all temporary files to their true name, potentially overriding existing files */
@@ -271,7 +266,6 @@ public class RecoveryStatus extends AbstractRefCounted {
             logger.trace("cleaning temporary file [{}]", file);
             store.deleteQuiet(file);
         }
-        legacyChecksums.clear();
     }
 
     @Override

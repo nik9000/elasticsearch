@@ -93,7 +93,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.zip.Adler32;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -103,9 +102,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class StoreTests extends ESTestCase {
 
@@ -355,95 +352,6 @@ public class StoreTests extends ESTestCase {
         }
     }
 
-    // IF THIS TEST FAILS ON UPGRADE GO LOOK AT THE OldSIMockingCodec!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    @AwaitsFix(bugUrl="Fails with seed E1394B038144F6E")
-    // The test currently fails because the segment infos and the index don't
-    // agree on the oldest version of a segment. We should fix this test by
-    // switching to a static bw index
-    public void testWriteLegacyChecksums() throws IOException {
-        final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
-        // set default codec - all segments need checksums
-        final boolean usesOldCodec = randomBoolean();
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(usesOldCodec ? new OldSIMockingCodec() : TestUtil.getDefaultCodec()));
-        int docs = 1 + random().nextInt(100);
-
-        for (int i = 0; i < docs; i++) {
-            Document doc = new Document();
-            doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
-            writer.addDocument(doc);
-        }
-        if (random().nextBoolean()) {
-            for (int i = 0; i < docs; i++) {
-                if (random().nextBoolean()) {
-                    Document doc = new Document();
-                    doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                    doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                    writer.updateDocument(new Term("id", "" + i), doc);
-                }
-            }
-        }
-        if (random().nextBoolean()) {
-            DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
-        }
-        Store.MetadataSnapshot metadata;
-        // check before we committed
-        try {
-            store.getMetadata();
-            fail("no index present - expected exception");
-        } catch (IndexNotFoundException ex) {
-            // expected
-        }
-        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
-
-        writer.close();
-        Store.LegacyChecksums checksums = new Store.LegacyChecksums();
-        Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
-        for (String file : store.directory().listAll()) {
-            if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN) || file.startsWith("extra")) {
-                continue;
-            }
-            BytesRef hash = new BytesRef();
-            if (file.startsWith("segments")) {
-                hash = Store.MetadataSnapshot.hashFile(store.directory(), file);
-            }
-            StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), file + "checksum", null, hash);
-            legacyMeta.put(file, storeFileMetaData);
-            checksums.add(storeFileMetaData);
-        }
-        checksums.write(store);
-
-        metadata = store.getMetadata();
-        Map<String, StoreFileMetaData> stringStoreFileMetaDataMap = metadata.asMap();
-        assertThat(legacyMeta.size(), equalTo(stringStoreFileMetaDataMap.size()));
-        if (usesOldCodec) {
-            for (StoreFileMetaData meta : legacyMeta.values()) {
-                assertTrue(meta.toString(), stringStoreFileMetaDataMap.containsKey(meta.name()));
-                assertEquals(meta.name() + "checksum", meta.checksum());
-                assertTrue(meta + " vs. " + stringStoreFileMetaDataMap.get(meta.name()), stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
-            }
-        } else {
-
-            // even if we have a legacy checksum - if we use a new codec we should reuse
-            for (StoreFileMetaData meta : legacyMeta.values()) {
-                assertTrue(meta.toString(), stringStoreFileMetaDataMap.containsKey(meta.name()));
-                assertFalse(meta + " vs. " + stringStoreFileMetaDataMap.get(meta.name()), stringStoreFileMetaDataMap.get(meta.name()).isSame(meta));
-                StoreFileMetaData storeFileMetaData = metadata.get(meta.name());
-                try (IndexInput input = store.openVerifyingInput(meta.name(), IOContext.DEFAULT, storeFileMetaData)) {
-                    assertTrue(storeFileMetaData.toString(), input instanceof Store.VerifyingIndexInput);
-                    input.seek(meta.length());
-                    Store.verify(input);
-                }
-            }
-        }
-        assertDeleteContent(store, directoryService);
-        IOUtils.close(store);
-
-    }
-
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -489,7 +397,6 @@ public class StoreTests extends ESTestCase {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
-                assertThat(meta.hasLegacyChecksum(), equalTo(false));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST));
                 if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
                     assertThat(meta.hash().length, greaterThan(0));
@@ -498,97 +405,6 @@ public class StoreTests extends ESTestCase {
         }
         assertConsistent(store, metadata);
 
-        TestUtil.checkIndex(store.directory());
-        assertDeleteContent(store, directoryService);
-        IOUtils.close(store);
-    }
-
-    public void testMixedChecksums() throws IOException {
-        final ShardId shardId = new ShardId(new Index("index"), 1);
-        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, new DummyShardLock(shardId));
-        // this time random codec....
-        IndexWriter writer = new IndexWriter(store.directory(), newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec()));
-        int docs = 1 + random().nextInt(100);
-
-        for (int i = 0; i < docs; i++) {
-            Document doc = new Document();
-            doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
-            writer.addDocument(doc);
-        }
-        if (random().nextBoolean()) {
-            for (int i = 0; i < docs; i++) {
-                if (random().nextBoolean()) {
-                    Document doc = new Document();
-                    doc.add(new TextField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                    doc.add(new TextField("body", TestUtil.randomRealisticUnicodeString(random()), random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
-                    writer.updateDocument(new Term("id", "" + i), doc);
-                }
-            }
-        }
-        if (random().nextBoolean()) {
-            DirectoryReader.open(writer, random().nextBoolean()).close(); // flush
-        }
-        Store.MetadataSnapshot metadata;
-        // check before we committed
-        try {
-            store.getMetadata();
-            fail("no index present - expected exception");
-        } catch (IndexNotFoundException ex) {
-            // expected
-        }
-        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
-        writer.commit();
-        writer.close();
-        Store.LegacyChecksums checksums = new Store.LegacyChecksums();
-        metadata = store.getMetadata();
-        assertThat(metadata.asMap().isEmpty(), is(false));
-        for (StoreFileMetaData meta : metadata) {
-            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
-                if (meta.checksum() == null) {
-                    String checksum = null;
-                    try {
-                        CodecUtil.retrieveChecksum(input);
-                        fail("expected a corrupt index - posting format has not checksums");
-                    } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                        try (ChecksumIndexInput checksumIndexInput = store.directory().openChecksumInput(meta.name(), IOContext.DEFAULT)) {
-                            checksumIndexInput.seek(meta.length());
-                            checksum = Store.digestToString(checksumIndexInput.getChecksum());
-                        }
-                        // fine - it's a postings format without checksums
-                        checksums.add(new StoreFileMetaData(meta.name(), meta.length(), checksum, null));
-                    }
-                } else {
-                    String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
-                    assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
-                    assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                    assertThat(meta.writtenBy(), equalTo(Version.LATEST));
-                }
-            }
-        }
-        assertConsistent(store, metadata);
-        checksums.write(store);
-        metadata = store.getMetadata();
-        assertThat(metadata.asMap().isEmpty(), is(false));
-        for (StoreFileMetaData meta : metadata) {
-            assertThat("file: " + meta.name() + " has a null checksum", meta.checksum(), not(nullValue()));
-            if (meta.hasLegacyChecksum()) {
-                try (ChecksumIndexInput checksumIndexInput = store.directory().openChecksumInput(meta.name(), IOContext.DEFAULT)) {
-                    checksumIndexInput.seek(meta.length());
-                    assertThat(meta.checksum(), equalTo(Store.digestToString(checksumIndexInput.getChecksum())));
-                }
-            } else {
-                try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
-                    String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
-                    assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
-                    assertThat(meta.hasLegacyChecksum(), equalTo(false));
-                    assertThat(meta.writtenBy(), equalTo(Version.LATEST));
-                }
-            }
-        }
-        assertConsistent(store, metadata);
         TestUtil.checkIndex(store.directory());
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
@@ -653,19 +469,7 @@ public class StoreTests extends ESTestCase {
 
         }
 
-        final Adler32 adler32 = new Adler32();
-        long legacyFileLength = 0;
-        try (IndexOutput output = dir.createOutput("legacy.bin", IOContext.DEFAULT)) {
-            int iters = scaledRandomIntBetween(10, 100);
-            for (int i = 0; i < iters; i++) {
-                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
-                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                adler32.update(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                legacyFileLength += bytesRef.length;
-            }
-        }
         final long luceneChecksum;
-        final long adler32LegacyChecksum = adler32.getValue();
         try (IndexInput indexInput = dir.openInput("lucene_checksum.bin", IOContext.DEFAULT)) {
             assertEquals(luceneFileLength, indexInput.length());
             luceneChecksum = CodecUtil.retrieveChecksum(indexInput);
@@ -673,41 +477,24 @@ public class StoreTests extends ESTestCase {
 
         { // positive check
             StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
-            assertTrue(legacy.hasLegacyChecksum());
-            assertFalse(lucene.hasLegacyChecksum());
             assertTrue(Store.checkIntegrityNoException(lucene, dir));
-            assertTrue(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong checksum
             StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength, Store.digestToString(luceneChecksum + 1), Version.LUCENE_4_8_0);
-            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum + 1));
-            assertTrue(legacy.hasLegacyChecksum());
-            assertFalse(lucene.hasLegacyChecksum());
             assertFalse(Store.checkIntegrityNoException(lucene, dir));
-            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong length
             StoreFileMetaData lucene = new StoreFileMetaData("lucene_checksum.bin", luceneFileLength + 1, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength + 1, Store.digestToString(adler32LegacyChecksum));
-            assertTrue(legacy.hasLegacyChecksum());
-            assertFalse(lucene.hasLegacyChecksum());
             assertFalse(Store.checkIntegrityNoException(lucene, dir));
-            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong file
             StoreFileMetaData lucene = new StoreFileMetaData("legacy.bin", luceneFileLength, Store.digestToString(luceneChecksum), Version.LUCENE_4_8_0);
-            StoreFileMetaData legacy = new StoreFileMetaData("lucene_checksum.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
-            assertTrue(legacy.hasLegacyChecksum());
-            assertFalse(lucene.hasLegacyChecksum());
             assertFalse(Store.checkIntegrityNoException(lucene, dir));
-            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
         dir.close();
-
     }
 
     public void testVerifyingIndexInput() throws IOException {
@@ -827,7 +614,7 @@ public class StoreTests extends ESTestCase {
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && !Store.isChecksum(file) && file.startsWith("extra") == false) {
+            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) && !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
                 assertFalse(file + " is not in the map: " + metadata.asMap().size() + " vs. " + store.directory().listAll().length, metadata.asMap().containsKey(file));
@@ -1043,7 +830,6 @@ public class StoreTests extends ESTestCase {
 
         Store.MetadataSnapshot secondMeta = store.getMetadata();
 
-        Store.LegacyChecksums checksums = new Store.LegacyChecksums();
         Map<String, StoreFileMetaData> legacyMeta = new HashMap<>();
         for (String file : store.directory().listAll()) {
             if (file.equals("write.lock") || file.equals(IndexFileNames.OLD_SEGMENTS_GEN) || file.startsWith("extra")) {
@@ -1055,29 +841,23 @@ public class StoreTests extends ESTestCase {
             }
             StoreFileMetaData storeFileMetaData = new StoreFileMetaData(file, store.directory().fileLength(file), file + "checksum", null, hash);
             legacyMeta.put(file, storeFileMetaData);
-            checksums.add(storeFileMetaData);
         }
-        checksums.write(store); // write one checksum file here - we expect it to survive all the cleanups
 
         if (randomBoolean()) {
             store.cleanupAndVerify("test", firstMeta);
             String[] strings = store.directory().listAll();
-            int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
                 if (file.startsWith("extra")) {
                     continue;
                 }
-                assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
-                if (Store.isChecksum(file)) {
-                    numChecksums++;
-                } else if (secondMeta.contains(file) == false) {
+                assertTrue(firstMeta.contains(file) || file.equals("write.lock"));
+                if (secondMeta.contains(file) == false) {
                     numNotFound++;
                 }
 
             }
             assertTrue("at least one file must not be in here since we have two commits?", numNotFound > 0);
-            assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         } else {
             store.cleanupAndVerify("test", secondMeta);
             String[] strings = store.directory().listAll();
@@ -1087,16 +867,13 @@ public class StoreTests extends ESTestCase {
                 if (file.startsWith("extra")) {
                     continue;
                 }
-                assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
-                if (Store.isChecksum(file)) {
-                    numChecksums++;
-                } else if (firstMeta.contains(file) == false) {
+                assertTrue(file, secondMeta.contains(file) || file.equals("write.lock"));
+                if (firstMeta.contains(file) == false) {
                     numNotFound++;
                 }
 
             }
             assertTrue("at least one file must not be in here since we have two commits?", numNotFound > 0);
-            assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         }
 
         deleteContent(store.directory());
