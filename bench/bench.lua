@@ -46,7 +46,7 @@ function request()
   local text = ""
   local word = nil
   for i=1,word_count do
-    if rand == nil or degenerate == false then
+    if word == nil or degenerate == false then
       word = words[math.random(#words)]
     end
     text = text .. word .. " "
@@ -91,8 +91,8 @@ end
 function done(summary, latency, requests)
   local total_hits = 0
   for index, thread in ipairs(threads) do
-    print("last_request[" .. index .. "]=" .. thread:get('last_request'))
-    print("last_response[" .. index .. "]=" .. thread:get('last_response'))
+    -- print("last_request[" .. index .. "]=" .. thread:get('last_request'))
+    -- print("last_response[" .. index .. "]=" .. thread:get('last_response'))
     total_hits = total_hits + thread:get('total_hits')
   end
   print(string.format('Avg Hits:%14.2f', total_hits / summary['requests']))
