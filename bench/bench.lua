@@ -1,20 +1,31 @@
 -- Globals
-phrase = false     --- should this be a phrase query?
-operator = 'and'   --- default operator for terms. "and" or "or".
--- word_count      --- number of words to add to the query
-fuzziness = 0      --- how much fuzziness is ok? 0, 1, 2, or "AUTO"
-slop = 0           --- how much phrase slop is allowed?
-prefix = false     --- should we generate prefix queries?
-degenerate = false --- should the generated queries repeate the same words?
--- words           --- the dictionary
-total_hits = 0     --- total number of hits for all requests
+phrase = false       --- should this be a phrase query?
+operator = 'and'     --- default operator for terms. "and" or "or".
+-- word_count        --- number of words to add to the query
+terminate_after = 1000000000 --- maximum number of results to count
+fuzziness = 0        --- how much fuzziness is ok? 0, 1, 2, or "AUTO"
+slop = 0             --- how much phrase slop is allowed?
+prefix = 0           --- should we generate prefix queries?
+degenerate = false   --- should the generated queries repeate the same words?
+-- words             --- the dictionary
+total_hits = 0       --- total number of hits for all requests
+terminated_early = 0 --- how many requests terminated early
 
 JSON = (loadfile "JSON.lua")()
+
+-- Pattern to match a code point
+cp = '[%z\1-\127\194-\244][\128-\191]*'
+-- Pattern to optionally match a code point
+ocp = '[%z\1-\127\194-\244]?[\128-\191]*'
 
 function init(args)
   local query_type = table.remove(args, 1)
   word_count = tonumber(table.remove(args, 1))
   local random_seed = tonumber(table.remove(args, 1))
+  if #args > 0 then
+    terminate_after = random_seed
+    random_seed = tonumber(table.remove(args, 1))
+  end
   if (string.match(query_type, 'degenerate_.+')) then
     query_type = string.gsub(query_type, 'degenerate_', '')
     degenerate = true
@@ -26,8 +37,12 @@ function init(args)
       slop = 0
     end
   elseif string.find(query_type, '*') then
-    query_type = string.gsub(query_type, '*', '')
-    prefix = true
+    operator, prefix = string.match(query_type, '([^*]+)*(.*)')
+    if prefix == '' then
+      error('* must be followed by a number')
+    else
+      prefix = tonumber(prefix)
+    end
   else
     operator, fuzziness = string.match(query_type, '([^~]+)~?(.*)')
     if fuzziness == '' then
@@ -42,6 +57,7 @@ function init(args)
     print('slop=' .. slop)
     print('prefix=' .. tostring(prefix))
     print('degenerate=' .. tostring(degenerate))
+    print('terminate_after=' .. terminate_after)
     print('random_seed=' .. random_seed)
   end
   math.randomseed(random_seed * thread_number) -- meh
@@ -56,9 +72,14 @@ function request()
   for i=1,word_count do
     if word == nil or degenerate == false then
       word = words[math.random(#words)]
-      if prefix then
-        -- grab the first three codepoints. what a mess!
-        word = string.gsub(word, '([%z\1-\127\194-\244][\128-\191]*[%z\1-\127\194-\244]?[\128-\191]*[%z\1-\127\194-\244]?[\128-\191]*).*', '%1*')
+      if prefix > 0 then
+        -- grab the first prefix codepoints
+        local sub = '(' .. cp
+        for cps=2,prefix do
+          sub = sub .. ocp
+        end
+        sub = sub .. ').*'
+        word = string.gsub(word, sub, '%1*')
       elseif fuzziness ~= 0 then
         word = word .. '~'
       end
@@ -72,7 +93,7 @@ function request()
   query = string.gsub(query, '"', '\\"') -- json escape
   local body = [[{
     "size": 0,
-    "terminate_after": 1000,
+    "terminate_after": ]] .. terminate_after .. [[,
     "query": {
       "query_string": {
         "fields": ["text"],
@@ -96,6 +117,9 @@ function response(status, headers, body)
   end
   local response = JSON:decode(body)
   total_hits = total_hits + response['hits']['total']
+  if response['terminated_early'] then
+    terminated_early = terminated_early + 1
+  end
 end
 
 -- Everything below this is done during setup and teardown
@@ -108,12 +132,15 @@ end
 
 function done(summary, latency, requests)
   local total_hits = 0
+  local terminated_early = 0
   for index, thread in ipairs(threads) do
     -- print("last_request[" .. index .. "]=" .. thread:get('last_request'))
     -- print("last_response[" .. index .. "]=" .. thread:get('last_response'))
     total_hits = total_hits + thread:get('total_hits')
+    terminated_early = terminated_early + thread:get('terminated_early')
   end
   print(string.format('Avg Hits:%14.2f', total_hits / summary['requests']))
+  print(string.format('Stopped Early:%9.2f', 100 * terminated_early / summary['requests']))
 end
 
 function load_dict()
