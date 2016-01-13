@@ -12,9 +12,14 @@ wrk() {
     tr '\n' ' '
   echo
 }
-wrk match and 2
-wrk match or 2
-wrk match~AUTO and 2
-wrk match_phrase and 2
-wrk match_phrase~1 and 2
-wrk match_phrase~10 and 2
+wrk and 2
+wrk or 2
+wrk and~AUTO 2
+wrk phrase 2
+wrk phrase~1 2
+wrk phrase~10  2
+wrk and* 2
+
+wrk degenerate_phrase 2
+wrk degenerate_phrase 10
+wrk degenerate_phrase 30
