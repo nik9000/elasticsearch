@@ -3,7 +3,7 @@
 set -e
 set -o pipefail
 
-export random_seed=85
+export random_seed=89
 
 wrk() {
   printf '%30s ' "$(echo -n $@)"
@@ -14,11 +14,18 @@ wrk() {
 }
 wrk and 2
 wrk or 2
+wrk and 2 1000
+wrk or 2 1000
+wrk and 2 10000
+wrk or 2 10000
+wrk and 2 100000
+wrk or 2 100000
 
 wrk and~1 2
 wrk and~2 2
 wrk and~AUTO 2
 
+wrk and*1 2
 wrk and*1 2 10000
 wrk and*4 2 10000
 wrk and*100 2 10000 # this is pretty much a prefix in syntax only - never really does prefixing
@@ -26,14 +33,14 @@ wrk and*100 2 10000 # this is pretty much a prefix in syntax only - never really
 wrk phrase 2
 wrk phrase~1 2
 wrk phrase~10  2
+wrk common_50_phrase 2
+wrk common_50_phrase~1 2
+wrk common_50_phrase~10  2
+wrk common_80_phrase 2
+wrk common_80_phrase~1 2
+wrk common_80_phrase~10  2
+
 
 wrk degenerate_phrase 2
 wrk degenerate_phrase 10
 wrk degenerate_phrase 30
-
-wrk and 2 1000
-wrk or 2 1000
-wrk and 2 10000
-wrk or 2 10000
-wrk and 2 100000
-wrk or 2 100000

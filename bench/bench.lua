@@ -7,6 +7,7 @@ fuzziness = 0        --- how much fuzziness is ok? 0, 1, 2, or "AUTO"
 slop = 0             --- how much phrase slop is allowed?
 prefix = 0           --- should we generate prefix queries?
 degenerate = false   --- should the generated queries repeate the same words?
+common_freq = 0      --- percentage of words that should come from the list of common words.
 -- words             --- the dictionary
 total_hits = 0       --- total number of hits for all requests
 terminated_early = 0 --- how many requests terminated early
@@ -29,6 +30,10 @@ function init(args)
   if (string.match(query_type, 'degenerate_.+')) then
     query_type = string.gsub(query_type, 'degenerate_', '')
     degenerate = true
+  end
+  if (string.match(query_type, 'common_%d%d_.+')) then
+    common_freq, query_type = string.match(query_type, 'common_(%d%d)_(.+)')
+    common_freq = tonumber(common_freq)
   end
   if string.find(query_type, 'phrase') then
     phrase = true
@@ -57,6 +62,7 @@ function init(args)
     print('slop=' .. slop)
     print('prefix=' .. tostring(prefix))
     print('degenerate=' .. tostring(degenerate))
+    print('common_freq=' .. common_freq)
     print('terminate_after=' .. terminate_after)
     print('random_seed=' .. random_seed)
   end
@@ -71,7 +77,11 @@ function request()
   end
   for i=1,word_count do
     if word == nil or degenerate == false then
-      word = words[math.random(#words)]
+      if common_freq < math.random() then
+        word = words[math.random(#words)]
+      else
+        word = common_words[math.random(#common_words)]
+      end
       if prefix > 0 then
         -- grab the first prefix codepoints
         local sub = '(' .. cp
@@ -157,3 +167,30 @@ function load_dict()
   dict:close()
   return words
 end
+
+common_words = {'you', 'say', 'that', 'help', 'he', 'low', 'was', 'line',
+  'for', 'before', 'on', 'turn', 'are', 'cause', 'with', 'same', 'as', 'mean',
+  'I', 'differ', 'his', 'move', 'they', 'right', 'be', 'boy', 'at', 'old',
+  'one', 'too', 'have', 'does', 'this', 'tell', 'from', 'sentence', 'or',
+  'set', 'had', 'three', 'by', 'want', 'hot', 'air', 'but', 'well', 'some',
+  'also', 'what', 'play', 'there', 'small', 'we', 'end', 'can', 'put', 'out',
+  'home', 'other', 'read', 'were', 'hand', 'all', 'port', 'your', 'large',
+  'when', 'spell', 'up', 'add', 'use', 'even', 'word', 'land', 'how', 'here',
+  'said', 'must', 'an', 'big', 'each', 'high', 'she', 'such', 'which',
+  'follow', 'do', 'act', 'their', 'why', 'time', 'ask', 'if', 'men', 'will',
+  'change', 'way', 'went', 'about', 'light', 'many', 'kind', 'then', 'off',
+  'them', 'need', 'would', 'house', 'write', 'picture', 'like', 'try', 'so',
+  'us', 'these', 'again', 'her', 'animal', 'long', 'point', 'make', 'mother',
+  'thing', 'world', 'see', 'near', 'him', 'build', 'two', 'self', 'has',
+  'earth', 'look', 'father', 'more', 'head', 'day', 'stand', 'could', 'own',
+  'go', 'page', 'come', 'should', 'did', 'country', 'my', 'found', 'sound',
+  'answer', 'no', 'school', 'most', 'grow', 'number', 'study', 'who', 'still',
+  'over', 'learn', 'know', 'plant', 'water', 'cover', 'than', 'food', 'call',
+  'sun', 'first', 'four', 'people', 'thought', 'may', 'let', 'down', 'keep',
+  'side', 'eye', 'been', 'never', 'now', 'last', 'find', 'door', 'any',
+  'between', 'new', 'city', 'work', 'tree', 'part', 'cross', 'take', 'since',
+  'get', 'hard', 'place', 'start', 'made', 'might', 'live', 'story', 'where',
+  'saw', 'after', 'far', 'back', 'sea', 'little', 'draw', 'only', 'left',
+  'round', 'late', 'man', 'run', 'year', 'came', 'while', 'show',
+  'press', 'every', 'close', 'good', 'night', 'me', 'real', 'give', 'life',
+  'our', 'few', 'under', 'stop'}
