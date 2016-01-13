@@ -1,3 +1,5 @@
+-- -*- coding: utf-8 -*-
+
 -- Globals
 phrase = false       --- should this be a phrase query?
 operator = 'and'     --- default operator for terms. "and" or "or".
@@ -31,9 +33,9 @@ function init(args)
     query_type = string.gsub(query_type, 'degenerate_', '')
     degenerate = true
   end
-  if (string.match(query_type, 'common_%d%d_.+')) then
-    common_freq, query_type = string.match(query_type, 'common_(%d%d)_(.+)')
-    common_freq = tonumber(common_freq)
+  if (string.match(query_type, 'common_%d%d?%d?_.+')) then
+    common_freq, query_type = string.match(query_type, 'common_(%d?%d?%d)_(.+)')
+    common_freq = tonumber(common_freq) / 100
   end
   if string.find(query_type, 'phrase') then
     phrase = true

@@ -12,6 +12,7 @@ wrk() {
     tr '\n' ' '
   echo
 }
+
 wrk and 2
 wrk or 2
 wrk and 2 1000
@@ -33,12 +34,18 @@ wrk and*100 2 10000 # this is pretty much a prefix in syntax only - never really
 wrk phrase 2
 wrk phrase~1 2
 wrk phrase~10  2
+wrk common_2_phrase 2
+wrk common_5_phrase 2
+wrk common_10_phrase 2
+wrk common_20_phrase 2
+wrk common_30_phrase 2
+wrk common_40_phrase 2
 wrk common_50_phrase 2
-wrk common_50_phrase~1 2
-wrk common_50_phrase~10  2
+wrk common_60_phrase 2
+wrk common_70_phrase 2
 wrk common_80_phrase 2
-wrk common_80_phrase~1 2
-wrk common_80_phrase~10  2
+wrk common_90_phrase 2
+wrk common_100_phrase 2
 
 
 wrk degenerate_phrase 2
