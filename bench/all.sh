@@ -3,51 +3,45 @@
 set -e
 set -o pipefail
 
-export random_seed=89
+export random_seed=110
 
 wrk() {
-  printf '%30s ' "$(echo -n $@)"
-  ~/Workspaces/wrk/wrk -t 24 -c 100 -d 5s -s bench.lua http://localhost:6200/enwiki/_search -- $@ $random_seed |
-    grep 'Requests/sec\|Avg Hits\|Stopped Early\|last_request\|last_response' |
+  ~/Workspaces/wrk/wrk -t 24 -c 100 -d30s -s bench.lua http://localhost:6200/enwiki/_search -- $@ $random_seed |
+    grep 'Args\|Requests/sec\|Avg Hits\|Stopped Early\|last_request\|last_response' |
     tr '\n' ' '
   echo
 }
 
-wrk and 2
-wrk or 2
-wrk and 2 1000
-wrk or 2 1000
-wrk and 2 10000
-wrk or 2 10000
-wrk and 2 100000
-wrk or 2 100000
+for type in 'and' 'or'; do
+  for words in $(seq 1 10); do
+    wrk $type $words
+  done
+  for terminate_after in 1000000000 10000; do
+    for common in 20 40 60 80 100; do
+      wrk $type 2 $common $terminate_after
+    done
+  done
+  for terminate_after in 1000 5000 10000 20000; do
+    wrk $type 2 0 $terminate_after
+  done
+done
 
-wrk and~1 2
-wrk and~2 2
-wrk and~AUTO 2
+for terminate_after in 1000000000 10000; do
+  for common in 0 20 40 60 80 100; do
+    wrk and~1 2 $common $terminate_after
+    wrk and~2 2 $common $terminate_after
+    wrk and~AUTO 2 $common $terminate_after
 
-wrk and*1 2
-wrk and*1 2 10000
-wrk and*4 2 10000
-wrk and*100 2 10000 # this is pretty much a prefix in syntax only - never really does prefixing
+    for prefix_length in 1 2 3 4 5 6 7; do
+      wrk and*$prefix_length 2 $common $terminate_after
+    done
 
-wrk phrase 2
-wrk phrase~1 2
-wrk phrase~10  2
-wrk common_2_phrase 2
-wrk common_5_phrase 2
-wrk common_10_phrase 2
-wrk common_20_phrase 2
-wrk common_30_phrase 2
-wrk common_40_phrase 2
-wrk common_50_phrase 2
-wrk common_60_phrase 2
-wrk common_70_phrase 2
-wrk common_80_phrase 2
-wrk common_90_phrase 2
-wrk common_100_phrase 2
+    for slop in '' ~1 ~2 ~3 ~4 ~10 ~100 ~1000; do
+      wrk phrase$slop 2 $common $terminate_after
+    done
 
-
-wrk degenerate_phrase 2
-wrk degenerate_phrase 10
-wrk degenerate_phrase 30
+    wrk degenerate_phrase 2 $common $terminate_after
+    wrk phrase_rescore~4_1000_and 2 $common $terminate_after
+    wrk phrase_rescore~4_1000_or 2 $common $terminate_after
+  done
+done

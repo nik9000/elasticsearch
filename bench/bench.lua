@@ -2,6 +2,7 @@
 
 -- Globals
 phrase = false       --- should this be a phrase query?
+phrase_rescore = 0   --- 0 if no rescore, windows size if a phrase rescore
 operator = 'and'     --- default operator for terms. "and" or "or".
 -- word_count        --- number of words to add to the query
 terminate_after = 1000000000 --- maximum number of results to count
@@ -26,8 +27,16 @@ function init(args)
   word_count = tonumber(table.remove(args, 1))
   local random_seed = tonumber(table.remove(args, 1))
   if #args > 0 then
+    common_freq = random_seed / 100
+    random_seed = tonumber(table.remove(args, 1))
+  end
+  if #args > 0 then
     terminate_after = random_seed
     random_seed = tonumber(table.remove(args, 1))
+  end
+  if (thread_number == 1) then
+    print(string.format('Args:%70s\n', table.concat({query_type, word_count,
+      common_freq, terminate_after, random_seed}, ' ')))
   end
   if (string.match(query_type, 'degenerate_.+')) then
     query_type = string.gsub(query_type, 'degenerate_', '')
@@ -37,7 +46,13 @@ function init(args)
     common_freq, query_type = string.match(query_type, 'common_(%d?%d?%d)_(.+)')
     common_freq = tonumber(common_freq) / 100
   end
-  if string.find(query_type, 'phrase') then
+  if string.find(query_type, 'phrase_rescore') then
+    slop, phrase_rescore, operator = string.match(query_type, 'phrase_rescore~?(.*)_(.+)_(.+)')
+    phrase_rescore = tonumber(phrase_rescore)
+    if slop == '' then
+      slop = 0
+    end
+  elseif string.find(query_type, 'phrase') then
     phrase = true
     slop = string.match(query_type, '[^~]+~?(.*)')
     if slop == '' then
@@ -57,16 +72,17 @@ function init(args)
     end
   end
   if (thread_number == 1) then
-    print('phrase=' .. tostring(phrase))
-    print('operator=' .. operator)
-    print('word_count=' .. word_count)
-    print('fuzziness=' .. fuzziness)
-    print('slop=' .. slop)
-    print('prefix=' .. tostring(prefix))
-    print('degenerate=' .. tostring(degenerate))
-    print('common_freq=' .. common_freq)
-    print('terminate_after=' .. terminate_after)
-    print('random_seed=' .. random_seed)
+    print('phrase = ' .. tostring(phrase))
+    print('phrase_rescore = ' .. phrase_rescore)
+    print('operator = ' .. operator)
+    print('word_count = ' .. word_count)
+    print('fuzziness = ' .. fuzziness)
+    print('slop = ' .. slop)
+    print('prefix = ' .. tostring(prefix))
+    print('degenerate = ' .. tostring(degenerate))
+    print('common_freq = ' .. common_freq)
+    print('terminate_after = ' .. terminate_after)
+    print('random_seed = ' .. random_seed)
   end
   math.randomseed(random_seed * thread_number) -- meh
 end
@@ -85,13 +101,17 @@ function request()
         word = common_words[math.random(#common_words)]
       end
       if prefix > 0 then
-        -- grab the first prefix codepoints
+        --[[
+          Replace all of the word after the first prefix codepoints with a *.
+          If the word isn't that many codepoints then we just keep the word as
+          is.
+        ]]
         local sub = '(' .. cp
         for cps=2,prefix do
-          sub = sub .. ocp
+          sub = sub .. cp
         end
         sub = sub .. ').*'
-        word = string.gsub(word, sub, '%1*')
+        word = string.gsub(word, sub, '%1') .. '*'
       elseif fuzziness ~= 0 then
         word = word .. '~'
       end
@@ -114,8 +134,24 @@ function request()
         "fuzziness": "]] .. fuzziness .. [[",
         "phrase_slop": ]] .. slop .. [[
       }
-    }
-  }]]
+    }]]
+  if phrase_rescore > 0 then
+    body = body .. [[,
+      "rescore": {
+        "window_size": ]] .. phrase_rescore .. [[,
+        "query": {
+          "rescore_query_weight": 10,
+          "rescore_query": {
+            "query_string": {
+              "fields": ["text"],
+              "query": "\"]] .. query .. [[\"",
+              "phrase_slop": ]] .. slop .. [[
+            }
+          }
+        }
+      }]]
+  end
+  body = body .. '}'
   last_request = body
   return wrk.format("POST", nil, nil, body)
 end
