@@ -56,7 +56,7 @@ public final class MembersInjectorLookup<T> implements Element {
     }
 
     @Override
-    public <T> T acceptVisitor(ElementVisitor<T> visitor) {
+    public <VT> VT acceptVisitor(ElementVisitor<VT> visitor) {
         return visitor.visit(this);
     }
 

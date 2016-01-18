@@ -281,7 +281,7 @@ public abstract class MapBinder<K, V> {
                 this.provider = provider;
             }
 
-            @SuppressWarnings({"unchecked", "unused"}) // code is silly stupid with generics
+            @SuppressWarnings({"unchecked"}) // code is silly stupid with generics
             @Inject
             public void initialize() {
                 binder.binder = null;

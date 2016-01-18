@@ -114,7 +114,7 @@ public final class FactoryProvider2<F> implements InvocationHandler, Provider<F>
         Errors errors = new Errors();
 
         @SuppressWarnings("unchecked") // we imprecisely treat the class literal of T as a Class<T>
-                Class<F> factoryRawType = (Class) factoryType.getRawType();
+        Class<F> factoryRawType = (Class<F>) factoryType.getRawType();
 
         try {
             Map<Method, Key<?>> returnTypesBuilder = new HashMap<>();
@@ -199,14 +199,14 @@ public final class FactoryProvider2<F> implements InvocationHandler, Provider<F>
 
         Module assistedModule = new AbstractModule() {
             @Override
-            @SuppressWarnings("unchecked") // raw keys are necessary for the args array and return value
+            @SuppressWarnings({ "unchecked", "rawtypes" }) // raw keys are necessary for the args array and return value
             protected void configure() {
                 Binder binder = binder().withSource(method);
 
                 int p = 0;
                 for (Key<?> paramKey : paramTypes.get(method)) {
                     // Wrap in a Provider to cover null, and to prevent Guice from injecting the parameter
-                    binder.bind((Key) paramKey).toProvider(Providers.of(args[p++]));
+                    binder.bind((Key<Object>) paramKey).toProvider(Providers.of(args[p++]));
                 }
 
                 if (producedType != null && !returnType.equals(producedType)) {

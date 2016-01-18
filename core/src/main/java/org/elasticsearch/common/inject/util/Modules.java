@@ -152,7 +152,7 @@ public final class Modules {
                     final List<Element> elements = Elements.getElements(baseModules);
                     final List<Element> overrideElements = Elements.getElements(overrides);
 
-                    final Set<Key> overriddenKeys = new HashSet<>();
+                    final Set<Key<?>> overriddenKeys = new HashSet<>();
                     final Set<Class<? extends Annotation>> overridesScopeAnnotations = new HashSet<>();
 
                     // execute the overrides module, keeping track of which keys and scopes are bound
@@ -216,7 +216,7 @@ public final class Modules {
                             // have to search through this set of elements for PrivateElements, recursively
                             for (Element element : privateElements.getElements()) {
                                 if (element instanceof Binding
-                                        && skippedExposes.contains(((Binding) element).getKey())) {
+                                        && skippedExposes.contains(((Binding<?>) element).getKey())) {
                                     continue;
                                 }
                                 element.applyTo(privateBinder);

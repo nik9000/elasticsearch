@@ -87,75 +87,6 @@ public class Injectors {
     }
 
     /**
-     * Returns a collection of all instances matching the given matcher
-     *
-     * @param matcher matches the types to return instances
-     * @return a set of objects returned from this injector
-     */
-    public static <T> Set<T> getInstancesOf(Injector injector, Matcher<Class> matcher) {
-        Set<T> answer = new HashSet<>();
-        Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
-        for (Entry<Key<?>, Binding<?>> entry : entries) {
-            Key<?> key = entry.getKey();
-            Class<?> keyType = getKeyType(key);
-            if (keyType != null && matcher.matches(keyType)) {
-                Binding<?> binding = entry.getValue();
-                Object value = binding.getProvider().get();
-                answer.add((T) value);
-            }
-        }
-        return answer;
-    }
-
-    /**
-     * Returns a collection of all of the providers matching the given matcher
-     *
-     * @param matcher matches the types to return instances
-     * @return a set of objects returned from this injector
-     */
-    public static <T> Set<Provider<T>> getProvidersOf(Injector injector, Matcher<Class> matcher) {
-        Set<Provider<T>> answer = new HashSet<>();
-        Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
-        for (Entry<Key<?>, Binding<?>> entry : entries) {
-            Key<?> key = entry.getKey();
-            Class<?> keyType = getKeyType(key);
-            if (keyType != null && matcher.matches(keyType)) {
-                Binding<?> binding = entry.getValue();
-                answer.add((Provider<T>) binding.getProvider());
-            }
-        }
-        return answer;
-    }
-
-    /**
-     * Returns a collection of all providers of the given base type
-     *
-     * @param baseClass the base type of objects required
-     * @param <T>       the base type
-     * @return a set of objects returned from this injector
-     */
-    public static <T> Set<Provider<T>> getProvidersOf(Injector injector, Class<T> baseClass) {
-        Set<Provider<T>> answer = new HashSet<>();
-        Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
-        for (Entry<Key<?>, Binding<?>> entry : entries) {
-            Key<?> key = entry.getKey();
-            Class<?> keyType = getKeyType(key);
-            if (keyType != null && baseClass.isAssignableFrom(keyType)) {
-                Binding<?> binding = entry.getValue();
-                answer.add((Provider<T>) binding.getProvider());
-            }
-        }
-        return answer;
-    }
-
-    /**
-     * Returns true if a binding exists for the given matcher
-     */
-    public static boolean hasBinding(Injector injector, Matcher<Class> matcher) {
-        return !getBindingsOf(injector, matcher).isEmpty();
-    }
-
-    /**
      * Returns true if a binding exists for the given base class
      */
     public static boolean hasBinding(Injector injector, Class<?> baseClass) {
@@ -185,7 +116,7 @@ public class Injectors {
      * @param matcher matches the types to return instances
      * @return a set of objects returned from this injector
      */
-    public static Set<Binding<?>> getBindingsOf(Injector injector, Matcher<Class> matcher) {
+    public static Set<Binding<?>> getBindingsOf(Injector injector, Matcher<Class<?>> matcher) {
         Set<Binding<?>> answer = new HashSet<>();
         Set<Entry<Key<?>, Binding<?>>> entries = injector.getBindings().entrySet();
         for (Entry<Key<?>, Binding<?>> entry : entries) {

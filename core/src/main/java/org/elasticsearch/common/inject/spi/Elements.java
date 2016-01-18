@@ -188,7 +188,7 @@ public final class Elements {
         @Override
         @SuppressWarnings("unchecked") // it is safe to use the type literal for the raw type
         public void requestInjection(Object instance) {
-            requestInjection((TypeLiteral) TypeLiteral.get(instance.getClass()), instance);
+            requestInjection((TypeLiteral<Object>) TypeLiteral.get(instance.getClass()), instance);
         }
 
         @Override
@@ -311,7 +311,7 @@ public final class Elements {
         }
 
         @Override
-        public RecordingBinder skipSources(Class... classesToSkip) {
+        public RecordingBinder skipSources(Class<?>... classesToSkip) {
             // if a source is specified explicitly, we don't need to skip sources
             if (source != null) {
                 return this;

@@ -76,7 +76,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
 
             convertToClasses(Matchers.subclassesOf(Enum.class), new TypeConverter() {
                 @Override
-                @SuppressWarnings("unchecked")
+                @SuppressWarnings({ "unchecked", "rawtypes" })
                 public Object convert(String value, TypeLiteral<?> toType) {
                     return Enum.valueOf((Class) toType.getRawType(), value);
                 }
@@ -101,7 +101,6 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                     },
                     new TypeConverter() {
                         @Override
-                        @SuppressWarnings("unchecked")
                         public Object convert(String value, TypeLiteral<?> toType) {
                             try {
                                 return Class.forName(value);
@@ -128,7 +127,6 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
 
             TypeConverter typeConverter = new TypeConverter() {
                 @Override
-                @SuppressWarnings("unchecked")
                 public Object convert(String value, TypeLiteral<?> toType) {
                     try {
                         return parser.invoke(null, value);

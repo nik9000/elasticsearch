@@ -59,13 +59,6 @@ public final class InjectionPoint {
     private final Member member;
     private final List<Dependency<?>> dependencies;
 
-    private InjectionPoint(Member member,
-                           List<Dependency<?>> dependencies, boolean optional) {
-        this.member = member;
-        this.dependencies = dependencies;
-        this.optional = optional;
-    }
-
     InjectionPoint(TypeLiteral<?> type, Method method) {
         this.member = method;
 
@@ -253,7 +246,7 @@ public final class InjectionPoint {
      *                                ConfigurationException#getPartialValue() partial value} is a {@code Set<InjectionPoint>}
      *                                of the valid injection points.
      */
-    public static Set<InjectionPoint> forStaticMethodsAndFields(TypeLiteral type) {
+    public static Set<InjectionPoint> forStaticMethodsAndFields(TypeLiteral<?> type) {
         Set<InjectionPoint> result = new HashSet<>();
         Errors errors = new Errors();
 

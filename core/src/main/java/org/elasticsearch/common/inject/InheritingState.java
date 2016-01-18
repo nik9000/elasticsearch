@@ -149,11 +149,12 @@ class InheritingState implements State {
     }
 
     @Override
+    @SuppressWarnings({ "rawtypes", "unchecked" }) // Its all good.
     public void makeAllBindingsToEagerSingletons(Injector injector) {
         Map<Key<?>, Binding<?>> x = new LinkedHashMap<>();
         for (Map.Entry<Key<?>, Binding<?>> entry : this.explicitBindingsMutable.entrySet()) {
             Key key = entry.getKey();
-            BindingImpl<?> binding = (BindingImpl<?>) entry.getValue();
+            BindingImpl binding = (BindingImpl) entry.getValue();
             Object value = binding.getProvider().get();
             x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value),
                     emptySet(), value));

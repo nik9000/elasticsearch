@@ -127,7 +127,7 @@ public final class Errors {
      * Otherwise we need to know who's calling when resolving a just-in-time
      * binding, which makes things unnecessarily complex.
      */
-    public Errors missingImplementation(Key key) {
+    public Errors missingImplementation(Key<?> key) {
         return addMessage("No implementation for %s was bound.", key);
     }
 
@@ -193,7 +193,7 @@ public final class Errors {
         return addMessage("Please annotate with @ScopeAnnotation.");
     }
 
-    public Errors optionalConstructor(Constructor constructor) {
+    public Errors optionalConstructor(Constructor<?> constructor) {
         return addMessage("%s is annotated @Inject(optional=true), "
                 + "but constructors cannot be optional.", constructor);
     }
@@ -570,6 +570,7 @@ public final class Errors {
         abstract String toString(T t);
     }
 
+    @SuppressWarnings("rawtypes")
     private static final Collection<Converter<?>> converters = Arrays.asList(
             new Converter<Class>(Class.class) {
                 @Override

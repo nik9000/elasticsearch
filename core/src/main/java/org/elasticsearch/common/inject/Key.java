@@ -284,7 +284,7 @@ public class Key<T> {
      * Returns a new key of the specified type with the same annotation as this
      * key.
      */
-    <T> Key<T> ofType(Class<T> type) {
+    <NewT> Key<NewT> ofType(Class<NewT> type) {
         return new Key<>(type, annotationStrategy);
     }
 
@@ -300,7 +300,7 @@ public class Key<T> {
      * Returns a new key of the specified type with the same annotation as this
      * key.
      */
-    <T> Key<T> ofType(TypeLiteral<T> type) {
+    <NewT> Key<NewT> ofType(TypeLiteral<NewT> type) {
         return new Key<>(type, annotationStrategy);
     }
 

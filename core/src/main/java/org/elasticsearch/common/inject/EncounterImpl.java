@@ -108,7 +108,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
     }
 
     @Override
-    public <T> Provider<T> getProvider(Key<T> key) {
+    public <P> Provider<P> getProvider(Key<P> key) {
         if (!valid) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
@@ -116,12 +116,12 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
     }
 
     @Override
-    public <T> Provider<T> getProvider(Class<T> type) {
+    public <P> Provider<P> getProvider(Class<P> type) {
         return getProvider(Key.get(type));
     }
 
     @Override
-    public <T> MembersInjector<T> getMembersInjector(TypeLiteral<T> typeLiteral) {
+    public <I> MembersInjector<I> getMembersInjector(TypeLiteral<I> typeLiteral) {
         if (!valid) {
             throw new IllegalStateException("Encounters may not be used after hear() returns.");
         }
@@ -129,7 +129,7 @@ final class EncounterImpl<T> implements TypeEncounter<T> {
     }
 
     @Override
-    public <T> MembersInjector<T> getMembersInjector(Class<T> type) {
+    public <I> MembersInjector<I> getMembersInjector(Class<I> type) {
         return getMembersInjector(TypeLiteral.get(type));
     }
 }

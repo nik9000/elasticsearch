@@ -46,14 +46,15 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
@@ -260,7 +261,7 @@ class InjectorImpl implements Injector, Lookups {
             final Provider<T> provider = providedBinding.getProvider();
             return new InternalFactory<Provider<T>>() {
                 @Override
-                public Provider<T> get(Errors errors, InternalContext context, Dependency dependency) {
+                public Provider<T> get(Errors errors, InternalContext context, Dependency<?> dependency) {
                     return provider;
                 }
             };
@@ -407,7 +408,7 @@ class InjectorImpl implements Injector, Lookups {
             jitBindings.put(key, binding);
             boolean successful = false;
             try {
-                ((ConstructorBindingImpl) binding).initialize(this, errors);
+                ((ConstructorBindingImpl<?>) binding).initialize(this, errors);
                 successful = true;
             } finally {
                 if (!successful) {
@@ -527,7 +528,7 @@ class InjectorImpl implements Injector, Lookups {
 
         InternalFactory<T> internalFactory = new InternalFactory<T>() {
             @Override
-            public T get(Errors errors, InternalContext context, Dependency dependency)
+            public T get(Errors errors, InternalContext context, Dependency<?> dependency)
                     throws ErrorsException {
                 errors = errors.withSource(providerKey);
                 Provider<?> provider = providerBinding.getInternalFactory().get(
@@ -637,6 +638,7 @@ class InjectorImpl implements Injector, Lookups {
      * @throws org.elasticsearch.common.inject.internal.ErrorsException
      *          if the binding cannot be created.
      */
+    @SuppressWarnings("unchecked")
     <T> BindingImpl<T> createJustInTimeBinding(Key<T> key, Errors errors) throws ErrorsException {
         if (state.isBlacklisted(key)) {
             throw errors.childBindingAlreadySet(key).toException();
@@ -646,7 +648,7 @@ class InjectorImpl implements Injector, Lookups {
         if (isProvider(key)) {
             // These casts are safe. We know T extends Provider<X> and that given Key<Provider<X>>,
             // createProviderBinding() will return BindingImpl<Provider<X>>.
-            @SuppressWarnings("unchecked")
+            @SuppressWarnings("rawtypes")
             BindingImpl binding = createProviderBinding((Key) key, errors);
             return binding;
         }
@@ -655,7 +657,7 @@ class InjectorImpl implements Injector, Lookups {
         if (isMembersInjector(key)) {
             // These casts are safe. T extends MembersInjector<X> and that given Key<MembersInjector<X>>,
             // createMembersInjectorBinding() will return BindingImpl<MembersInjector<X>>.
-            @SuppressWarnings("unchecked")
+            @SuppressWarnings("rawtypes")
             BindingImpl binding = createMembersInjectorBinding((Key) key, errors);
             return binding;
         }
@@ -710,13 +712,12 @@ class InjectorImpl implements Injector, Lookups {
         }
 
 
-        @SuppressWarnings("unchecked")
-            // safe because we only put matching entries into the map
+        @SuppressWarnings("unchecked") // safe because we only put matching entries into the map
         <T> List<Binding<T>> getAll(TypeLiteral<T> type) {
             List<Binding<?>> bindings = multimap.get(type);
             return bindings != null
-                    ? Collections.<Binding<T>>unmodifiableList((List) multimap.get(type))
-                    : Collections.<Binding<T>>emptyList();
+                    ? unmodifiableList((List<Binding<T>>) (List<?>) multimap.get(type))
+                    : emptyList();
         }
     }
 
@@ -769,7 +770,7 @@ class InjectorImpl implements Injector, Lookups {
     MembersInjectorStore membersInjectorStore;
 
     @Override
-    @SuppressWarnings("unchecked") // the members injector type is consistent with instance's type
+    @SuppressWarnings({ "unchecked", "rawtypes" }) // the members injector type is consistent with instance's type
     public void injectMembers(Object instance) {
         MembersInjector membersInjector = getMembersInjector(instance.getClass());
         membersInjector.injectMembers(instance);
@@ -801,9 +802,10 @@ class InjectorImpl implements Injector, Lookups {
         if (factory instanceof InternalFactory.Instance) {
             return new Provider<T>() {
                 @Override
+                @SuppressWarnings("unchecked")
                 public T get() {
                     try {
-                        return (T) ((InternalFactory.Instance) factory).get(null, null, null);
+                        return ((InternalFactory.Instance<T>) factory).get(null, null, null);
                     } catch (ErrorsException e) {
                         // ignore
                     }

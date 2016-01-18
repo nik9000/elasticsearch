@@ -208,15 +208,16 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         return parameter.isBound(injector);
     }
 
+    @SuppressWarnings("deprecation")
     private static Map<Method, AssistedConstructor<?>> createMethodMapping(
             TypeLiteral<?> factoryType, TypeLiteral<?> implementationType) {
         List<AssistedConstructor<?>> constructors = new ArrayList<>();
 
         for (Constructor<?> constructor : implementationType.getRawType().getConstructors()) {
             if (constructor.getAnnotation(AssistedInject.class) != null) {
-                @SuppressWarnings("unchecked") // the constructor type and implementation type agree
-                        AssistedConstructor assistedConstructor = new AssistedConstructor(
-                        constructor, implementationType.getParameterTypes(constructor));
+                @SuppressWarnings({ "unchecked", "rawtypes" }) // the constructor type and implementation type agree
+                AssistedConstructor assistedConstructor = new AssistedConstructor(constructor,
+                        implementationType.getParameterTypes(constructor));
                 constructors.add(assistedConstructor);
             }
         }
@@ -233,9 +234,9 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                     constructors.size(), factoryType, factoryMethods.length);
         }
 
-        Map<ParameterListKey, AssistedConstructor> paramsToConstructor = new HashMap<>();
+        Map<ParameterListKey, AssistedConstructor<?>> paramsToConstructor = new HashMap<>();
 
-        for (AssistedConstructor c : constructors) {
+        for (AssistedConstructor<?> c : constructors) {
             if (paramsToConstructor.containsKey(c.getAssistedParameters())) {
                 throw new RuntimeException("Duplicate constructor, " + c);
             }
@@ -273,7 +274,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                 }
             }
 
-            AssistedConstructor matchingConstructor = paramsToConstructor.remove(methodParams);
+            AssistedConstructor<?> matchingConstructor = paramsToConstructor.remove(methodParams);
 
             result.put(method, matchingConstructor);
         }
@@ -331,7 +332,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         };
 
         @SuppressWarnings("unchecked") // we imprecisely treat the class literal of T as a Class<T>
-                Class<F> factoryRawType = (Class) factoryType.getRawType();
+        Class<F> factoryRawType = (Class<F>) factoryType.getRawType();
         return factoryRawType.cast(Proxy.newProxyInstance(factoryRawType.getClassLoader(),
                 new Class[]{factoryRawType}, invocationHandler));
     }
