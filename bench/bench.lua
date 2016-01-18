@@ -5,7 +5,7 @@ phrase = false       --- should this be a phrase query?
 phrase_rescore = 0   --- 0 if no rescore, windows size if a phrase rescore
 operator = 'and'     --- default operator for terms. "and" or "or".
 -- word_count        --- number of words to add to the query
-terminate_after = 1000000000 --- maximum number of results to count
+terminate_after = 0  --- maximum number of results to count. 0 is all.
 fuzziness = 0        --- how much fuzziness is ok? 0, 1, 2, or "AUTO"
 slop = 0             --- how much phrase slop is allowed?
 prefix = 0           --- should we generate prefix queries?
@@ -123,35 +123,39 @@ function request()
     query = query .. '"'
   end
   query = string.gsub(query, '"', '\\"') -- json escape
-  local body = [[{
-    "size": 0,
-    "terminate_after": ]] .. terminate_after .. [[,
-    "query": {
-      "query_string": {
-        "fields": ["text"],
-        "query": "]] .. query .. [[",
-        "default_operator": "]] .. operator .. [[",
-        "fuzziness": "]] .. fuzziness .. [[",
-        "phrase_slop": ]] .. slop .. [[
-      }
-    }]]
+  local body = [[
+{
+  "size": 0,]]
+  if terminate_after > 0 then
+    body = body .. '\n"terminate_after": ' .. terminate_after .. ','
+  end
+  body = body .. '\n' .. [[
+  "query": {
+    "query_string": {
+      "fields": ["text"],
+      "query": "]] .. query .. [[",
+      "default_operator": "]] .. operator .. [[",
+      "fuzziness": "]] .. fuzziness .. [[",
+      "phrase_slop": ]] .. slop .. '\n' .. [[
+    }
+  }]]
   if phrase_rescore > 0 then
     body = body .. [[,
-      "rescore": {
-        "window_size": ]] .. phrase_rescore .. [[,
-        "query": {
-          "rescore_query_weight": 10,
-          "rescore_query": {
-            "query_string": {
-              "fields": ["text"],
-              "query": "\"]] .. query .. [[\"",
-              "phrase_slop": ]] .. slop .. [[
-            }
-          }
+  "rescore": {
+    "window_size": ]] .. phrase_rescore .. [[,
+    "query": {
+      "rescore_query_weight": 10,
+      "rescore_query": {
+        "query_string": {
+          "fields": ["text"],
+          "query": "\"]] .. query .. [[\"",
+          "phrase_slop": ]] .. slop .. '\n' .. [[
         }
-      }]]
+      }
+    }
+  }]]
   end
-  body = body .. '}'
+  body = body .. '\n}'
   last_request = body
   return wrk.format("POST", nil, nil, body)
 end
