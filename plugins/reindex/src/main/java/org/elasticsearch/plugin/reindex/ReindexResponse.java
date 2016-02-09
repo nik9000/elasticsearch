@@ -47,6 +47,18 @@ public class ReindexResponse extends BulkIndexByScrollResponse {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("took", getTook());
         getStatus().innerXContent(builder, params, true, false);
+        builder.startArray("failures");
+        for (Failure failure: getIndexingFailures()) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        for (ShardSearchFailure failure: getSearchFailures()) {
+            builder.startObject();
+            failure.toXContent(builder, params);
+            builder.endObject();
+        }
+        builder.endArray();
         return builder;
     }
 
