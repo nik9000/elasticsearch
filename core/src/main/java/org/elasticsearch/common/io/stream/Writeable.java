@@ -38,14 +38,11 @@ public interface Writeable<T> extends StreamableReader<T> {
      */
     void writeTo(StreamOutput out) throws IOException;
 
-     @FunctionalInterface
-     interface IOFunction<T, R> {
-         /**
-          * Applies this function to the given argument.
-          *
-          * @param t the function argument
-          * @return the function result
-          */
-         R apply(T t) throws IOException;
-     }
+    /**
+     * Reference to a function that reads a Writeable from a StreamInput. Usually Writeables have a constructor that does this reading.
+     */
+    @FunctionalInterface
+    interface Reader<T extends Writeable<T>> {
+        T read(StreamInput in) throws IOException;
+    }
 }
