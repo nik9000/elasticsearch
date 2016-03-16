@@ -63,7 +63,7 @@ public class NamedWriteableRegistry {
     }
 
     /**
-     * Returns a prototype of the {@link NamedWriteable} object identified by the name provided as argument and its category
+     * Returns a reader for the {@link NamedWriteable} object identified by the name provided as argument and its category
      */
     public synchronized <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
         @SuppressWarnings("unchecked")

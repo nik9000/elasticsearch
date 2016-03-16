@@ -59,7 +59,7 @@ public class ReplicationTask extends Task {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status("prototype");
+        public static final String NAME = "replication";
 
         private final String phase;
 
@@ -73,7 +73,7 @@ public class ReplicationTask extends Task {
 
         @Override
         public String getWriteableName() {
-            return "replication";
+            return NAME;
         }
 
         @Override

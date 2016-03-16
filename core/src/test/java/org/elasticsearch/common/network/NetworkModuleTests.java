@@ -192,14 +192,19 @@ public class NetworkModuleTests extends ModuleTestCase {
         NetworkModule module = new NetworkModule(new NetworkService(settings), settings, false, registry);
 
         // Builtin prototype comes back
-        assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.PROTOTYPE.getWriteableName()));
+        assertNotNull(registry.getReader(Task.Status.class, ReplicationTask.Status.NAME));
 
-        Task.Status dummy = new DummyTaskStatus();
-        module.registerTaskStatus(dummy);
+        module.registerTaskStatus("dummy", DummyTaskStatus::new);
         assertNotNull(registry.getReader(Task.Status.class, "dummy"));
     }
 
-    private class DummyTaskStatus implements Task.Status {
+    public class DummyTaskStatus implements Task.Status {
+        public DummyTaskStatus() {
+        }
+
+        public DummyTaskStatus(StreamInput in) {
+        }
+
         @Override
         public String getWriteableName() {
             return "dummy";
