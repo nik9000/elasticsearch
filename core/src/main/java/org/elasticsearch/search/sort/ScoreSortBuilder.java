@@ -35,9 +35,7 @@ import java.util.Objects;
  * A sort builder allowing to sort by score.
  */
 public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements SortBuilderParser<ScoreSortBuilder> {
-
-    private static final String NAME = "_score";
-    static final ScoreSortBuilder PROTOTYPE = new ScoreSortBuilder();
+    public static final String NAME = "_score";
     public static final ParseField REVERSE_FIELD = new ParseField("reverse");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
@@ -46,6 +44,22 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
         order(SortOrder.DESC);
     }
 
+    /**
+     * Read from stream.
+     */
+    public ScoreSortBuilder(StreamInput in) throws IOException {
+        order = SortOrder.readOrderFrom(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        order.writeTo(out);
+    }
+
+    @Override
+    public ScoreSortBuilder readFrom(StreamInput in) throws IOException {
+        return new ScoreSortBuilder(in);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -99,17 +113,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> implements S
     @Override
     public int hashCode() {
         return Objects.hash(this.order);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        order.writeTo(out);
-    }
-
-    @Override
-    public ScoreSortBuilder readFrom(StreamInput in) throws IOException {
-        ScoreSortBuilder builder = new ScoreSortBuilder().order(SortOrder.readOrderFrom(in));
-        return builder;
     }
 
     @Override

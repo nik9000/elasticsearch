@@ -37,7 +37,6 @@ import java.util.Objects;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements SortBuilderParser<FieldSortBuilder> {
-    static final FieldSortBuilder PROTOTYPE = new FieldSortBuilder("");
     public static final String NAME = "field_sort";
     public static final ParseField NESTED_PATH = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER = new ParseField("nested_filter");
@@ -83,6 +82,40 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
             throw new IllegalArgumentException("fieldName must not be null");
         }
         this.fieldName = fieldName;
+    }
+
+    public FieldSortBuilder(StreamInput in) throws IOException {
+        fieldName = in.readString();
+        if (in.readBoolean()) {
+            QueryBuilder<?> query = in.readQuery();
+            setNestedFilter(query);
+        }
+        setNestedPath(in.readOptionalString());
+        missing(in.readGenericValue());
+        order = in.readOptionalWritable(SortOrder::readOrderFrom);
+        sortMode = in.readOptionalWritable(SortMode::readFromStream);
+        unmappedType(in.readOptionalString());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(this.fieldName);
+        if (this.nestedFilter != null) {
+            out.writeBoolean(true);
+            out.writeQuery(this.nestedFilter);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalString(this.nestedPath);
+        out.writeGenericValue(this.missing);
+        out.writeOptionalWriteable(order);
+        out.writeOptionalWriteable(sortMode);
+        out.writeOptionalString(this.unmappedType);
+    }
+
+    @Override
+    public FieldSortBuilder readFrom(StreamInput in) throws IOException {
+        return new FieldSortBuilder(in);
     }
 
     /** Returns the document field this sort should be based on. */
@@ -244,53 +277,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements S
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        if (this.nestedFilter != null) {
-            out.writeBoolean(true);
-            out.writeQuery(this.nestedFilter);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeOptionalString(this.nestedPath);
-        out.writeGenericValue(this.missing);
-
-        if (this.order != null) {
-            out.writeBoolean(true);
-            this.order.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
-
-        out.writeBoolean(this.sortMode != null);
-        if (this.sortMode != null) {
-           this.sortMode.writeTo(out);
-        }
-        out.writeOptionalString(this.unmappedType);
-    }
-
-    @Override
-    public FieldSortBuilder readFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        FieldSortBuilder result = new FieldSortBuilder(fieldName);
-        if (in.readBoolean()) {
-            QueryBuilder<?> query = in.readQuery();
-            result.setNestedFilter(query);
-        }
-        result.setNestedPath(in.readOptionalString());
-        result.missing(in.readGenericValue());
-
-        if (in.readBoolean()) {
-            result.order(SortOrder.readOrderFrom(in));
-        }
-        if (in.readBoolean()) {
-            result.sortMode(SortMode.PROTOTYPE.readFrom(in));
-        }
-        result.unmappedType(in.readOptionalString());
-        return result;
     }
 
     @Override

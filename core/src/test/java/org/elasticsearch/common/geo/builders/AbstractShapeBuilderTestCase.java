@@ -146,7 +146,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return namedWriteableRegistry.getPrototype(ShapeBuilder.class, original.getWriteableName()).readFrom(in);
+                return namedWriteableRegistry.getReader(ShapeBuilder.class, original.getWriteableName()).readFrom(in);
             }
         }
     }

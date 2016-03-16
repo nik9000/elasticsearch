@@ -44,9 +44,7 @@ import java.util.Objects;
  * Script sort builder allows to sort based on a custom script expression.
  */
 public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements SortBuilderParser<ScriptSortBuilder> {
-
-    private static final String NAME = "_script";
-    static final ScriptSortBuilder PROTOTYPE = new ScriptSortBuilder(new Script("_na_"), ScriptSortType.STRING);
+    public static final String NAME = "_script";
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
@@ -87,6 +85,44 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         this.sortMode = original.sortMode;
         this.nestedFilter = original.nestedFilter;
         this.nestedPath = original.nestedPath;
+    }
+
+    /**
+     * Read from stream.
+     */
+    public ScriptSortBuilder(StreamInput in) throws IOException {
+        script = Script.readScript(in);
+        type = ScriptSortType.readFromStream(in);
+        order(SortOrder.readOrderFrom(in));
+        if (in.readBoolean()) {
+            sortMode(SortMode.readFromStream(in));
+        }
+        nestedPath = in.readOptionalString();
+        if (in.readBoolean()) {
+            nestedFilter = in.readQuery();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
+        type.writeTo(out);
+        order.writeTo(out);
+        out.writeBoolean(sortMode != null);
+        if (sortMode != null) {
+            sortMode.writeTo(out);
+        }
+        out.writeOptionalString(nestedPath);
+        boolean hasNestedFilter = nestedFilter != null;
+        out.writeBoolean(hasNestedFilter);
+        if (hasNestedFilter) {
+            out.writeQuery(nestedFilter);
+        }
+    }
+
+    @Override
+    public ScriptSortBuilder readFrom(StreamInput in) throws IOException {
+        return new ScriptSortBuilder(in);
     }
 
     /**
@@ -267,37 +303,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
-        type.writeTo(out);
-        order.writeTo(out);
-        out.writeBoolean(sortMode != null);
-        if (sortMode != null) {
-            sortMode.writeTo(out);
-        }
-        out.writeOptionalString(nestedPath);
-        boolean hasNestedFilter = nestedFilter != null;
-        out.writeBoolean(hasNestedFilter);
-        if (hasNestedFilter) {
-            out.writeQuery(nestedFilter);
-        }
-    }
-
-    @Override
-    public ScriptSortBuilder readFrom(StreamInput in) throws IOException {
-        ScriptSortBuilder builder = new ScriptSortBuilder(Script.readScript(in), ScriptSortType.PROTOTYPE.readFrom(in));
-        builder.order(SortOrder.readOrderFrom(in));
-        if (in.readBoolean()) {
-            builder.sortMode(SortMode.PROTOTYPE.readFrom(in));
-        }
-        builder.nestedPath = in.readOptionalString();
-        if (in.readBoolean()) {
-            builder.nestedFilter = in.readQuery();
-        }
-        return builder;
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -308,8 +313,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
         /** script sort for a numeric value **/
         NUMBER;
 
-        static ScriptSortType PROTOTYPE = STRING;
-
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             out.writeVInt(ordinal());
@@ -317,6 +320,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> implements
 
         @Override
         public ScriptSortType readFrom(final StreamInput in) throws IOException {
+            return readFromStream(in);
+        }
+
+        public static ScriptSortType readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown ScriptSortType ordinal [" + ordinal + "]");

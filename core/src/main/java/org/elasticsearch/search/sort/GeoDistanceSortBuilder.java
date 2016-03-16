@@ -130,9 +130,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         geoDistance(GeoDistance.readGeoDistanceFrom(in));
         unit(DistanceUnit.readDistanceUnit(in));
         order(SortOrder.readOrderFrom(in));
-        if (in.readBoolean()) {
-            sortMode = SortMode.PROTOTYPE.readFrom(in);
-        }
+        sortMode = in.readOptionalWritable(SortMode::readFromStream);
         if (in.readBoolean()) {
             setNestedFilter(in.readQuery());
         }
@@ -149,10 +147,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         geoDistance.writeTo(out);
         unit.writeTo(out);
         order.writeTo(out);
-        out.writeBoolean(this.sortMode != null);
-        if (this.sortMode != null) {
-            sortMode.writeTo(out);
-        }
+        out.writeOptionalWriteable(sortMode);
         if (nestedFilter != null) {
             out.writeBoolean(true);
             out.writeQuery(nestedFilter);

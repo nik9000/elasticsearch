@@ -76,7 +76,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
 
         context.reset(parser);
-        ScoreSortBuilder scoreSort = ScoreSortBuilder.PROTOTYPE.fromXContent(context, "_score");
+        ScoreSortBuilder scoreSort = new ScoreSortBuilder().fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
     }
 }

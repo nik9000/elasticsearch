@@ -53,9 +53,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T> & SortBuilde
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.register(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.register(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new);
+        namedWriteableRegistry.register(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new);
+        namedWriteableRegistry.register(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new);
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).buildQueryParserRegistry();
     }
 
@@ -153,7 +153,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T> & SortBuilde
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                T copy = (T) namedWriteableRegistry.getPrototype(SortBuilder.class, original.getWriteableName()).readFrom(in);
+                T copy = (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).readFrom(in);
                 return copy;
             }
         }

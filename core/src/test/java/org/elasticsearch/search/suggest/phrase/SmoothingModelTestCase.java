@@ -184,7 +184,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                return namedWriteableRegistry.getPrototype(SmoothingModel.class, original.getWriteableName()).readFrom(in);
+                return namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()).readFrom(in);
             }
         }
     }
