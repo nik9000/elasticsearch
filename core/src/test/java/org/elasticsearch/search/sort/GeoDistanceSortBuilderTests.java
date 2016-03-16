@@ -202,7 +202,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         context.reset(itemParser);
 
         try {
-          GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, "");
+          new GeoDistanceSortBuilder("dummy", 0, 0).fromXContent(context, "");
           fail("sort mode sum should not be supported");
         } catch (IllegalArgumentException e) {
             // all good
@@ -233,7 +233,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
         context.reset(itemParser);
 
-        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.PROTOTYPE.fromXContent(context, json);
+        GeoDistanceSortBuilder result = new GeoDistanceSortBuilder("dummy", 0, 0).fromXContent(context, json);
         assertEquals("[-19.700583312660456, -2.8225036337971687, "
                 + "31.537466906011105, -74.63590376079082, "
                 + "43.71844606474042, -5.548660643398762, "

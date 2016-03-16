@@ -20,25 +20,19 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Template;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-
-import static org.hamcrest.Matchers.instanceOf;
 
 public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<PhraseSuggestionBuilder> {
 
     @BeforeClass
     public static void initSmoothingModels() {
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+        SearchModule.configureSmoothingModels(namedWriteableRegistry);
     }
 
     @Override

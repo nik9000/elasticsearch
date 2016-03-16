@@ -300,7 +300,7 @@ public class SearchModule extends AbstractModule {
                 throw new IllegalArgumentException("Function score parser [" + oldValue + "] already registered for name [" + name + "]");
             }
         }
-        @SuppressWarnings("unchecked") NamedWriteable<? extends ScoreFunctionBuilder> sfb = parser.getBuilderPrototype();
+        ScoreFunctionBuilder sfb = parser.getBuilderPrototype();
         namedWriteableRegistry.registerPrototype(ScoreFunctionBuilder.class, sfb);
     }
 
@@ -372,7 +372,7 @@ public class SearchModule extends AbstractModule {
                     throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
                 }
             }
-            @SuppressWarnings("unchecked") NamedWriteable<? extends QueryBuilder> qb = parser.getBuilderPrototype();
+            @SuppressWarnings("unchecked") QueryBuilder qb = parser.getBuilderPrototype();
             namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
         }
         return new IndicesQueriesRegistry(settings, queryParsersMap);
@@ -383,9 +383,13 @@ public class SearchModule extends AbstractModule {
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+        configureSmoothingModels(namedWriteableRegistry);
+    }
+
+    public static void configureSmoothingModels(NamedWriteableRegistry namedWriteableRegistry) {
+        namedWriteableRegistry.register(SmoothingModel.class, Laplace.NAME, Laplace::new);
+        namedWriteableRegistry.register(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new);
+        namedWriteableRegistry.register(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new);
     }
 
     protected void configureHighlighters() {

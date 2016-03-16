@@ -248,9 +248,8 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
-                    testAgg.getWriteableName());
-                AggregatorBuilder deserializedQuery = prototype.readFrom(in);
+                AggregatorBuilder deserializedQuery = namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
+                        testAgg.getWriteableName()).readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
                 assertNotSame(deserializedQuery, testAgg);
@@ -290,10 +289,8 @@ public abstract class BaseAggregationTestCase<AB extends AggregatorBuilder<AB>> 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorBuilder prototype = (AggregatorBuilder) namedWriteableRegistry.getPrototype(AggregatorBuilder.class,
-                    agg.getWriteableName());
                 @SuppressWarnings("unchecked")
-                AB secondAgg = (AB) prototype.readFrom(in);
+                AB secondAgg = (AB) namedWriteableRegistry.getPrototype(AggregatorBuilder.class, agg.getWriteableName()).readFrom(in);
                 return secondAgg;
             }
         }

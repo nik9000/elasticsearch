@@ -49,11 +49,11 @@ public final class StupidBackoff extends SmoothingModel {
      * Default discount parameter for {@link StupidBackoff} smoothing
      */
     public static final double DEFAULT_BACKOFF_DISCOUNT = 0.4;
-    public static final StupidBackoff PROTOTYPE = new StupidBackoff(DEFAULT_BACKOFF_DISCOUNT);
-    private double discount = DEFAULT_BACKOFF_DISCOUNT;
-    private static final String NAME = "stupid_backoff";
+    public static final String NAME = "stupid_backoff";
     private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
     static final ParseField PARSE_FIELD = new ParseField(NAME);
+
+    private final double discount;
 
     /**
      * Creates a Stupid-Backoff smoothing model.
@@ -63,6 +63,23 @@ public final class StupidBackoff extends SmoothingModel {
      */
     public StupidBackoff(double discount) {
         this.discount = discount;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public StupidBackoff(StreamInput in) throws IOException {
+        discount = in.readDouble();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeDouble(discount);
+    }
+
+    @Override
+    public StupidBackoff readFrom(StreamInput in) throws IOException {
+        return new StupidBackoff(in.readDouble());
     }
 
     /**
@@ -84,16 +101,6 @@ public final class StupidBackoff extends SmoothingModel {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(discount);
-    }
-
-    @Override
-    public StupidBackoff readFrom(StreamInput in) throws IOException {
-        return new StupidBackoff(in.readDouble());
-    }
-
-    @Override
     protected boolean doEquals(SmoothingModel other) {
         StupidBackoff otherModel = (StupidBackoff) other;
         return Objects.equals(discount, otherModel.discount);
@@ -104,8 +111,7 @@ public final class StupidBackoff extends SmoothingModel {
         return Objects.hash(discount);
     }
 
-    @Override
-    public SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
+    public static SmoothingModel innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token;
         String fieldName = null;

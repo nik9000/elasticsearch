@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.WritableTestCase;
@@ -61,9 +62,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
         nwRegistry.registerPrototype(SuggestionBuilder.class, TermSuggestionBuilder.PROTOTYPE);
         nwRegistry.registerPrototype(SuggestionBuilder.class, PhraseSuggestionBuilder.PROTOTYPE);
         nwRegistry.registerPrototype(SuggestionBuilder.class, CompletionSuggestionBuilder.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-        nwRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+        SearchModule.configureSmoothingModels(nwRegistry);
         namedWriteableRegistry = nwRegistry;
     }
 

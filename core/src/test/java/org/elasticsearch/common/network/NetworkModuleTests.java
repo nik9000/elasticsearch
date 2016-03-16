@@ -196,7 +196,7 @@ public class NetworkModuleTests extends ModuleTestCase {
 
         Task.Status dummy = new DummyTaskStatus();
         module.registerTaskStatus(dummy);
-        assertThat(registry.getPrototype(Task.Status.class, "dummy"), sameInstance(dummy));
+        assertNotNull(registry.getPrototype(Task.Status.class, "dummy"));
     }
 
     private class DummyTaskStatus implements Task.Status {

@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -68,9 +69,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     public static void init() {
         if (namedWriteableRegistry == null) {
             namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(SmoothingModel.class, Laplace.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(SmoothingModel.class, LinearInterpolation.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(SmoothingModel.class, StupidBackoff.PROTOTYPE);
+            SearchModule.configureSmoothingModels(namedWriteableRegistry);
         }
     }
 
@@ -103,14 +102,12 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
             contentBuilder.prettyPrint();
         }
         contentBuilder.startObject();
-        testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
+        testModel.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
         XContentParser parser = XContentHelper.createParser(contentBuilder.bytes());
         context.reset(parser);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
-        SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
-                testModel.getWriteableName());
-        SmoothingModel parsedModel = prototype.innerFromXContent(context);
+        SmoothingModel parsedModel = SmoothingModel.fromXContent(context);
         assertNotSame(testModel, parsedModel);
         assertEquals(testModel, parsedModel);
         assertEquals(testModel.hashCode(), parsedModel.hashCode());
@@ -155,7 +152,6 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     /**
      * Test equality and hashCode properties
      */
-    @SuppressWarnings("unchecked")
     public void testEqualsAndHashcode() throws IOException {
         SmoothingModel firstModel = createTestModel();
         assertFalse("smoothing model is equal to null", firstModel.equals(null));
@@ -188,9 +184,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                SmoothingModel prototype = (SmoothingModel) namedWriteableRegistry.getPrototype(SmoothingModel.class,
-                        original.getWriteableName());
-                return prototype.readFrom(in);
+                return namedWriteableRegistry.getPrototype(SmoothingModel.class, original.getWriteableName()).readFrom(in);
             }
         }
     }

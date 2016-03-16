@@ -34,9 +34,9 @@ public class NamedWriteableAwareStreamInput extends FilterStreamInput {
     }
 
     @Override
-    <C> C readNamedWriteable(Class<C> categoryClass) throws IOException {
+    @SuppressWarnings("rawtypes")
+    <C extends Writeable> C readNamedWriteable(Class<C> categoryClass) throws IOException {
         String name = readString();
-        NamedWriteable<? extends C> namedWriteable = namedWriteableRegistry.getPrototype(categoryClass, name);
-        return namedWriteable.readFrom(this);
+        return namedWriteableRegistry.getPrototype(categoryClass, name).readFrom(this);
     }
 }

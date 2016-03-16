@@ -39,10 +39,13 @@ public interface Writeable<T> extends StreamableReader<T> {
     void writeTo(StreamOutput out) throws IOException;
 
     /**
-     * Reference to a function that reads a Writeable from a StreamInput. Usually Writeables have a constructor that does this reading.
+     * Reference to a function that reads a Writeable from a StreamInput. Usually Writeables have a constructor that does this reading and
+     * this is just a reference to the constructor. In the case of Writeable enums, this is just a reference to a status method that
+     * resolves the enum.
      */
     @FunctionalInterface
-    interface Reader<T extends Writeable<T>> {
-        T read(StreamInput in) throws IOException;
+    @SuppressWarnings("rawtypes") // We're intentionally rough with types here because we'd like to remove the type parameter from Writeable
+    interface Reader<T extends Writeable> {
+        T readFrom(StreamInput in) throws IOException;
     }
 }

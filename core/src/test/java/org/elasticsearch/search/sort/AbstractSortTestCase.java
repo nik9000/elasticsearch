@@ -42,7 +42,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderParser<T>> extends ESTestCase {
+public abstract class AbstractSortTestCase<T extends SortBuilder<T> & SortBuilderParser<T>> extends ESTestCase {
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
@@ -52,7 +52,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(SortBuilder.class, GeoDistanceSortBuilder.PROTOTYPE);
+        namedWriteableRegistry.register(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, ScoreSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, ScriptSortBuilder.PROTOTYPE);
         namedWriteableRegistry.registerPrototype(SortBuilder.class, FieldSortBuilder.PROTOTYPE);
@@ -153,9 +153,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder & SortBuilderPa
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                T prototype = (T) namedWriteableRegistry.getPrototype(SortBuilder.class,
-                        original.getWriteableName());
-                T copy = prototype.readFrom(in);
+                T copy = (T) namedWriteableRegistry.getPrototype(SortBuilder.class, original.getWriteableName()).readFrom(in);
                 return copy;
             }
         }

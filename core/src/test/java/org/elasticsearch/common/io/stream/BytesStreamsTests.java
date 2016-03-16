@@ -31,6 +31,7 @@ import java.util.Objects;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -299,7 +300,7 @@ public class BytesStreamsTests extends ESTestCase {
     public void testNamedWriteable() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
         TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
         out.writeNamedWriteable(namedWriteableIn);
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytes()), namedWriteableRegistry);
@@ -309,13 +310,13 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testNamedWriteableDuplicates() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
         try {
-            namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+            namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
             fail("registerPrototype should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("named writeable of type [" + TestNamedWriteable.class.getName() + "] with name [" + TestNamedWriteable.NAME + "] is already registered by type ["
-                    + TestNamedWriteable.class.getName() + "] within category [" + BaseNamedWriteable.class.getName() + "]"));
+            assertThat(e.getMessage(), startsWith("named writeable [" + BaseNamedWriteable.class.getName() + "]["
+                    + TestNamedWriteable.NAME + "] is already registered with reader ["));
         }
     }
 
@@ -334,7 +335,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testNamedWriteableUnknownNamedWriteable() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeNamedWriteable(new NamedWriteable() {
             @Override
@@ -390,6 +391,11 @@ public class BytesStreamsTests extends ESTestCase {
             this.field2 = field2;
         }
 
+        TestNamedWriteable(StreamInput in) throws IOException {
+            field1 = in.readString();
+            field2 = in.readString();
+        }
+
         @Override
         public String getWriteableName() {
             return NAME;
@@ -403,7 +409,7 @@ public class BytesStreamsTests extends ESTestCase {
 
         @Override
         public TestNamedWriteable readFrom(StreamInput in) throws IOException {
-            return new TestNamedWriteable(in.readString(), in.readString());
+            return new TestNamedWriteable(in);
         }
 
         @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,7 +31,7 @@ import java.util.Objects;
 /**
  *
  */
-public abstract class SortBuilder<T extends SortBuilder<?>> implements ToXContent {
+public abstract class SortBuilder<T extends SortBuilder<?>> implements ToXContent, NamedWriteable<T> {
 
     protected SortOrder order = SortOrder.ASC;
     public static final ParseField ORDER_FIELD = new ParseField("order");

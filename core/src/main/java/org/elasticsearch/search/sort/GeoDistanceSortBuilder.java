@@ -46,8 +46,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final boolean DEFAULT_COERCE = false;
     public static final boolean DEFAULT_IGNORE_MALFORMED = false;
 
-    static final GeoDistanceSortBuilder PROTOTYPE = new GeoDistanceSortBuilder("", -1, -1);
-
     private final String fieldName;
     private final List<GeoPoint> points = new ArrayList<>();
 
@@ -118,6 +116,57 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         this.nestedPath = original.nestedPath;
         this.coerce = original.coerce;
         this.ignoreMalformed = original.ignoreMalformed;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    @SuppressWarnings("unchecked")
+    public GeoDistanceSortBuilder(StreamInput in) throws IOException {
+        fieldName = in.readString();
+        for (GeoPoint point : (List<GeoPoint>) in.readGenericValue()) {
+            points.add(point);
+        }
+        geoDistance(GeoDistance.readGeoDistanceFrom(in));
+        unit(DistanceUnit.readDistanceUnit(in));
+        order(SortOrder.readOrderFrom(in));
+        if (in.readBoolean()) {
+            sortMode = SortMode.PROTOTYPE.readFrom(in);
+        }
+        if (in.readBoolean()) {
+            setNestedFilter(in.readQuery());
+        }
+        setNestedPath(in.readOptionalString());
+        coerce(in.readBoolean());
+        ignoreMalformed(in.readBoolean());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGenericValue(points);
+
+        geoDistance.writeTo(out);
+        unit.writeTo(out);
+        order.writeTo(out);
+        out.writeBoolean(this.sortMode != null);
+        if (this.sortMode != null) {
+            sortMode.writeTo(out);
+        }
+        if (nestedFilter != null) {
+            out.writeBoolean(true);
+            out.writeQuery(nestedFilter);
+        } else {
+            out.writeBoolean(false);
+        }
+        out.writeOptionalString(nestedPath);
+        out.writeBoolean(coerce);
+        out.writeBoolean(ignoreMalformed);
+    }
+
+    @Override
+    public GeoDistanceSortBuilder readFrom(StreamInput in) throws IOException {
+        return new GeoDistanceSortBuilder(in);
     }
 
     /**
@@ -333,51 +382,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public int hashCode() {
         return Objects.hash(this.fieldName, this.points, this.geoDistance,
                 this.unit, this.sortMode, this.order, this.nestedFilter, this.nestedPath, this.coerce, this.ignoreMalformed);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGenericValue(points);
-
-        geoDistance.writeTo(out);
-        unit.writeTo(out);
-        order.writeTo(out);
-        out.writeBoolean(this.sortMode != null);
-        if (this.sortMode != null) {
-            sortMode.writeTo(out);
-        }
-        if (nestedFilter != null) {
-            out.writeBoolean(true);
-            out.writeQuery(nestedFilter);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeOptionalString(nestedPath);
-        out.writeBoolean(coerce);
-        out.writeBoolean(ignoreMalformed);
-    }
-
-    @Override
-    public GeoDistanceSortBuilder readFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-
-        ArrayList<GeoPoint> points = (ArrayList<GeoPoint>) in.readGenericValue();
-        GeoDistanceSortBuilder result = new GeoDistanceSortBuilder(fieldName, points.toArray(new GeoPoint[points.size()]));
-
-        result.geoDistance(GeoDistance.readGeoDistanceFrom(in));
-        result.unit(DistanceUnit.readDistanceUnit(in));
-        result.order(SortOrder.readOrderFrom(in));
-        if (in.readBoolean()) {
-            result.sortMode = SortMode.PROTOTYPE.readFrom(in);
-        }
-        if (in.readBoolean()) {
-            result.setNestedFilter(in.readQuery());
-        }
-        result.setNestedPath(in.readOptionalString());
-        result.coerce(in.readBoolean());
-        result.ignoreMalformed(in.readBoolean());
-        return result;
     }
 
     @Override
