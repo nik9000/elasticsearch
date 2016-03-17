@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 /**
  * Parser for bool query
@@ -156,7 +157,7 @@ public class BoolQueryParser implements QueryParser<BoolQueryBuilder> {
     }
 
     @Override
-    public BoolQueryBuilder getBuilderPrototype() {
-        return BoolQueryBuilder.PROTOTYPE;
+    public BoolQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new BoolQueryBuilder(in);
     }
 }

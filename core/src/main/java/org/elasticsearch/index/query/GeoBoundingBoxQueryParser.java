@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -160,7 +161,7 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
     }
 
     @Override
-    public GeoBoundingBoxQueryBuilder getBuilderPrototype() {
-        return GeoBoundingBoxQueryBuilder.PROTOTYPE;
+    public GeoBoundingBoxQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new GeoBoundingBoxQueryBuilder(in);
     }
 }

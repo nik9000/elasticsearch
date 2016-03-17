@@ -38,7 +38,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
 
     private final QueryBuilder filterBuilder;
 
-    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE);
+    static final ConstantScoreQueryBuilder PROTOTYPE = new ConstantScoreQueryBuilder(EmptyQueryBuilder.INSTANCE);
 
     /**
      * A query that wraps another query and simply returns a constant score equal to the
@@ -51,6 +51,24 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             throw new IllegalArgumentException("inner clause [filter] cannot be null.");
         }
         this.filterBuilder = filterBuilder;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public ConstantScoreQueryBuilder(StreamInput in) throws IOException {
+        filterBuilder = in.readQuery();
+        finishReading(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(filterBuilder);
+    }
+
+    @Override
+    public ConstantScoreQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new ConstantScoreQueryBuilder(in);
     }
 
     /**
@@ -92,17 +110,6 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected boolean doEquals(ConstantScoreQueryBuilder other) {
         return Objects.equals(filterBuilder, other.filterBuilder);
-    }
-
-    @Override
-    protected ConstantScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder innerFilterBuilder = in.readQuery();
-        return new ConstantScoreQueryBuilder(innerFilterBuilder);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(filterBuilder);
     }
 
     @Override

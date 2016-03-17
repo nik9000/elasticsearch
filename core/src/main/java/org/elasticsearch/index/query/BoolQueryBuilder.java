@@ -48,8 +48,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     public static final boolean DISABLE_COORD_DEFAULT = false;
 
-    static final BoolQueryBuilder PROTOTYPE = new BoolQueryBuilder();
-
     private final List<QueryBuilder<?>> mustClauses = new ArrayList<>();
 
     private final List<QueryBuilder<?>> mustNotClauses = new ArrayList<>();
@@ -63,6 +61,36 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private boolean adjustPureNegative = ADJUST_PURE_NEGATIVE_DEFAULT;
 
     private String minimumShouldMatch;
+
+    public BoolQueryBuilder() {
+    }
+
+    public BoolQueryBuilder(StreamInput in) throws IOException {
+        mustClauses.addAll(readQueries(in));
+        mustNotClauses.addAll(readQueries(in));
+        shouldClauses.addAll(readQueries(in));
+        filterClauses.addAll(readQueries(in));
+        adjustPureNegative = in.readBoolean();
+        disableCoord = in.readBoolean();
+        minimumShouldMatch = in.readOptionalString();
+        finishReading(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeQueries(out, mustClauses);
+        writeQueries(out, mustNotClauses);
+        writeQueries(out, shouldClauses);
+        writeQueries(out, filterClauses);
+        out.writeBoolean(adjustPureNegative);
+        out.writeBoolean(disableCoord);
+        out.writeOptionalString(minimumShouldMatch);
+    }
+
+    @Override
+    public BoolQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new BoolQueryBuilder(in);
+    }
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents and will
@@ -318,35 +346,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                 Objects.equals(shouldClauses, other.shouldClauses) &&
                 Objects.equals(mustNotClauses, other.mustNotClauses) &&
                 Objects.equals(filterClauses, other.filterClauses);
-    }
-
-    @Override
-    protected BoolQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        List<QueryBuilder<?>> queryBuilders = readQueries(in);
-        boolQueryBuilder.mustClauses.addAll(queryBuilders);
-        queryBuilders = readQueries(in);
-        boolQueryBuilder.mustNotClauses.addAll(queryBuilders);
-        queryBuilders = readQueries(in);
-        boolQueryBuilder.shouldClauses.addAll(queryBuilders);
-        queryBuilders = readQueries(in);
-        boolQueryBuilder.filterClauses.addAll(queryBuilders);
-        boolQueryBuilder.adjustPureNegative = in.readBoolean();
-        boolQueryBuilder.disableCoord = in.readBoolean();
-        boolQueryBuilder.minimumShouldMatch = in.readOptionalString();
-        return boolQueryBuilder;
-
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        writeQueries(out, mustClauses);
-        writeQueries(out, mustNotClauses);
-        writeQueries(out, shouldClauses);
-        writeQueries(out, filterClauses);
-        out.writeBoolean(adjustPureNegative);
-        out.writeBoolean(disableCoord);
-        out.writeOptionalString(minimumShouldMatch);
     }
 
     @Override

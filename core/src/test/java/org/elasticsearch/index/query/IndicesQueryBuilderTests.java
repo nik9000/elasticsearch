@@ -68,20 +68,20 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
         }
 
         try {
-            new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, (String[]) null);
+            new IndicesQueryBuilder(EmptyQueryBuilder.INSTANCE, (String[]) null);
             fail("cannot be null");
         } catch (IllegalArgumentException e) {
             // expected
         }
 
         try {
-            new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, new String[0]);
+            new IndicesQueryBuilder(EmptyQueryBuilder.INSTANCE, new String[0]);
             fail("cannot be empty");
         } catch (IllegalArgumentException e) {
             // expected
         }
 
-        IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(EmptyQueryBuilder.PROTOTYPE, "index");
+        IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(EmptyQueryBuilder.INSTANCE, "index");
         try {
             indicesQueryBuilder.noMatchQuery((QueryBuilder) null);
             fail("cannot be null");

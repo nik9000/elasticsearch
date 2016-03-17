@@ -125,6 +125,52 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         this.filterFunctionBuilders = filterFunctionBuilders;
     }
 
+    public FunctionScoreQueryBuilder(StreamInput in) throws IOException {
+        query = in.readQuery();
+        int size = in.readVInt();
+        filterFunctionBuilders = new FilterFunctionBuilder[size];
+        for (int i = 0; i < size; i++) {
+            filterFunctionBuilders[i] = FilterFunctionBuilder.PROTOTYPE.readFrom(in);
+        }
+        maxBoost(in.readFloat());
+        if (in.readBoolean()) {
+            setMinScore(in.readFloat());
+        }
+        if (in.readBoolean()) {
+            boostMode(CombineFunction.readCombineFunctionFrom(in));
+        }
+        scoreMode(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in));
+        finishReading(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(query);
+        out.writeVInt(filterFunctionBuilders.length);
+        for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
+            filterFunctionBuilder.writeTo(out);
+        }
+        out.writeFloat(maxBoost);
+        if (minScore == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeFloat(minScore);
+        }
+        if (boostMode == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            boostMode.writeTo(out);
+        }
+        scoreMode.writeTo(out);
+    }
+
+    @Override
+    public FunctionScoreQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new FunctionScoreQueryBuilder(in);
+    }
+
     /**
      * Returns the query that defines which documents the function_score query will be executed on.
      */
@@ -249,49 +295,6 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     }
 
     @Override
-    protected FunctionScoreQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder<?> query = in.readQuery();
-        int size = in.readVInt();
-        FilterFunctionBuilder[] filterFunctionBuilders = new FilterFunctionBuilder[size];
-        for (int i = 0; i < size; i++) {
-            filterFunctionBuilders[i] = FilterFunctionBuilder.PROTOTYPE.readFrom(in);
-        }
-        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(query, filterFunctionBuilders);
-        functionScoreQueryBuilder.maxBoost(in.readFloat());
-        if (in.readBoolean()) {
-            functionScoreQueryBuilder.setMinScore(in.readFloat());
-        }
-        if (in.readBoolean()) {
-            functionScoreQueryBuilder.boostMode(CombineFunction.readCombineFunctionFrom(in));
-        }
-        functionScoreQueryBuilder.scoreMode(FiltersFunctionScoreQuery.ScoreMode.readScoreModeFrom(in));
-        return functionScoreQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(query);
-        out.writeVInt(filterFunctionBuilders.length);
-        for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
-            filterFunctionBuilder.writeTo(out);
-        }
-        out.writeFloat(maxBoost);
-        if (minScore == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeFloat(minScore);
-        }
-        if (boostMode == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            boostMode.writeTo(out);
-        }
-        scoreMode.writeTo(out);
-    }
-
-    @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[filterFunctionBuilders.length];
         int i = 0;
@@ -328,7 +331,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * that match the given filter.
      */
     public static class FilterFunctionBuilder implements ToXContent, Writeable<FilterFunctionBuilder> {
-        private static final FilterFunctionBuilder PROTOTYPE = new FilterFunctionBuilder(EmptyQueryBuilder.PROTOTYPE, new RandomScoreFunctionBuilder());
+        private static final FilterFunctionBuilder PROTOTYPE = new FilterFunctionBuilder(EmptyQueryBuilder.INSTANCE, new RandomScoreFunctionBuilder());
 
         private final QueryBuilder<?> filter;
         private final ScoreFunctionBuilder scoreFunction;

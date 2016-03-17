@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+
 import java.io.IOException;
 
 /**
@@ -45,7 +47,7 @@ public interface QueryParser<QB extends QueryBuilder<QB>> {
     QB fromXContent(QueryParseContext parseContext) throws IOException;
 
     /**
-     * @return an empty {@link QueryBuilder} instance for this parser that can be used for deserialization
+     * Read the query builder from a stream.
      */
-    QB getBuilderPrototype();
+    QB readFrom(StreamInput in) throws IOException;
 }

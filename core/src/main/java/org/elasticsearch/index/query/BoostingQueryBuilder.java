@@ -50,8 +50,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
 
     private float negativeBoost = -1;
 
-    static final BoostingQueryBuilder PROTOTYPE = new BoostingQueryBuilder(EmptyQueryBuilder.PROTOTYPE, EmptyQueryBuilder.PROTOTYPE);
-
     /**
      * Create a new {@link BoostingQueryBuilder}
      *
@@ -67,6 +65,28 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         }
         this.positiveQuery = positiveQuery;
         this.negativeQuery = negativeQuery;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public BoostingQueryBuilder(StreamInput in) throws IOException {
+        positiveQuery = in.readQuery();
+        negativeQuery = in.readQuery();
+        negativeBoost = in.readFloat();
+        finishReading(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeQuery(positiveQuery);
+        out.writeQuery(negativeQuery);
+        out.writeFloat(negativeBoost);
+    }
+
+    @Override
+    public BoostingQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new BoostingQueryBuilder(in);
     }
 
     /**
@@ -141,22 +161,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         return Objects.equals(negativeBoost, other.negativeBoost) &&
                 Objects.equals(positiveQuery, other.positiveQuery) &&
                 Objects.equals(negativeQuery, other.negativeQuery);
-    }
-
-    @Override
-    protected BoostingQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        QueryBuilder positiveQuery = in.readQuery();
-        QueryBuilder negativeQuery = in.readQuery();
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
-        boostingQuery.negativeBoost = in.readFloat();
-        return boostingQuery;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeQuery(positiveQuery);
-        out.writeQuery(negativeQuery);
-        out.writeFloat(negativeBoost);
     }
 
     @Override

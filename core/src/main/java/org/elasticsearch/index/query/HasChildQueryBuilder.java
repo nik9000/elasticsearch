@@ -79,7 +79,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     private QueryInnerHits queryInnerHits;
 
-    static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    static final HasChildQueryBuilder PROTOTYPE = new HasChildQueryBuilder("", EmptyQueryBuilder.INSTANCE);
 
     public HasChildQueryBuilder(String type, QueryBuilder query, int maxChildren, int minChildren, ScoreMode scoreMode, QueryInnerHits queryInnerHits) {
         this(type, query);

@@ -77,6 +77,32 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     /**
+     * Read from a stream.
+     */
+    public GeoBoundingBoxQueryBuilder(StreamInput in) throws IOException {
+        fieldName = in.readString();
+        topLeft = in.readGeoPoint();
+        bottomRight = in.readGeoPoint();
+        type = GeoExecType.readTypeFrom(in);
+        validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
+        finishReading(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(fieldName);
+        out.writeGeoPoint(topLeft);
+        out.writeGeoPoint(bottomRight);
+        type.writeTo(out);
+        validationMethod.writeTo(out);
+    }
+
+    @Override
+    public GeoBoundingBoxQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new GeoBoundingBoxQueryBuilder(in);
+    }
+
+    /**
      * Adds top left point.
      * @param top The top latitude
      * @param left The left longitude
@@ -321,26 +347,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     @Override
     protected int doHashCode() {
         return Objects.hash(topLeft, bottomRight, type, validationMethod, fieldName);
-    }
-
-    @Override
-    protected GeoBoundingBoxQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        String fieldName = in.readString();
-        GeoBoundingBoxQueryBuilder geo = new GeoBoundingBoxQueryBuilder(fieldName);
-        geo.topLeft = in.readGeoPoint();
-        geo.bottomRight = in.readGeoPoint();
-        geo.type = GeoExecType.readTypeFrom(in);
-        geo.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
-        return geo;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeGeoPoint(topLeft);
-        out.writeGeoPoint(bottomRight);
-        type.writeTo(out);
-        validationMethod.writeTo(out);
     }
 
     @Override

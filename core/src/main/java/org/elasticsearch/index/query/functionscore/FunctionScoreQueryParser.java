@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -44,7 +45,7 @@ import java.util.List;
  */
 public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryBuilder> {
 
-    private static final FunctionScoreQueryBuilder PROTOTYPE = new FunctionScoreQueryBuilder(EmptyQueryBuilder.PROTOTYPE, new FunctionScoreQueryBuilder.FilterFunctionBuilder[0]);
+    private static final FunctionScoreQueryBuilder PROTOTYPE = new FunctionScoreQueryBuilder(EmptyQueryBuilder.INSTANCE, new FunctionScoreQueryBuilder.FilterFunctionBuilder[0]);
 
     // For better readability of error message
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";
@@ -234,7 +235,7 @@ public class FunctionScoreQueryParser implements QueryParser<FunctionScoreQueryB
     }
 
     @Override
-    public FunctionScoreQueryBuilder getBuilderPrototype() {
-        return PROTOTYPE;
+    public FunctionScoreQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new FunctionScoreQueryBuilder(in);
     }
 }

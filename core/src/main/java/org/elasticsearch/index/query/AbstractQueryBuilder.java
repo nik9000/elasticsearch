@@ -56,6 +56,23 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         super(XContentType.JSON);
     }
 
+    /**
+     * Read from a stream.
+     */
+    protected AbstractQueryBuilder(StreamInput in) throws IOException {
+        this();
+        // Because the superclass's data is written first
+    }
+
+    /**
+     * Finish reading this class from a stream. Call this after all other operations in a StreamInput constructor. This is required because
+     * this class's data is written AFTER the superclass's data rather than before.
+     */
+    protected void finishReading(StreamInput in) throws IOException {
+        boost = in.readFloat();
+        queryName = in.readOptionalString();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -142,16 +159,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         this.boost = boost;
         return (QB) this;
     }
-
-    @Override
-    public final QB readFrom(StreamInput in) throws IOException {
-        QB queryBuilder = doReadFrom(in);
-        queryBuilder.boost = in.readFloat();
-        queryBuilder.queryName = in.readOptionalString();
-        return queryBuilder;
-    }
-
-    protected abstract QB doReadFrom(StreamInput in) throws IOException;
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {

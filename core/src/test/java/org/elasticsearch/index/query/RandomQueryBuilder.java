@@ -47,7 +47,7 @@ public class RandomQueryBuilder {
             case 3:
                 return createMultiTermQuery(r);
             case 4:
-                return EmptyQueryBuilder.PROTOTYPE;
+                return EmptyQueryBuilder.INSTANCE;
             default:
                 throw new UnsupportedOperationException();
         }

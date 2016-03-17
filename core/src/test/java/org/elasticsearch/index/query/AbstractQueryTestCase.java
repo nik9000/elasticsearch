@@ -640,8 +640,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 QueryParser<?> queryParser = queryParser(testQuery.getName());
                 assertNotNull("queryparser not found for query: [" + testQuery.getName() + "]", queryParser);
-                QueryBuilder<?> prototype = queryParser.getBuilderPrototype();
-                QueryBuilder<?> deserializedQuery = prototype.readFrom(in);
+                QueryBuilder<?> deserializedQuery = queryParser.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
@@ -695,12 +694,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 @Override
                 public QueryBuilder<?> fromXContent(QueryParseContext parseContext) throws IOException {
-                    return new EmptyQueryBuilder();
+                    return EmptyQueryBuilder.INSTANCE;
                 }
 
                 @Override
-                public QueryBuilder getBuilderPrototype() {
-                    return EmptyQueryBuilder.PROTOTYPE;
+                public QueryBuilder readFrom(StreamInput in) throws IOException {
+                    return EmptyQueryBuilder.INSTANCE;
                 }
             };
         }
@@ -712,9 +711,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             query.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                QueryBuilder<?> prototype = queryParser(query.getName()).getBuilderPrototype();
                 @SuppressWarnings("unchecked")
-                QB secondQuery = (QB)prototype.readFrom(in);
+                QB secondQuery = (QB) queryParser(query.getName()).readFrom(in);
                 return secondQuery;
             }
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -97,7 +98,7 @@ public class BoostingQueryParser implements QueryParser<BoostingQueryBuilder> {
     }
 
     @Override
-    public BoostingQueryBuilder getBuilderPrototype() {
-        return BoostingQueryBuilder.PROTOTYPE;
+    public BoostingQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new BoostingQueryBuilder(in);
     }
 }

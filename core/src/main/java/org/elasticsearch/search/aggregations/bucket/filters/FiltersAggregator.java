@@ -58,7 +58,7 @@ public class FiltersAggregator extends BucketsAggregator {
 
     public static class KeyedFilter implements Writeable<KeyedFilter>, ToXContent {
 
-        static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.PROTOTYPE);
+        static final KeyedFilter PROTOTYPE = new KeyedFilter("", EmptyQueryBuilder.INSTANCE);
         private final String key;
         private final QueryBuilder<?> filter;
 

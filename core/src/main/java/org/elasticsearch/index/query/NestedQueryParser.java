@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.support.QueryInnerHits;
 
 public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
-    private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.INSTANCE);
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     public static final ParseField PATH_FIELD = new ParseField("path");
     public static final ParseField QUERY_FIELD = new ParseField("query");

@@ -29,7 +29,7 @@ import java.io.IOException;
 
 public class HasParentQueryParser implements QueryParser<HasParentQueryBuilder>  {
 
-    private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    private static final HasParentQueryBuilder PROTOTYPE = new HasParentQueryBuilder("", EmptyQueryBuilder.INSTANCE);
     public static final ParseField QUERY_FIELD = new ParseField("query", "filter");
     //public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode").withAllDeprecated("score");

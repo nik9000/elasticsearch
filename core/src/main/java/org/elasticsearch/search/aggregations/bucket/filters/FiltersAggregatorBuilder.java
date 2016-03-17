@@ -38,7 +38,7 @@ import java.util.Objects;
 
 public class FiltersAggregatorBuilder extends AggregatorBuilder<FiltersAggregatorBuilder> {
 
-    static final FiltersAggregatorBuilder PROTOTYPE = new FiltersAggregatorBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    static final FiltersAggregatorBuilder PROTOTYPE = new FiltersAggregatorBuilder("", EmptyQueryBuilder.INSTANCE);
 
     private final List<KeyedFilter> filters;
     private final boolean keyed;

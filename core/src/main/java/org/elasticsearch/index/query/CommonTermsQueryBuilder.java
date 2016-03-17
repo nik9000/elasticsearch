@@ -99,6 +99,40 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         this.text = text;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public CommonTermsQueryBuilder(StreamInput in) throws IOException {
+        fieldName = in.readString();
+        text = in.readGenericValue();
+        highFreqOperator = Operator.readOperatorFrom(in);
+        lowFreqOperator = Operator.readOperatorFrom(in);
+        analyzer = in.readOptionalString();
+        lowFreqMinimumShouldMatch = in.readOptionalString();
+        highFreqMinimumShouldMatch = in.readOptionalString();
+        disableCoord = in.readBoolean();
+        cutoffFrequency = in.readFloat();
+        finishReading(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(this.fieldName);
+        out.writeGenericValue(this.text);
+        highFreqOperator.writeTo(out);
+        lowFreqOperator.writeTo(out);
+        out.writeOptionalString(analyzer);
+        out.writeOptionalString(lowFreqMinimumShouldMatch);
+        out.writeOptionalString(highFreqMinimumShouldMatch);
+        out.writeBoolean(disableCoord);
+        out.writeFloat(cutoffFrequency);
+    }
+
+    @Override
+    public CommonTermsQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new CommonTermsQueryBuilder(in);
+    }
+
     public String fieldName() {
         return this.fieldName;
     }
@@ -283,32 +317,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return query;
-    }
-
-    @Override
-    protected CommonTermsQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        CommonTermsQueryBuilder commonTermsQueryBuilder = new CommonTermsQueryBuilder(in.readString(), in.readGenericValue());
-        commonTermsQueryBuilder.highFreqOperator = Operator.readOperatorFrom(in);
-        commonTermsQueryBuilder.lowFreqOperator = Operator.readOperatorFrom(in);
-        commonTermsQueryBuilder.analyzer = in.readOptionalString();
-        commonTermsQueryBuilder.lowFreqMinimumShouldMatch = in.readOptionalString();
-        commonTermsQueryBuilder.highFreqMinimumShouldMatch = in.readOptionalString();
-        commonTermsQueryBuilder.disableCoord = in.readBoolean();
-        commonTermsQueryBuilder.cutoffFrequency = in.readFloat();
-        return commonTermsQueryBuilder;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(this.fieldName);
-        out.writeGenericValue(this.text);
-        highFreqOperator.writeTo(out);
-        lowFreqOperator.writeTo(out);
-        out.writeOptionalString(analyzer);
-        out.writeOptionalString(lowFreqMinimumShouldMatch);
-        out.writeOptionalString(highFreqMinimumShouldMatch);
-        out.writeBoolean(disableCoord);
-        out.writeFloat(cutoffFrequency);
     }
 
     @Override

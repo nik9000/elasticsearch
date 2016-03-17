@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -117,7 +118,7 @@ public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
     }
 
     @Override
-    public FuzzyQueryBuilder getBuilderPrototype() {
-        return FuzzyQueryBuilder.PROTOTYPE;
+    public FuzzyQueryBuilder readFrom(StreamInput in) throws IOException {
+        return new FuzzyQueryBuilder(in);
     }
 }

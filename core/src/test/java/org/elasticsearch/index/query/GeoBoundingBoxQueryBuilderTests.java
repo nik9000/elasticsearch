@@ -89,7 +89,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     public void testValidationNullFieldname() {
         try {
-            new GeoBoundingBoxQueryBuilder(null);
+            new GeoBoundingBoxQueryBuilder((String) null);
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("Field name must not be empty."));

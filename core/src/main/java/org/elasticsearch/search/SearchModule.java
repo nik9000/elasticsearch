@@ -369,11 +369,12 @@ public class SearchModule extends AbstractModule {
             for (String name: parser.names()) {
                 Object oldValue = queryParsersMap.putIfAbsent(name, parser);
                 if (oldValue != null) {
-                    throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name + "] while trying to register [" + parser + "]");
+                    throw new IllegalArgumentException("Query parser [" + oldValue + "] already registered for name [" + name
+                            + "] while trying to register [" + parser + "]");
                 }
             }
-            @SuppressWarnings("unchecked") QueryBuilder qb = parser.getBuilderPrototype();
-            namedWriteableRegistry.registerPrototype(QueryBuilder.class, qb);
+            // TODO make sure it is safe to always use the first name like this
+            namedWriteableRegistry.register(QueryBuilder.class, parser.names()[0], parser::readFrom);
         }
         return new IndicesQueriesRegistry(settings, queryParsersMap);
     }
@@ -513,7 +514,8 @@ public class SearchModule extends AbstractModule {
         registerQueryParser(MatchAllQueryParser::new);
         registerQueryParser(QueryStringQueryParser::new);
         registerQueryParser(BoostingQueryParser::new);
-        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count", settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
+        BooleanQuery.setMaxClauseCount(settings.getAsInt("index.query.bool.max_clause_count",
+                settings.getAsInt("indices.query.bool.max_clause_count", BooleanQuery.getMaxClauseCount())));
         registerQueryParser(BoolQueryParser::new);
         registerQueryParser(TermQueryParser::new);
         registerQueryParser(TermsQueryParser::new);
@@ -555,7 +557,7 @@ public class SearchModule extends AbstractModule {
         }
         // EmptyQueryBuilder is not registered as query parser but used internally.
         // We need to register it with the NamedWriteableRegistry in order to serialize it
-        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.INSTANCE);
     }
 
     static {
