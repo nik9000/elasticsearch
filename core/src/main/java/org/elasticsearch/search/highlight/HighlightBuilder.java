@@ -562,10 +562,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     public enum Order implements Writeable<Order> {
         NONE, SCORE;
 
-        static Order PROTOTYPE = NONE;
-
-        @Override
-        public Order readFrom(StreamInput in) throws IOException {
+        public static Order readFromStream(StreamInput in) throws IOException {
             int ordinal = in.readVInt();
             if (ordinal < 0 || ordinal >= values().length) {
                 throw new IOException("Unknown Order ordinal [" + ordinal + "]");

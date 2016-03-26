@@ -585,12 +585,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         numOfFragments(in.readOptionalVInt());
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
-        if (in.readBoolean()) {
-            highlightQuery(in.readQuery());
-        }
-        if (in.readBoolean()) {
-            order(Order.PROTOTYPE.readFrom(in));
-        }
+        highlightQuery = in.readOptionalQuery();
+        order = in.readOptionalWriteable(Order::readFromStream);
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
         boundaryMaxScan(in.readOptionalVInt());
@@ -616,16 +612,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalVInt(numOfFragments);
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
-        boolean hasQuery = highlightQuery != null;
-        out.writeBoolean(hasQuery);
-        if (hasQuery) {
-            out.writeQuery(highlightQuery);
-        }
-        boolean hasSetOrder = order != null;
-        out.writeBoolean(hasSetOrder);
-        if (hasSetOrder) {
-            order.writeTo(out);
-        }
+        out.writeOptionalQuery(highlightQuery);
+        out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
         out.writeOptionalVInt(boundaryMaxScan);
