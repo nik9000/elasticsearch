@@ -56,11 +56,53 @@ for (String box : vagrantBoxes.split(',')) {
     boxes.add(box)
   }
 }
+ext.upgradeFromVersions = null
+String[] upgradeFromVersions() {
+  if (upgradeFromVersions != null) {
+    return upgradeFromVersions
+  }
+  println 'resolving upgradeFromVersions'
+  String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
+  if (maybeUpdradeFromVersions != null) {
+    upgradeFromVersions = maybeUpdradeFromVersions.split(",")
+  } else {
+    upgradeFromVersions = new File(project.projectDir, 'upgradeFromVersions')
+  }
+  return upgradeFromVersions
+}
+ext.upgradeFromVersion = null
+String upgradeFromVersion() {
+  if (upgradeFromVersion != null) {
+    return upgradeFromVersion
+  }
+  println 'resolving upgradeFromVersion'
+  new RuntimeException().printStackTrace()
+  long seed
+  String formattedSeed
+  String maybeTestsSeed = System.getProperty("tests.seed", null);
+  if (maybeTestsSeed != null) {
+    seed = new BigInteger(maybeTestsSeed, 16).longValue()
+    formattedSeed = maybeTestsSeed
+  } else {
+    seed = new Random().nextLong()
+    formattedSeed = String.format("%016X", seed)
+  }
 
-long seed
-String formattedSeed
-String[] upgradeFromVersions
-String upgradeFromVersion
+  gradle.addBuildListener new BuildAdapter() {
+    @Override
+    void buildFinished(BuildResult result) {
+      if (result.failure) {
+        println "Reproduce with: gradle packagingTest " +
+            "-Pvagrant.boxes=${vagrantBoxes} -Dtests.seed=${formattedSeed} " +
+            "-Dtests.packaging.upgrade.from.versions=${upgradeFromVersions().join(",")}"
+      }
+    }
+  }
+
+  upgradeFromVersion = upgradeFromVersions()[new Random(seed).nextInt(upgradeFromVersions().length)]
+  println "Decided to upgrade from $upgradeFromVersion"
+  return upgradeFromVersion
+}
 
 configurations {
   test
@@ -71,29 +113,6 @@ repositories {
 }
 
 dependencies {
-  String maybeTestsSeed = System.getProperty("tests.seed", null);
-  if (maybeTestsSeed != null) {
-    seed = new BigInteger(maybeTestsSeed, 16).longValue()
-    formattedSeed = maybeTestsSeed
-  } else {
-    seed = new Random().nextLong()
-    formattedSeed = String.format("%016X", seed)
-  }
-
-  String maybeUpdradeFromVersions = System.getProperty("tests.packaging.upgrade.from.versions", null)
-  if (maybeUpdradeFromVersions != null) {
-    upgradeFromVersions = maybeUpdradeFromVersions.split(",")
-  } else {
-    upgradeFromVersions = new File(project.projectDir, 'upgradeFromVersions')
-  }
-
-  upgradeFromVersion = upgradeFromVersions[new Random(seed).nextInt(upgradeFromVersions.length)]
-  println "Decided to upgrade from $upgradeFromVersion"
-
-  test project(path: ':distribution:tar', configuration: 'archives')
-  test project(path: ':distribution:rpm', configuration: 'archives')
-  test project(path: ':distribution:deb', configuration: 'archives')
-
   // Collect all the plugins
   for (Project subproj : project.rootProject.subprojects) {
     if (subproj.path.startsWith(':plugins:')) {
@@ -101,10 +120,17 @@ dependencies {
     }
   }
 
-  // The version of elasticsearch that we upgrade *from*
-  test "org.elasticsearch.distribution.deb:elasticsearch:$upgradeFromVersion@deb"
-  test "org.elasticsearch.distribution.rpm:elasticsearch:$upgradeFromVersion@rpm"
+  test project(path: ':distribution:tar', configuration: 'archives')
+  test project(path: ':distribution:rpm', configuration: 'archives')
+  test project(path: ':distribution:deb', configuration: 'archives')
+
+  /* The version of elasticsearch that we upgrade *from* during upgrade portion
+   * of the test. Uses ${ -> } syntax to delay resolving the version (which
+   * requires IO) until we must resolve dependencies. */
+  test "org.elasticsearch.distribution.deb:elasticsearch:${ -> upgradeFromVersion() }@deb"
+  test "org.elasticsearch.distribution.rpm:elasticsearch:${ -> upgradeFromVersion() }@rpm"
 }
+
 
 task clean(type: Delete) {
   group 'Build'
@@ -135,7 +161,7 @@ task updatePackagingTestUpgradeFromVersions {
 task verifyPackagingTestUpgradeFromVersions {
   doLast {
     Set<String> versions = getVersions()
-    Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions))
+    Set<String> actualVersions = new HashSet<>(Arrays.asList(upgradeFromVersions()))
     if (!versions.equals(actualVersions)) {
       throw new GradleException("out-of-date versions [" + actualVersions +
           "], expected [" + versions +
@@ -162,14 +188,13 @@ task createVersionFile(type: FileContentsTask) {
 task createUpgradeFromFile(type: FileContentsTask) {
   dependsOn createTestRoot
   file "${testRoot}/upgrade_from_version"
-  contents = upgradeFromVersion
+  contents = "${ -> upgradeFromVersion() }"
 }
 
 task prepareTestRoot(type: Copy) {
   description 'Dump bats test dependencies into the $TESTROOT'
   into testRoot
   from configurations.test
-
   dependsOn createVersionFile, createUpgradeFromFile
 }
 
@@ -197,14 +222,6 @@ task packagingTest {
               "    'sample' can be used to test a single yum and apt box. 'all' can be used to\n" +
               "    test all available boxes. The available boxes are: \n" +
               "    ${availableBoxes}"
-  gradle.addBuildListener new BuildAdapter() {
-    @Override
-    void buildFinished(BuildResult result) {
-      if (result.failure) {
-        println "Reproduce with: gradle packagingTest -Pvagrant.boxes=${vagrantBoxes} -Dtests.seed=${formattedSeed} -Dtests.packaging.upgrade.from.versions=${upgradeFromVersions.join(",")}"
-      }
-    }
-  }
 }
 
 // Each box gets it own set of tasks
