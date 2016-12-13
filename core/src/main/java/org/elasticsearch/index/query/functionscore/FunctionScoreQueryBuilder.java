@@ -479,7 +479,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     singleFunctionFound = true;
                     singleFunctionName = currentFieldName;
 
-                        ScoreFunctionBuilder<?> scoreFunction = parser.namedXContent(ScoreFunctionBuilder.class, currentFieldName,
+                        ScoreFunctionBuilder<?> scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName,
                                 parseContext);
                     filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(scoreFunction));
                 }
@@ -583,7 +583,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                                         "failed to parse function_score functions. already found [{}], now encountering [{}].",
                                         scoreFunction.getName(), currentFieldName);
                             }
-                            scoreFunction = parser.namedXContent(ScoreFunctionBuilder.class, currentFieldName, parseContext);
+                            scoreFunction = parser.namedObject(ScoreFunctionBuilder.class, currentFieldName, parseContext);
                         }
                     } else if (token.isValue()) {
                         if (parseContext.getParseFieldMatcher().match(currentFieldName, WEIGHT_FIELD)) {

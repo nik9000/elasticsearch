@@ -362,8 +362,8 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> T namedXContent(Class<T> categoryClass, String name, Object context) throws IOException {
-        return xContentRegistry.getFromXContent(categoryClass, name, getTokenLocation()).fromXContent(this, context);
+    public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
+        return xContentRegistry.parseNamedObject(categoryClass, name, this, context);
     }
 
     @Override

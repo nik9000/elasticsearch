@@ -20,74 +20,106 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static java.util.stream.Collectors.collectingAndThen;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toMap;
 
 public class NamedXContentRegistry {
     /**
      * The empty {@link NamedXContentRegistry} for use when you are sure that you aren't going to call
-     * {@link XContentParser#namedXContent(Class, String, Object)}.
+     * {@link XContentParser#namedObject(Class, String, Object)}.
      */
     public static final NamedXContentRegistry EMPTY = new NamedXContentRegistry(emptyList());
 
-    public interface FromXContent<T, C> {
+    public interface FromXContent<T> {
         /**
          * Parses an object with the type T from parser.
          */
-        T fromXContent(XContentParser parser, C context) throws IOException;
+        T fromXContent(XContentParser parser, Object context) throws IOException;
     }
     public static class Entry {
         /** The class that this entry can read. */
         public final Class<?> categoryClass;
 
         /** A name for the entry which is unique within the {@link #categoryClass}. */
-        public final String name;
+        public final ParseField name;
 
         /** A reader capability of reading the entry's class. */
-        public final FromXContent<?, ?> reader;
+        private final FromXContent<?> parser;
 
         /** Creates a new entry which can be stored by the registry. */
-        public <T> Entry(Class<T> categoryClass, String name, FromXContent<? extends T, ?> reader) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, FromXContent<? extends T> reader) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
-            this.reader = Objects.requireNonNull(reader);
+            this.parser = Objects.requireNonNull(reader);
         }
     }
 
     
-    private final Map<Class<?>, Map<String, FromXContent<?, ?>>> registry;
+    private final Map<Class<?>, Map<String, Entry>> registry;
 
     public NamedXContentRegistry(List<Entry> entries) {
-        registry = unmodifiableMap(entries.stream().collect(groupingBy(e -> e.categoryClass,
-                collectingAndThen(toMap(e -> e.name, e -> e.reader, (name, reader) -> {
-                    throw new IllegalArgumentException("[" + name + "] already registered");
-                }), Collections::unmodifiableMap))));
+        if (entries.isEmpty()) {
+            registry = emptyMap();
+            return;
+        }
+        entries = new ArrayList<>(entries);
+        entries.sort((e1, e2) -> e1.categoryClass.getName().compareTo(e2.categoryClass.getName()));
+
+        Map<Class<?>, Map<String, Entry>> registry = new HashMap<>();
+        Map<String, Entry> parsers = null;
+        Class<?> currentCategory = null;
+        for (Entry entry : entries) {
+            if (currentCategory != entry.categoryClass) {
+                if (currentCategory != null) {
+                    // we've seen the last of this category, put it into the big map
+                    registry.put(currentCategory, unmodifiableMap(parsers));
+                }
+                parsers = new HashMap<>();
+                currentCategory = entry.categoryClass;
+            }
+
+            for (String name : entry.name.getAllNamesIncludedDeprecated()) {
+                Object old = parsers.put(name, entry);
+                if (old != null) {
+                    throw new IllegalArgumentException("NamedXContent [" + currentCategory.getName() + "][" + entry.name + "]" +
+                        " is already registered for [" + old.getClass().getName() + "]," +
+                        " cannot register [" + entry.parser.getClass().getName() + "]");
+                }
+            }
+        }
+        // handle the last category
+        registry.put(currentCategory, unmodifiableMap(parsers));
+
+        this.registry = unmodifiableMap(registry);
     }
 
     /**
-     * Lookup a reader, throwing an exception if the reader isn't found.
+     * Parse a named object, throwing an exception if the parser isn't found.
      */
-    public <T, C> FromXContent<? extends T, C> getFromXContent(Class<T> categoryClass, String name, XContentLocation location) {
-        Map<String, FromXContent<?, ?>> parsers = registry.get(categoryClass);
+    public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
+        Map<String, Entry> parsers = registry.get(categoryClass);
         if (parsers == null) {
             throw new ElasticsearchException("Unknown NamedXContent category [" + categoryClass.getName() + "]");
         }
-        @SuppressWarnings("unchecked")
-        FromXContent<? extends T, C> reader = (FromXContent<? extends T, C>) parsers.get(name);
-        if (reader == null) {
-            throw new ParsingException(location, "Unknown NamedXContent [" + categoryClass.getName() + "][" + name + "]");
+        Entry entry = parsers.get(name);
+        if (entry == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Unknown NamedXContent [" + categoryClass.getName() + "][" + name + "]");
         }
-        return reader;
+        if (entry.name.match(name, false)) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Unknown NamedXContent [" + categoryClass.getName() + "][" + name + "]: Parser didn't match");
+        }
+        return categoryClass.cast(entry.parser.fromXContent(parser, context));
     }
 }

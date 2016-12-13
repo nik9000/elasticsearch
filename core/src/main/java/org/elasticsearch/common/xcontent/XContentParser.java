@@ -250,7 +250,7 @@ public interface XContentParser extends Releasable {
     XContentLocation getTokenLocation();
 
     // TODO remove context entirely when it isn't needed
-    <T> T namedXContent(Class<T> categoryClass, String name, Object context) throws IOException;
+    <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException;
 
     boolean isClosed();
 }
