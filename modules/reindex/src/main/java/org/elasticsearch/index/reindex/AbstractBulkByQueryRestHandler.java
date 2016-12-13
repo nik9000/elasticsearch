@@ -44,8 +44,8 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
-                                             ClusterService clusterService, A action) {
+    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
+            A action) {
         super(settings, searchRequestParsers, clusterService, action);
     }
 

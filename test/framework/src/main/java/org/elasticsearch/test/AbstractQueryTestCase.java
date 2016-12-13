@@ -54,6 +54,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -117,8 +118,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -1049,6 +1053,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
         private final NamedWriteableRegistry namedWriteableRegistry;
+        private final NamedXContentRegistry xContentRegistry;
         private final ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
         private final IndexSettings idxSettings;
         private final SimilarityService similarityService;
@@ -1077,7 +1082,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
+            namedWriteableRegistry = new NamedWriteableRegistry(entries);
+            xContentRegistry = new NamedXContentRegistry(Stream.of(
+                    searchModule.getNamedXContents().stream()
+                    ).flatMap(Function.identity()).collect(toList()));
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
@@ -1124,7 +1132,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         MapperService.MergeReason.MAPPING_UPDATE, false);
             }
             testCase.initializeAdditionalMappings(mapperService);
-            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override

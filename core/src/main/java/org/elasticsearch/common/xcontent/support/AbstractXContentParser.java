@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.support;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -49,7 +50,11 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    private final NamedXContentRegistry xContentRegistry;
 
+    public AbstractXContentParser(NamedXContentRegistry xContentRegistry) {
+        this.xContentRegistry = xContentRegistry;
+    }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
     //   http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
@@ -354,6 +359,11 @@ public abstract class AbstractXContentParser implements XContentParser {
             return parser.binaryValue();
         }
         return null;
+    }
+
+    @Override
+    public <T> T namedXContent(Class<T> categoryClass, String name, Object context) throws IOException {
+        return xContentRegistry.getFromXContent(categoryClass, name, getTokenLocation()).fromXContent(this, context);
     }
 
     @Override

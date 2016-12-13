@@ -104,8 +104,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Inject
-    public RestReindexAction(Settings settings, RestController controller,
-            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+    public RestReindexAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers,
+            ClusterService clusterService) {
         super(settings, searchRequestParsers, clusterService, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }

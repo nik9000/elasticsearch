@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -56,11 +57,14 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 public class RestSearchAction extends BaseRestHandler {
 
     private final SearchRequestParsers searchRequestParsers;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers,
+            NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.searchRequestParsers = searchRequestParsers;
+        this.xContentRegistry = xContentRegistry;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);

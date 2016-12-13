@@ -41,7 +41,7 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 @SuppressWarnings("unchecked")
 public class XContentHelper {
 
-    public static XContentParser createParser(BytesReference bytes) throws IOException {
+    public static XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = compressor.streamInput(bytes.streamInput());
@@ -49,9 +49,9 @@ public class XContentHelper {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
             XContentType contentType = XContentFactory.xContentType(compressedInput);
-            return XContentFactory.xContent(contentType).createParser(compressedInput);
+            return XContentFactory.xContent(contentType).createParser(xContentRegistry, compressedInput);
         } else {
-            return XContentFactory.xContent(bytes).createParser(bytes.streamInput());
+            return XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes.streamInput());
         }
     }
 
@@ -71,7 +71,7 @@ public class XContentHelper {
                 contentType = XContentFactory.xContentType(bytes);
                 input = bytes.streamInput();
             }
-            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(input)) {
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, input)) {
                 if (ordered) {
                     return Tuple.tuple(contentType, parser.mapOrdered());
                 } else {
@@ -92,7 +92,8 @@ public class XContentHelper {
         if (xContentType == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
         }
-        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(bytes.streamInput())) {
+        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                bytes.streamInput())) {
             parser.nextToken();
             XContentBuilder builder = XContentFactory.jsonBuilder();
             if (prettyPrint) {
