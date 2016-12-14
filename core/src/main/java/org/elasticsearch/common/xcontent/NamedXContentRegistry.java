@@ -116,7 +116,7 @@ public class NamedXContentRegistry {
         if (entry == null) {
             throw new ParsingException(parser.getTokenLocation(), "Unknown NamedXContent [" + categoryClass.getName() + "][" + name + "]");
         }
-        if (entry.name.match(name, false)) {
+        if (false == entry.name.match(name, false)) {
             throw new ParsingException(parser.getTokenLocation(),
                     "Unknown NamedXContent [" + categoryClass.getName() + "][" + name + "]: Parser didn't match");
         }

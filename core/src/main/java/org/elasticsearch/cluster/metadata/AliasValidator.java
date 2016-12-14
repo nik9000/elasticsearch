@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -74,7 +75,8 @@ public class AliasValidator extends AbstractComponent {
     public void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
         if (Strings.hasLength(alias.filter())) {
-            try (XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(alias.filter())) {
+            try (XContentParser parser = XContentFactory.xContent(alias.filter()).createParser(NamedXContentRegistry.EMPTY,
+                    alias.filter())) {
                 parser.map();
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to parse filter for alias [" + alias.name() + "]", e);
@@ -113,9 +115,10 @@ public class AliasValidator extends AbstractComponent {
      * provided {@link org.elasticsearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext) {
+    public void validateAliasFilter(String alias, String filter, QueryShardContext queryShardContext,
+            NamedXContentRegistry xContentRegistry) {
         assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
+        try (XContentParser parser = XContentFactory.xContent(filter).createParser(xContentRegistry, filter)) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
@@ -127,9 +130,10 @@ public class AliasValidator extends AbstractComponent {
      * provided {@link org.elasticsearch.index.query.QueryShardContext}
      * @throws IllegalArgumentException if the filter is not valid
      */
-    public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext) {
+    public void validateAliasFilter(String alias, byte[] filter, QueryShardContext queryShardContext,
+            NamedXContentRegistry xContentRegistry) {
         assert queryShardContext != null;
-        try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
+        try (XContentParser parser = XContentFactory.xContent(filter).createParser(xContentRegistry, filter)) {
             validateAliasFilter(parser, queryShardContext);
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);

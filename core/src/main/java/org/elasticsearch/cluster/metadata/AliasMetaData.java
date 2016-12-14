@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -226,7 +227,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 return this;
             }
             try {
-                try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
+                try (XContentParser parser = XContentFactory.xContent(filter).createParser(NamedXContentRegistry.EMPTY, filter)) {
                     filter(parser.mapOrdered());
                 }
                 return this;
@@ -287,7 +288,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                     builder.field("filter", aliasMetaData.filter.compressed());
                 } else {
                     byte[] data = aliasMetaData.filter().uncompressed();
-                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(NamedXContentRegistry.EMPTY, data)) {
                         Map<String, Object> filter = parser.mapOrdered();
                         builder.field("filter", filter);
                     }
