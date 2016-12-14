@@ -369,7 +369,7 @@ public class Node implements Closeable {
                     searchModule.getNamedXContents().stream()
                     ).flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
-            final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
+            final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry,
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
@@ -439,7 +439,7 @@ public class Node implements Closeable {
                     b.bind(AllocationCommandRegistry.class).toInstance(NetworkModule.getAllocationCommandRegistry());
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
-                        indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                        xContentRegistry, indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {

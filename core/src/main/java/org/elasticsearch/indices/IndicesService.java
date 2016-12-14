@@ -68,6 +68,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -151,6 +152,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
+    private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -182,7 +184,7 @@ public class IndicesService extends AbstractLifecycleComponent
         threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME, this.cacheCleaner);
     }
 
-    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
+    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
@@ -193,6 +195,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
+        this.xContentRegistry = xContentRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
@@ -441,6 +444,7 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         return indexModule.newIndexService(
             nodeEnv,
+            xContentRegistry,
             this,
             circuitBreakerService,
             bigArrays,
@@ -465,7 +469,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(mapperRegistry);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry);
     }
 
     /**

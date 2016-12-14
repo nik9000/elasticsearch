@@ -52,6 +52,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -201,7 +202,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (contentType == builder.contentType()) {
                 builder.rawField(DOCUMENT_FIELD.getPreferredName(), document);
             } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(document)) {
+                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, document)) {
                     parser.nextToken();
                     builder.field(DOCUMENT_FIELD.getPreferredName());
                     builder.copyCurrentStructure(parser);
@@ -486,7 +487,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     BytesRef qbSource = binaryDocValues.get(docId);
                     if (qbSource.length > 0) {
                         XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
-                        try (XContentParser sourceParser = xContent.createParser(qbSource.bytes, qbSource.offset, qbSource.length)) {
+                        try (XContentParser sourceParser = xContent.createParser(NamedXContentRegistry.EMPTY, qbSource.bytes,
+                                qbSource.offset, qbSource.length)) {
                             return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
                         }
                     } else {
@@ -509,7 +511,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     throw new IllegalStateException("No source found for document with docid [" + docId + "]");
                 }
 
-                try (XContentParser sourceParser = XContentHelper.createParser(visitor.source)) {
+                try (XContentParser sourceParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, visitor.source)) {
                     String currentFieldName = null;
                     XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
                     if (token != XContentParser.Token.START_OBJECT) {

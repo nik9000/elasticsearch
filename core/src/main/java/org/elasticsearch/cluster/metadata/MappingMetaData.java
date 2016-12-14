@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -90,7 +91,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
     public MappingMetaData(CompressedXContent mapping) throws IOException {
         this.source = mapping;
         Map<String, Object> mappingMap;
-        try (XContentParser parser = XContentHelper.createParser(mapping.compressedReference())) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, mapping.compressedReference())) {
             mappingMap = parser.mapOrdered();
         }
         if (mappingMap.size() != 1) {

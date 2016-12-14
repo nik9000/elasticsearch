@@ -425,7 +425,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                         XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                        XContentParser parser = JsonXContent.jsonXContent.createParser(query);
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(serviceHolder.xContentRegistry, query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -1047,6 +1047,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         DeprecationLogger.setThreadContext(this.threadContext);
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return serviceHolder.xContentRegistry;
+    }
+
     private static class ServiceHolder implements Closeable {
 
         private final IndicesQueriesRegistry indicesQueriesRegistry;
@@ -1093,7 +1098,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-            mapperService = new MapperService(idxSettings, indexAnalyzers, similarityService, mapperRegistry, this::createShardContext);
+            mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
+                    this::createShardContext);
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,

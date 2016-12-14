@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -351,7 +352,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(String templateSource) {
-        try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(templateSource)) {
+        try (XContentParser parser = XContentFactory.xContent(templateSource).createParser(NamedXContentRegistry.EMPTY, templateSource)) {
             return source(parser.mapOrdered());
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to parse template source [" + templateSource + "]", e);
@@ -369,7 +370,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
-        try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
+        try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(NamedXContentRegistry.EMPTY, source,
+                offset, length)) {
             return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
@@ -380,7 +382,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source) {
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
             return source(parser.mapOrdered());
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse template source", e);
@@ -432,7 +434,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * Sets the aliases that will be associated with the index when it gets created
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
-        try (XContentParser parser = XContentHelper.createParser(source)) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
