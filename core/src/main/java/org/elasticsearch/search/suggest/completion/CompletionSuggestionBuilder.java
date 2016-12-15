@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -233,7 +234,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes)) {
+            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
+                    contextBytes)) {
                 builder.field(CONTEXTS_FIELD.getPreferredName());
                 builder.copyCurrentStructure(contextParser);
             }
@@ -270,7 +272,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(NamedXContentRegistry.EMPTY,
+                        contextBytes)) {
                     if (type.hasContextMappings() && contextParser != null) {
                         ContextMappings contextMappings = type.getContextMappings();
                         contextParser.nextToken();

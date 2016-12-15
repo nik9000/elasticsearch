@@ -65,6 +65,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -169,7 +170,7 @@ public class ClusterStateChanges extends AbstractComponent {
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
             allocationService, new AliasValidator(settings), environment,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, NamedXContentRegistry.EMPTY);
 
         transportCloseIndexAction = new TransportCloseIndexAction(settings, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

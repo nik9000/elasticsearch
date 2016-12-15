@@ -34,6 +34,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -396,7 +397,8 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] mappingSource = cursor.value.uncompressed();
                     Map<String, Object> mapping;
-                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {;
+                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(NamedXContentRegistry.EMPTY,
+                            mappingSource)) {
                         mapping = parser.map();
                     }
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
@@ -411,7 +413,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 builder.startArray("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor : indexTemplateMetaData.mappings()) {
                     byte[] data = cursor.value.uncompressed();
-                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(NamedXContentRegistry.EMPTY, data)) {
                         Map<String, Object> mapping = parser.mapOrdered();
                         builder.map(mapping);
                     }

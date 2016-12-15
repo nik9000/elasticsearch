@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -146,7 +147,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.field(fieldName);
-        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
+        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(NamedXContentRegistry.EMPTY, functionBytes)) {
             builder.copyCurrentStructure(parser);
         }
         builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
@@ -181,7 +182,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
         AbstractDistanceScoreFunction scoreFunction;
-        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(functionBytes)) {
+        try (XContentParser parser = XContentFactory.xContent(functionBytes).createParser(NamedXContentRegistry.EMPTY, functionBytes)) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
         return scoreFunction;

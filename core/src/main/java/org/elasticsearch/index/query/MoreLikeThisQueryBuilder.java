@@ -46,6 +46,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.lucene.search.XMoreLikeThis;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -421,7 +422,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (contentType == builder.contentType()) {
                     builder.rawField(Field.DOC.getPreferredName(), this.doc);
                 } else {
-                    try (XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc)) {
+                    try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, doc)) {
                         parser.nextToken();
                         builder.field(Field.DOC.getPreferredName());
                         builder.copyCurrentStructure(parser);

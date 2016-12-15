@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -831,7 +833,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder putMapping(String type, String source) throws IOException {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
                 putMapping(new MappingMetaData(type, parser.mapOrdered()));
             }
             return this;
@@ -1048,7 +1050,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                     builder.value(cursor.value.source().compressed());
                 } else {
                     byte[] data = cursor.value.source().uncompressed();
-                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
+                    try (XContentParser parser = XContentFactory.xContent(data).createParser(NamedXContentRegistry.EMPTY, data)) {
                         Map<String, Object> mapping = parser.mapOrdered();
                         builder.map(mapping);
                     }

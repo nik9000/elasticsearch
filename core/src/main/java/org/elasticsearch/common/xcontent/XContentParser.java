@@ -250,7 +250,15 @@ public interface XContentParser extends Releasable {
     XContentLocation getTokenLocation();
 
     // TODO remove context entirely when it isn't needed
+    /**
+     * Parse an object by name.
+     */
     <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException;
+
+    /**
+     * The registry used to resolve {@link #namedObject(Class, String, Object)}.
+     */
+    NamedXContentRegistry getXContentRegistry();
 
     boolean isClosed();
 }

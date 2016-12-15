@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -108,7 +109,8 @@ public interface ShardSearchRequest {
             }
             try {
                 byte[] filterSource = alias.filter().uncompressed();
-                try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
+                try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(NamedXContentRegistry.EMPTY,
+                        filterSource)) {
                     return contextFactory.apply(parser).parseInnerQueryBuilder();
                 }
             } catch (IOException ex) {

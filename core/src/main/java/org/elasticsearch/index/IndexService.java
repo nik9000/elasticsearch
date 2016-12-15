@@ -478,7 +478,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
             shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, queryRegistry,
+                similarityService(), scriptService, xContentRegistry, queryRegistry,
                 client, indexReader,
             nowInMillis);
     }

@@ -367,5 +367,10 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
+    }
+
+    @Override
     public abstract boolean isClosed();
 }

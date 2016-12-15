@@ -109,7 +109,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             }
 
             try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                return parser.contentType().xContent().createParser(builder.map(body).bytes());
+                return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
             }
         } finally {
             parser.close();
