@@ -36,7 +36,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/script/mustache/simple-msearch-template.json");
         RestRequest restRequest = new FakeRestRequest.Builder().withContent(new BytesArray(data)).build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true, xContentRegistry());
 
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));

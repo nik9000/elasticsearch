@@ -168,7 +168,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder().withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, parsers(), ParseFieldMatcher.EMPTY);
+        return RestMultiSearchAction.parseRequest(restRequest, true, xContentRegistry(), parsers(), ParseFieldMatcher.EMPTY);
     }
 
     private SearchRequestParsers parsers() {

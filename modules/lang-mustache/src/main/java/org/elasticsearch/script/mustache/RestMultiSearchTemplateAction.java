@@ -24,10 +24,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 
@@ -39,11 +39,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public RestMultiSearchTemplateAction(Settings settings, RestController controller) {
+    public RestMultiSearchTemplateAction(Settings settings, RestController controller, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
+        this.xContentRegistry = xContentRegistry;
 
         controller.registerHandler(GET, "/_msearch/template", this);
         controller.registerHandler(POST, "/_msearch/template", this);
@@ -59,17 +61,17 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             throw new ElasticsearchException("request body is required");
         }
 
-        MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
+        MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex, xContentRegistry);
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
 
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
-    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
-
+    public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex,
+            NamedXContentRegistry xContentRegistry) throws IOException {
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
-        RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
+        RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, xContentRegistry,
                 (searchRequest, bytes) -> {
                     try {
                         SearchTemplateRequest searchTemplateRequest = RestSearchTemplateAction.parse(bytes);

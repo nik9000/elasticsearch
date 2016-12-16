@@ -126,7 +126,7 @@ public class ReplicationResponseTests extends ESTestCase {
             builder.endObject();
 
             // Expected JSON is {"_shards":{"total":5,"successful":3,"failed":0}}
-            try (XContentParser parser = xContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(builder)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals("_shards", parser.currentName());
@@ -159,7 +159,7 @@ public class ReplicationResponseTests extends ESTestCase {
             shardInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
 
-            try (XContentParser parser = xContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(builder)) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals("_shards", parser.currentName());
@@ -202,7 +202,7 @@ public class ReplicationResponseTests extends ESTestCase {
         try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
             shardInfoFailure.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-            try (XContentParser parser = xContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(builder)) {
                 assertFailure(parser, shardInfoFailure);
             }
         }

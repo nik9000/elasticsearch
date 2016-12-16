@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -52,7 +53,7 @@ final class UserAgentParser {
     }
 
     private void init(InputStream regexStream) throws IOException {
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(regexStream);
+        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY, regexStream);
         
         XContentParser.Token token = yamlParser.nextToken();
         

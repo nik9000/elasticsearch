@@ -51,6 +51,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
             NamedXContentRegistry xContentRegistry, IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
             LongSupplier nowInMillis) {
+        // NOCOMMIT remove xContentRegistry from param lists that include this or QueryShardContext
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;

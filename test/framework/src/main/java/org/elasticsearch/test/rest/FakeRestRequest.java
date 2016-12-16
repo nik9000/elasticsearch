@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.HashMap;
@@ -37,7 +38,7 @@ public class FakeRestRequest extends RestRequest {
     }
 
     private FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method, String path) {
-        super(params, path);
+        super(NamedXContentRegistry.EMPTY, params, path);
         this.headers = headers;
         this.content = content;
         this.method = method;
