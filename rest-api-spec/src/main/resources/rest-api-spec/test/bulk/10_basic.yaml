@@ -16,6 +16,8 @@
               _id:    test_id2
           - f1: v2
             f2: 47
+  - match: {items.0.index._id: test_id}
+  - match: {items.1.index._id: test_id2}
 
   - do:
       count:
@@ -23,3 +25,59 @@
 
   - match: {count: 2}
 
+---
+"Terse skips when all success":
+  - do:
+      bulk:
+        refresh: true
+        terse: ''
+        body:
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id
+          - f1: v1
+            f2: 42
+          - index:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id2
+          - f1: v2
+            f2: 47
+  - is_false: items.0.index._id
+  - is_false: items.1.index._id
+
+  - do:
+      count:
+        index: test_index
+
+  - match: {count: 2}
+
+---
+"Terse returns failures when there is a failure":
+  - do:
+      bulk:
+        refresh: true
+        terse: ''
+        body:
+          - create:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id
+          - f1: v1
+            f2: 42
+          - create:
+              _index: test_index
+              _type:  test_type
+              _id:    test_id
+          - f1: v2
+            f2: 47
+  - match: {items.0.create._id: test_id}
+  - match: {items.1.create._id: test_id}
+  - match: {items.1.create.error.type: version_conflict_engine_exception}
+
+  - do:
+      count:
+        index: test_index
+
+  - match: {count: 1}

@@ -97,6 +97,7 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.add(request.content(), defaultIndex, defaultType, defaultRouting, defaultFields,
             defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex);
 
+        boolean terse = request.paramAsBoolean("terse", false);
         return channel -> client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
@@ -105,12 +106,15 @@ public class RestBulkAction extends BaseRestHandler {
                 if (response.getIngestTookInMillis() != BulkResponse.NO_INGEST_TOOK) {
                     builder.field(Fields.INGEST_TOOK, response.getIngestTookInMillis());
                 }
-                builder.field(Fields.ERRORS, response.hasFailures());
-                builder.startArray(Fields.ITEMS);
-                for (BulkItemResponse itemResponse : response) {
-                    itemResponse.toXContent(builder, request);
+                boolean hasFailures = response.hasFailures();
+                builder.field(Fields.ERRORS, hasFailures);
+                if (hasFailures || false == terse) {
+                    builder.startArray(Fields.ITEMS);
+                    for (BulkItemResponse itemResponse : response) {
+                        itemResponse.toXContent(builder, request);
+                    }
+                    builder.endArray();
                 }
-                builder.endArray();
 
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
