@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -53,6 +54,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.common.Booleans.parseBooleanExact;
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.containsString;
 
@@ -102,6 +104,25 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
         assertThat(request.get(), matcher().created(1));
     }
 
+    /**
+     * Test that we preemptively send the authorization headers by failing to send UNAUTHORIZED on unauthorized requests.
+     */
+    public void testReindexFromRemoteWithAuthenticationIsPreemptive() throws Exception {
+        Map<String, String> activateEvil = singletonMap(TestFilter.RETURN_NOT_FOUND_INSTEAD_OF_UNAUTHORIZED_HEADER, "true");
+        {
+            // Make sure activateEvil properly activates evil
+            ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
+                    .setRemoteInfo(newRemoteInfo(null, null, activateEvil));
+            Exception e = expectThrows(ElasticsearchStatusException.class, () -> request.get());
+            assertThat(e.getMessage(), containsString("Being evil"));
+        }
+        {
+            ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
+                    .setRemoteInfo(newRemoteInfo("Aladdin", "open sesame", activateEvil));
+            assertThat(request.get(), matcher().created(1));
+        }
+    }
+
     public void testReindexSendsHeaders() throws Exception {
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(newRemoteInfo(null, null, singletonMap(TestFilter.EXAMPLE_HEADER, "doesn't matter")));
@@ -137,7 +158,10 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
         @Override
         public Collection<String> getRestHeaders() {
-            return Arrays.asList(TestFilter.AUTHORIZATION_HEADER, TestFilter.EXAMPLE_HEADER);
+            return Arrays.asList(
+                    TestFilter.AUTHORIZATION_HEADER,
+                    TestFilter.RETURN_NOT_FOUND_INSTEAD_OF_UNAUTHORIZED_HEADER,
+                    TestFilter.EXAMPLE_HEADER);
         }
     }
 
@@ -151,6 +175,7 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
          */
         private static final String REQUIRED_AUTH = "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==";
         private static final String AUTHORIZATION_HEADER = "Authorization";
+        private static final String RETURN_NOT_FOUND_INSTEAD_OF_UNAUTHORIZED_HEADER = "Be-Evil";
         private static final String EXAMPLE_HEADER = "Example-Header";
         private final ThreadContext context;
 
@@ -176,10 +201,15 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
             }
             String auth = context.getHeader(AUTHORIZATION_HEADER);
             if (auth == null) {
-                ElasticsearchSecurityException e = new ElasticsearchSecurityException("Authentication required",
-                        RestStatus.UNAUTHORIZED);
-                e.addHeader("WWW-Authenticate", "Basic realm=auth-realm");
-                throw e;
+                String returnNotFound = context.getHeader(RETURN_NOT_FOUND_INSTEAD_OF_UNAUTHORIZED_HEADER);
+                if (returnNotFound != null && parseBooleanExact(returnNotFound)) {
+                    throw new ResourceNotFoundException("Being evil");
+                } else {
+                    ElasticsearchSecurityException e = new ElasticsearchSecurityException("Authentication required",
+                            RestStatus.UNAUTHORIZED);
+                    e.addHeader("WWW-Authenticate", "Basic realm=auth-realm");
+                    throw e;
+                }
             }
             if (false == REQUIRED_AUTH.equals(auth)) {
                 throw new ElasticsearchSecurityException("Bad Authorization", RestStatus.FORBIDDEN);
