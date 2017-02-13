@@ -48,15 +48,26 @@ public class ElasticsearchAppender extends AbstractAppender {
         private String type;
         private int numberOfReplicas = 2;
         private int numberOfShards = 1;
-        private int batchSize = 100;
+        private int targetBatchSize = 100;
+        private int maxBatchSize = 1000;
 
         public Builder withName(String name) {
             this.name = name;
             return this;
         }
 
+        public Builder withScheme(String scheme) {
+            this.scheme = scheme;
+            return this;
+        }
+
         public Builder withHost(String host) {
             this.host = host;
+            return this;
+        }
+
+        public Builder withPort(int port) {
+            this.port = port;
             return this;
         }
 
@@ -70,11 +81,16 @@ public class ElasticsearchAppender extends AbstractAppender {
             return this;
         }
 
+        public Builder withTargetBatchSize(int targetBatchSize) {
+            this.targetBatchSize = targetBatchSize;
+            return this;
+        }
+
         @Override
         public ElasticsearchAppender build() {
             ElasticsearchLogSyncManager.Spec remoteInfo = new ElasticsearchLogSyncManager.Spec(scheme, host, port, 
                     username, password, headers, socketTimeoutMillis, connectTimeoutMillis, index, type, numberOfReplicas, numberOfShards,
-                    batchSize);
+                    targetBatchSize, maxBatchSize);
             // TODO be smarter about how managers are shared
             ElasticsearchLogSyncManager manager = ElasticsearchLogSyncManager.getManager(name, remoteInfo);
             return new ElasticsearchAppender(name, null, null, false, manager);

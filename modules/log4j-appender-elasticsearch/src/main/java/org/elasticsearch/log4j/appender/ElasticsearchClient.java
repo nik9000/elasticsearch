@@ -52,7 +52,7 @@ class ElasticsearchClient {
     private final BiConsumer<String, Exception> errorLogger;
     private final RestClient client;
 
-    public ElasticsearchClient(BiConsumer<String, Exception> errorLogger, String host, int port, String scheme, Map<String, String> headers,
+    ElasticsearchClient(BiConsumer<String, Exception> errorLogger, String host, int port, String scheme, Map<String, String> headers,
             int socketTimeoutMillis, int connectTimeoutMillis, String username, String password) {
         this.errorLogger = errorLogger;
 

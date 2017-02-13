@@ -32,13 +32,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static java.lang.Math.max;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LogBufferTests extends ESTestCase {
     public void testLessThanBuffer() {
         int batchSize = between(1000, 50000);
         AtomicReference<Iterable<? extends LogEvent>> flushData = new AtomicReference<>();
-        LogBuffer buffer = newLogBuffer(batchSize, (events, callback) -> {
+        LogBuffer buffer = newLogBuffer(batchSize, batchSize, (events, callback) -> {
             Object old = flushData.getAndSet(events);
             assertNull("Only expected one flush", old);
             callback.run();
@@ -67,7 +70,7 @@ public class LogBufferTests extends ESTestCase {
         int batchSize = between(50, 1000);
         int count = between(batchSize, 50000);
         List<Long> flushData = new ArrayList<>(count);
-        LogBuffer buffer = newLogBuffer(batchSize, (events, callback) -> {
+        LogBuffer buffer = newLogBuffer(batchSize, batchSize, (events, callback) -> {
             int flushSize = 0;
             for (LogEvent event: events) {
                 flushData.add(event.getTimeMillis());
@@ -96,18 +99,19 @@ public class LogBufferTests extends ESTestCase {
 
     public void testConcurrentLogs() throws InterruptedException {
         AtomicBoolean closing = new AtomicBoolean(false);
-        int batchSize = between(50, 1000);
+        int batchSize = between(50, 100);
         int count = between(batchSize, 5000);
         Thread[] threads = new Thread[between(2, max(3, Runtime.getRuntime().availableProcessors()))];
         List<Long> flushData = new ArrayList<>(count);
-        LogBuffer buffer = newLogBuffer(batchSize, (events, callback) -> {
+        int maxBatchSize = batchSize * threads.length;
+        LogBuffer buffer = newLogBuffer(batchSize, maxBatchSize, (events, callback) -> {
             int flushSize = 0;
             for (LogEvent event: events) {
                 flushData.add(event.getTimeMillis());
                 flushSize++;
             }
             if (false == closing.get()) {
-                assertEquals(batchSize, flushSize);
+                assertThat(flushSize, both(greaterThanOrEqualTo(batchSize)).and(lessThanOrEqualTo(maxBatchSize)));
             }
             callback.run();
         });
@@ -117,7 +121,15 @@ public class LogBufferTests extends ESTestCase {
                 for (int i = 0; i < count; i++) {
                     MutableLogEvent event = new MutableLogEvent();
                     event.setTimeMillis(i);
-                    buffer.buffer(event);
+                    boolean overTargetSize = buffer.buffer(event);
+                    while (overTargetSize) {
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                        overTargetSize = buffer.overTargetSize();
+                    }
                 }
             });
             threads[t].start();
@@ -131,16 +143,13 @@ public class LogBufferTests extends ESTestCase {
         assertTrue(buffer.close(30, TimeUnit.SECONDS));
 
         assertThat(flushData, hasSize(count * threads.length));
-        for (int i = 0; i < count; i++) {
-            assertEquals((Long) (long) i, flushData.get(i));
-        }
     }
 
-    private LogBuffer newLogBuffer(int bufferSize, BiConsumer<Iterable<? extends LogEvent>, Runnable> flush) {
+    private LogBuffer newLogBuffer(int targetBatchSize, int maxBatchSize, BiConsumer<Iterable<? extends LogEvent>, Runnable> flush) {
         return new LogBuffer(
                 (m, t) -> {},
                 (m, t) -> {throw new AssertionError(m, t);},
                 (m, t) -> {throw new AssertionError(m, t);},
-                flush, bufferSize);
+                flush, targetBatchSize, maxBatchSize);
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.log4j.appender;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractManager;
+import org.apache.logging.log4j.core.impl.ThrowableProxy;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -61,11 +62,12 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         private final String type;
         private final int numberOfReplicas;
         private final int numberOfShards;
-        private final int batchSize;
+        private final int targetBatchSize;
+        private final int maxBatchSize;
 
         public Spec(String scheme, String host, int port, String username, String password, Map<String, String> headers,
                 int socketTimeoutMillis, int connectTimeoutMillis, String index, String type, int numberOfReplicas, int numberOfShards,
-                int batchSize) {
+                int targetBatchSize, int maxBatchSize) {
             this.scheme = scheme;
             this.host = host;
             this.port = port;
@@ -79,7 +81,8 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
             this.type = type;
             this.numberOfReplicas = numberOfReplicas;
             this.numberOfShards = numberOfShards;
-            this.batchSize = batchSize;
+            this.targetBatchSize = targetBatchSize;
+            this.maxBatchSize = maxBatchSize;
         }
     }
 
@@ -101,14 +104,7 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         this.spec = spec;
         this.client = new ElasticsearchClient(this::logError, spec.host, spec.port, spec.scheme, spec.headers, spec.socketTimeoutMillis,
                 spec.connectTimeoutMillis, spec.username, spec.password);
-        this.buffer = new LogBuffer((m, t) -> {
-            // NOCOMMIT remove me
-            System.err.println(m);
-            if (t != null) {
-                t.printStackTrace();
-            }
-            logDebug(m, t);
-        }, this::logWarn, this::logError, this::flush, spec.batchSize);
+        this.buffer = new LogBuffer(this::logDebug, this::logWarn, this::logError, this::flush, spec.targetBatchSize, spec.maxBatchSize);
         this.bulkPath = spec.index + "/" + spec.type + "/" + "_bulk";
 
         // Now make sure the index is ready before going anywhere
@@ -139,22 +135,37 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         for (LogEvent event : events) {
             requestBody.append("{\"index\":{}}\n");
 
-            // TODO More efficient and more accurate escaping
-            String message = event.getMessage().getFormattedMessage().replace("\"", "\\\"").replace("\n", "\\\n");
-
             requestBody.append("{\"time\":").append(event.getTimeMillis());
             requestBody.append(",\"level\":\"").append(event.getLevel()).append("\"");
-            requestBody.append(",\"message\":\"").append(message).append("\"");
+            requestBody.append(",\"message\":\"").append(jsonEscape(event.getMessage().getFormattedMessage())).append("\"");
             requestBody.append(",\"thread\":"); {
                 requestBody.append("{\"id\":").append(event.getThreadId());
-                requestBody.append(",\"name\":\"").append(event.getThreadName()).append("\"");
+                requestBody.append(",\"name\":\"").append(jsonEscape(event.getThreadName())).append("\"");
                 requestBody.append(",\"priority\":").append(event.getThreadPriority()).append("}");
+            }
+            if (event.getSource() != null) {
+                requestBody.append(",\"source\":\"").append(jsonEscape(event.getSource().toString())).append("\"");
+            }
+            if (event.getLoggerName() != null) {
+                requestBody.append(",\"logger\":\"").append(jsonEscape(event.getLoggerName())).append("\"");
+            }
+            ThrowableProxy thrown = event.getThrownProxy();
+            if (thrown != null) {
+                requestBody.append(",\"exception\":"); {
+                    requestBody.append("{\"message\":\"").append(jsonEscape(thrown.getMessage())).append("\"");
+                    requestBody.append(",\"trace\":\"").append(jsonEscape(thrown.getExtendedStackTraceAsString())).append("\"}");
+                }
             }
             requestBody.append("}\n");
         }
 
         // TODO streaming or something
         client.bulk(bulkPath, requestBody.toString(), callback);
+    }
+
+    private String jsonEscape(String string) {
+        // TODO More efficient and more accurate escaping
+        return string.replace("\"", "\\\"").replace("\n", "\\n").replaceAll("\t", "\\t");
     }
 
     private void createIndexIfMissing() {
@@ -193,6 +204,22 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
                 + "            },\n"
                 + "            \"priority\": {\n"
                 + "              \"type\": \"integer\"\n"
+                + "            }\n"
+                + "          }\n"
+                + "        },\n"
+                + "        \"source\": {\n"
+                + "          \"type\": \"keyword\"\n"
+                + "        },\n"
+                + "        \"logger\": {\n"
+                + "          \"type\": \"keyword\"\n"
+                + "        },\n"
+                + "        \"exception\": {\n"
+                + "          \"properties\": {\n"
+                + "            \"message\": {\n"
+                + "              \"type\": \"text\"\n"
+                + "            },\n"
+                + "            \"trace\": {\n"
+                + "              \"type\": \"text\"\n"
                 + "            }\n"
                 + "          }\n"
                 + "        }\n"

@@ -1,0 +1,39 @@
+---
+setup:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            external_logging.host: http://localhost:9200/log/log
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            external_logging.host: null
+
+---
+"Check index creation log":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+
+  # shut down external logging to cause a flush
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            external_logging.host: null
+  - do:
+    indices.refresh:
+      index: [log]
+
+  - do:
+      search:
+        index: log
+        q:     message:twitter
+  - match: { hits.total: 1 }

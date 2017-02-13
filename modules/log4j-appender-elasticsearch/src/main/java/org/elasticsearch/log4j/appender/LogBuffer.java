@@ -35,40 +35,51 @@ class LogBuffer {
     private final BiConsumer<String, Throwable> warnLogger;
     private final BiConsumer<String, Throwable> errorLogger;
     private final BiConsumer<Iterable<? extends LogEvent>, Runnable> flush;
-    private final int batchSize;
+    private final int targetBatchSize;
+    private final int maxBatchSize;
 
     private volatile MutableLogEvent[] building;
     private volatile int next;
     private volatile boolean flushing;
     private volatile MutableLogEvent[] flip;
 
-    public LogBuffer(BiConsumer<String, Throwable> debugLogger, BiConsumer<String, Throwable> warnLogger,
-            BiConsumer<String, Throwable> errorLogger, BiConsumer<Iterable<? extends LogEvent>, Runnable> flush, int batchSize) {
+    LogBuffer(BiConsumer<String, Throwable> debugLogger, BiConsumer<String, Throwable> warnLogger,
+            BiConsumer<String, Throwable> errorLogger, BiConsumer<Iterable<? extends LogEvent>, Runnable> flush, int targetBatchSize,
+            int maxBatchSize) {
         this.debugLogger = debugLogger;
         this.warnLogger = warnLogger;
         this.errorLogger = errorLogger;
         this.flush = flush;
-        this.batchSize = batchSize;
+        this.targetBatchSize = targetBatchSize;
+        this.maxBatchSize = maxBatchSize;
         building = initBuffer();
         flip = initBuffer();
     }
 
-    public void buffer(LogEvent event) {
+    /**
+     * Buffer a log event.
+     * @return true if the buffer is currently over its target size
+     */
+    public boolean buffer(LogEvent event) {
         // TODO be much fancier about stuff! Like:
         // * Flush on errors and fatals.
         // * Flush on a deadline so things don't sit in the buffer forever. Very important, I think.
-        // * Support min and max batch size.
+        boolean overTargetSize = false;
         List<? extends LogEvent> toFlush = null;
         synchronized (this) {
             if (building == null) {
                 throw new IllegalStateException("Can't log event while buffer is closed");
             }
             building[next++].initFrom(event);
-            if (next >= batchSize) {
+            if (next >= targetBatchSize) {
                 if (flushing) {
-                    // TODO throw away more intelligently
-                    warnLogger.accept("throwing away log that arrived too quickly", null);
-                    next--;
+                    if (next >= maxBatchSize) {
+                        // TODO throw away more intelligently
+                        warnLogger.accept("throwing away log that that would overfill buffer", null);
+                        next--;
+                    } else {
+                        overTargetSize = true;
+                    }
                 } else {
                     toFlush = flip();
                 }
@@ -79,11 +90,17 @@ class LogBuffer {
             flushing = true;
             flush.accept(toFlush, this::flushed);
         }
+        return overTargetSize;
+    }
+
+    boolean overTargetSize() {
+        return next > targetBatchSize;
     }
 
     private void flushed() {
         debugLogger.accept("Flushed", null);
         flushing = false;
+        // TODO immediately start a flush if we are at or over target batch size?
     }
 
     public boolean close(long timeout, TimeUnit timeUnit) {
@@ -149,8 +166,8 @@ class LogBuffer {
     }
 
     private MutableLogEvent[] initBuffer() {
-        MutableLogEvent[] buffer = new MutableLogEvent[batchSize];
-        for (int i = 0; i < batchSize; i++) {
+        MutableLogEvent[] buffer = new MutableLogEvent[maxBatchSize];
+        for (int i = 0; i < maxBatchSize; i++) {
             buffer[i] = new MutableLogEvent();
         }
         return buffer;
