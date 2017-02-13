@@ -28,6 +28,7 @@ List projects = [
   'modules:lang-expression',
   'modules:lang-mustache',
   'modules:lang-painless',
+  'modules:log4j-appender-elasticsearch',
   'modules:transport-netty4',
   'modules:reindex',
   'modules:percolator',

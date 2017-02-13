@@ -41,13 +41,14 @@ public class ElasticsearchAppender extends AbstractAppender {
         private String username;
         private String password;
         private Map<String, String> headers = emptyMap();
-        private long socketTimeoutMillis = ElasticsearchLogSyncManager.RemoteInfo.DEFAULT_SOCKET_TIMEOUT_MILLIS;
-        private long connectTimeoutMillis = ElasticsearchLogSyncManager.RemoteInfo.DEFAULT_CONNECT_TIMEOUT_MILLIS;
+        private int socketTimeoutMillis = ElasticsearchLogSyncManager.RemoteInfo.DEFAULT_SOCKET_TIMEOUT_MILLIS;
+        private int connectTimeoutMillis = ElasticsearchLogSyncManager.RemoteInfo.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
         private String index;
         private String type;
-        private int numberOfReplicas;
-        private int numberOfShards;
+        private int numberOfReplicas = 2;
+        private int numberOfShards = 1;
+        private int batchSize = 100;
 
         public Builder withName(String name) {
             this.name = name;
@@ -72,7 +73,8 @@ public class ElasticsearchAppender extends AbstractAppender {
         @Override
         public ElasticsearchAppender build() {
             ElasticsearchLogSyncManager.RemoteInfo remoteInfo = new ElasticsearchLogSyncManager.RemoteInfo(scheme, host, port, 
-                    username, password, headers, socketTimeoutMillis, connectTimeoutMillis, index, type, numberOfReplicas, numberOfShards);
+                    username, password, headers, socketTimeoutMillis, connectTimeoutMillis, index, type, numberOfReplicas, numberOfShards,
+                    batchSize);
             // TODO be smarter about how managers are shared
             ElasticsearchLogSyncManager manager = ElasticsearchLogSyncManager.getManager(name, remoteInfo);
             return new ElasticsearchAppender(name, null, null, false, manager);
@@ -89,7 +91,7 @@ public class ElasticsearchAppender extends AbstractAppender {
 
     @Override
     public void append(LogEvent event) {
-        manager.sendLog(event, event.getMessage().getFormattedMessage());
+        manager.buffer(event);
     }
 
     @Override

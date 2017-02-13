@@ -28,20 +28,28 @@ import org.elasticsearch.test.ESTestCase;
 
 public class DummyTest extends ESTestCase {
     public void testDummy() {
-        Appender appender = new ElasticsearchAppender.Builder().withName("remote_es")
-                .withHost("localhost").withIndex("test").withType("log").build();
+        Appender appender = new ElasticsearchAppender.Builder().withName("remote_es").withHost("localhost").withIndex("test")
+                .withType("log").build();
         appender.start();
+        int size = between(900, 2000);
+        long start = System.nanoTime();
         try {
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
             context.getRootLogger().addAppender(appender);
-            try {    
-                ESLoggerFactory.getLogger("test").info("ASDFADF");
+            try {
+                for (int i = 0; i < size; i++) {
+                    ESLoggerFactory.getLogger("test").info("ASDFADF");
+                }
+                
             } finally {
                 context.getRootLogger().removeAppender(appender);
             }
         } finally {
             appender.stop();
         }
+        double millis = (System.nanoTime() - start)/1000000d;
+        System.err.println("total: " + millis + "ms for " + size + " documents");
+        System.err.println("rate:  " + (millis / size) + "ms/doc");
         assert true;
     }
 }

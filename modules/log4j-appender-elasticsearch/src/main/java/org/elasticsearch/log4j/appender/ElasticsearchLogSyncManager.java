@@ -19,50 +19,28 @@
 
 package org.elasticsearch.log4j.appender;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.nio.reactor.IOReactorConfig;
-import org.apache.http.message.BasicHeader;
-import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractManager;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.client.RestClient;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.synchronizedList;
 
 public class ElasticsearchLogSyncManager extends AbstractManager {
     public static ElasticsearchLogSyncManager getManager(String name, RemoteInfo remoteInfo) {
         return AbstractManager.getManager(name, ElasticsearchLogSyncManager::new, remoteInfo);
     }
 
-    public static class RemoteInfo {
+    public static class RemoteInfo { // NOCOMMIT rename
         /**
          * Default {@link #socketTimeoutMillis}.
          */
-        public static final long DEFAULT_SOCKET_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(30);
+        public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = Math.toIntExact(TimeUnit.SECONDS.toMillis(30));
         /**
          * Default {@link #connectTimeoutMillis}.
          */
-        public static final long DEFAULT_CONNECT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(30);
+        public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = Math.toIntExact(TimeUnit.SECONDS.toMillis(30));
 
         private final String scheme;
         private final String host;
@@ -73,20 +51,21 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         /**
          * Time to wait for a response from each request.
          */
-        private final long socketTimeoutMillis;
+        private final int socketTimeoutMillis;
         /**
          * Time to wait for a connecting to the remote cluster.
          */
-        private final long connectTimeoutMillis;
+        private final int connectTimeoutMillis;
 
         private final String index;
         private final String type;
         private final int numberOfReplicas;
         private final int numberOfShards;
+        private final int batchSize;
 
         public RemoteInfo(String scheme, String host, int port,
-                String username, String password, Map<String, String> headers, long socketTimeoutMillis, long connectTimeoutMillis,
-                String index, String type, int numberOfReplicas, int numberOfShards) {
+                String username, String password, Map<String, String> headers, int socketTimeoutMillis, int connectTimeoutMillis,
+                String index, String type, int numberOfReplicas, int numberOfShards, int batchSize) {
             this.scheme = scheme;
             this.host = host;
             this.port = port;
@@ -100,61 +79,37 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
             this.type = type;
             this.numberOfReplicas = numberOfReplicas;
             this.numberOfShards = numberOfShards;
+            this.batchSize = batchSize;
         }
     }
 
     private final CountDownLatch ready = new CountDownLatch(1); // NOCOMMIT replace with something fancy
 
-    private final List<Thread> threadCollector = synchronizedList(new ArrayList<>());
     private final RemoteInfo remoteInfo;
-    private final RestClient client;
-    private final String path;
+    private final ElasticsearchClient client;
+    private final LogBuffer buffer;
+    private final String bulkPath;
 
-    private ElasticsearchLogSyncManager(String name, RemoteInfo remoteInfo) {
+    private ElasticsearchLogSyncManager(String name, RemoteInfo spec) {
         super(LoggerContext.getContext(false), name);
-        if (remoteInfo.index.indexOf('/') >= 0) {
-            throw new IllegalArgumentException("Index can't contain '/' but was [" + remoteInfo.index + "]");
+        if (spec.index.indexOf('/') >= 0) {
+            throw new IllegalArgumentException("Index can't contain '/' but was [" + spec.index + "]");
         }
-        if (remoteInfo.type.indexOf('/') >= 0) {
-            throw new IllegalArgumentException("Type can't contain '/' but was [" + remoteInfo.type + "]");
+        if (spec.type.indexOf('/') >= 0) {
+            throw new IllegalArgumentException("Type can't contain '/' but was [" + spec.type + "]");
         }
-        this.remoteInfo = remoteInfo;
-        this.path = remoteInfo.index + "/" + remoteInfo.type + "/" + "_bulk";
-
-        // Now build the client
-        Header[] clientHeaders = new Header[remoteInfo.headers.size()];
-        int i = 0;
-        for (Map.Entry<String, String> header : remoteInfo.headers.entrySet()) {
-            clientHeaders[i] = new BasicHeader(header.getKey(), header.getValue());
-        }
-        this.client = RestClient.builder(new HttpHost(remoteInfo.host, remoteInfo.port, remoteInfo.scheme))
-                .setDefaultHeaders(clientHeaders)
-                .setRequestConfigCallback(c -> {
-                    c.setSocketTimeout(Math.toIntExact(remoteInfo.socketTimeoutMillis));
-                    c.setConnectTimeout(Math.toIntExact(remoteInfo.connectTimeoutMillis));
-                    return c;
-                })
-                .setHttpClientConfigCallback(c -> {
-                    // Enable basic auth if it is configured
-                    if (remoteInfo.username != null) {
-                        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.username,
-                                remoteInfo.password);
-                        CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-                        credentialsProvider.setCredentials(AuthScope.ANY, creds);
-                        c.setDefaultCredentialsProvider(credentialsProvider);
-                    }
-                    // Stick the task id in the thread name so we can track down tasks from stack traces
-                    AtomicInteger threads = new AtomicInteger();
-                    c.setThreadFactory(r -> {
-                        String threadName = "es-log-appender-" + name + "-" + threads.getAndIncrement();
-                        Thread t = new Thread(r, threadName);
-                        threadCollector.add(t);
-                        return t;
-                    });
-                    // Limit ourselves to one reactor thread because we only expect to have a single outstanding request at a time
-                    c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
-                    return c;
-                }).build();
+        this.remoteInfo = spec;
+        this.client = new ElasticsearchClient(this::logError, spec.host, spec.port, spec.scheme, spec.headers, spec.socketTimeoutMillis,
+                spec.connectTimeoutMillis, spec.username, spec.password);
+        this.buffer = new LogBuffer((m, t) -> {
+            // NOCOMMIT remove me
+            System.err.println(m);
+            if (t != null) {
+                t.printStackTrace();
+            }
+            logDebug(m, t);
+        }, this::logWarn, this::logError, this::flush, spec.batchSize);
+        this.bulkPath = remoteInfo.index + "/" + remoteInfo.type + "/" + "_bulk";
 
         // Now make sure the index is ready before going anywhere
         createIndexIfMissing();
@@ -163,81 +118,54 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
     @Override
     protected boolean releaseSub(long timeout, TimeUnit timeUnit) {
         boolean superReleased = super.releaseSub(timeout, timeUnit);
-        boolean clientClosed = false;
-        try {
-            try { // NOCOMMIT remove 
-                Thread.sleep(1000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            client.close();  // TODO log4j expects this to have a timeout but we totally don't
-            clientClosed = true;
-        } catch (IOException e) {
-            logError("Couldn't shut down internal Elasticsearch client", e);
-        }
-        for (Thread thread : threadCollector) {
-            if (thread.isAlive()) {
-                assert false: "Failed to properly stop client thread [" + thread.getName() + "]";
-                logError("Failed to properly stop client thread [" + thread.getName() + "]", null);
-            }
-        }
-        return superReleased && clientClosed;
+        boolean bufferClosed = buffer.close(timeout, timeUnit);
+        boolean clientClosed = client.close();
+        return superReleased && bufferClosed && clientClosed;
     }
 
-    void sendLog(LogEvent event, String message) {
+    void buffer(LogEvent event) {
+        buffer.buffer(event);
+    }
+
+    private void flush(Iterable<? extends LogEvent> events, Runnable callback) {
         try {
+            // NOCOMMIT replace with something nicer
             ready.await();
-        } catch (InterruptedException e) { // NOCOMMIT replace
+        } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 
-        message = message.replace("\"", "\\\"").replace("\n", "\\\n");
-        String string = "{\"index\":{}}\n"
-                + "{\"time\":" + event.getTimeMillis()
-                + ",\"level\":\"" + event.getLevel() + "\""
-                + ",\"message\":\"" + message + "\""
-                + "}\n";
-        HttpEntity entity = new StringEntity(string, ContentType.APPLICATION_JSON);
-        try {
-            checkBulkResponse(client.performRequest("POST", path, emptyMap(), entity));
-        } catch (IOException e) {
-            logError("Error sending log", e);
-        }
-    }
+        StringBuilder requestBody = new StringBuilder();
+        for (LogEvent event : events) {
+            requestBody.append("{\"index\":{}}\n");
 
-    private void checkBulkResponse(Response response) {
-        try {
-            String entity = EntityUtils.toString(response.getEntity());
-            if (response.getStatusLine().getStatusCode() != 200 || entity.indexOf("\"errors\":true") >= 0) {
-                logError("Error response from _bulk: " + entity, null);
-            }
-        } catch (IOException e) {
-            logError("Error checking response from _bulk", e);
+            // TODO More efficient and more accurate escaping
+            String message = event.getMessage().getFormattedMessage().replace("\"", "\\\"").replace("\n", "\\\n");
+
+            requestBody.append("{\"time\":").append(event.getTimeMillis());
+            requestBody.append(",\"level\":\"").append(event.getLevel()).append("\"");
+            requestBody.append(",\"message\":\"").append(message).append("\"");
+            requestBody.append("}\n");
         }
+
+        // TODO streaming or something
+        client.bulk(bulkPath, requestBody.toString(), callback);
     }
 
     private void createIndexIfMissing() {
-        client.performRequestAsync("HEAD", remoteInfo.index, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                if (response.getStatusLine().getStatusCode() == 200) {
-                    ready();
-                } else if (response.getStatusLine().getStatusCode() == 404) {
-                    createIndex();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                logError("Failed to check if index exists", exception);
+        client.indexExists(remoteInfo.index, exists -> {
+            if (exists) {
+                ready();
+            } else {
+                createIndex();
             }
         });
     }
 
     private void createIndex() {
-        String indexConfig = 
+        String config = 
                   "{\n"
-                + "  \"mapping\": {\n"
+                + "  \"mappings\": {\n"
                 + "    \"" + remoteInfo.type + "\": {\n"
                 + "      \"dynamic\": false,\n"
                 + "      \"properties\": {\n"
@@ -245,31 +173,20 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
                 + "          \"type\": \"date\"\n"
                 + "        },\n"
                 + "        \"level\": {\n"
-                + "          \"type\": \"keyword\",\n"
+                + "          \"type\": \"keyword\"\n"
                 + "        },\n"
                 + "        \"message\": {\n"
-                + "          \"type\": \"string\"\n"
+                + "          \"type\": \"text\"\n"
                 + "        }\n"
                 + "      }\n"
                 + "    }\n"
                 + "  },\n"
                 + "  \"settings\": {\n"
-                + "    \"number_of_replicas\": " + remoteInfo.numberOfReplicas + "\n"
+                + "    \"number_of_replicas\": " + remoteInfo.numberOfReplicas + ",\n"
                 + "    \"number_of_shards\": " + remoteInfo.numberOfShards + "\n"
                 + "  }\n"
                 + "}\n";
-        HttpEntity entity = new StringEntity(indexConfig, ContentType.APPLICATION_JSON);
-        client.performRequestAsync("PUT", remoteInfo.index, emptyMap(), entity, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                ready();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                logError("Failed to check if index exists", exception);
-            }
-        });
+        client.createIndex(remoteInfo.index, config, this::ready);
     }
 
     private void ready() {
