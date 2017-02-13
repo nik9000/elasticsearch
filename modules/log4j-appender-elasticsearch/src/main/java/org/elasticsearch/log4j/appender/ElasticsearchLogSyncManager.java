@@ -145,6 +145,11 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
             requestBody.append("{\"time\":").append(event.getTimeMillis());
             requestBody.append(",\"level\":\"").append(event.getLevel()).append("\"");
             requestBody.append(",\"message\":\"").append(message).append("\"");
+            requestBody.append(",\"thread\":"); {
+                requestBody.append("{\"id\":").append(event.getThreadId());
+                requestBody.append(",\"name\":\"").append(event.getThreadName()).append("\"");
+                requestBody.append(",\"priority\":").append(event.getThreadPriority()).append("}");
+            }
             requestBody.append("}\n");
         }
 
@@ -177,6 +182,19 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
                 + "        },\n"
                 + "        \"message\": {\n"
                 + "          \"type\": \"text\"\n"
+                + "        },\n"
+                + "        \"thread\": {\n"
+                + "          \"properties\": {\n"
+                + "            \"id\": {\n"
+                + "              \"type\": \"long\"\n"
+                + "            },\n"
+                + "            \"name\": {\n"
+                + "              \"type\": \"keyword\"\n"
+                + "            },\n"
+                + "            \"priority\": {\n"
+                + "              \"type\": \"integer\"\n"
+                + "            }\n"
+                + "          }\n"
                 + "        }\n"
                 + "      }\n"
                 + "    }\n"
