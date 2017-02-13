@@ -70,13 +70,13 @@ class LogBuffer {
                     warnLogger.accept("throwing away log that arrived too quickly", null);
                     next--;
                 } else {
-                    flushing = true;
                     toFlush = flip();
                 }
             }
         }
         if (toFlush != null) {
             debugLogger.accept("Flushing", null);
+            flushing = true;
             flush.accept(toFlush, this::flushed);
         }
     }
@@ -102,7 +102,7 @@ class LogBuffer {
         // If there is a flush outstanding then wait for it to complete
         debugLogger.accept("Waiting for outstanding flush", null);
         while (flushing) {
-            if (end - System.nanoTime() > 0) {
+            if (end - System.nanoTime() < 0) {
                 errorLogger.accept("timed out while waiting for in progress flush to elasticsearch to complete", null);
                 return false;
             }
@@ -118,11 +118,11 @@ class LogBuffer {
         // Flush any remaining logs
         if (false == toFlush.isEmpty()) {
             debugLogger.accept("Flushing for shutdown", null);
-            flush.accept(toFlush, this::flushed);
             flushing = true;
+            flush.accept(toFlush, this::flushed);
 
             while (flushing) {
-                if (end - System.nanoTime() > 0) {
+                if (end - System.nanoTime() < 0) {
                     errorLogger.accept("timed out while flushing to Elasticsearch before shutting down", null);
                     return false;
                 }

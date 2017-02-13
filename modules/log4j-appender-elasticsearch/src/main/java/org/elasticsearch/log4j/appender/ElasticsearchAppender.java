@@ -41,8 +41,8 @@ public class ElasticsearchAppender extends AbstractAppender {
         private String username;
         private String password;
         private Map<String, String> headers = emptyMap();
-        private int socketTimeoutMillis = ElasticsearchLogSyncManager.RemoteInfo.DEFAULT_SOCKET_TIMEOUT_MILLIS;
-        private int connectTimeoutMillis = ElasticsearchLogSyncManager.RemoteInfo.DEFAULT_CONNECT_TIMEOUT_MILLIS;
+        private int socketTimeoutMillis = ElasticsearchLogSyncManager.Spec.DEFAULT_SOCKET_TIMEOUT_MILLIS;
+        private int connectTimeoutMillis = ElasticsearchLogSyncManager.Spec.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 
         private String index;
         private String type;
@@ -72,7 +72,7 @@ public class ElasticsearchAppender extends AbstractAppender {
 
         @Override
         public ElasticsearchAppender build() {
-            ElasticsearchLogSyncManager.RemoteInfo remoteInfo = new ElasticsearchLogSyncManager.RemoteInfo(scheme, host, port, 
+            ElasticsearchLogSyncManager.Spec remoteInfo = new ElasticsearchLogSyncManager.Spec(scheme, host, port, 
                     username, password, headers, socketTimeoutMillis, connectTimeoutMillis, index, type, numberOfReplicas, numberOfShards,
                     batchSize);
             // TODO be smarter about how managers are shared
@@ -95,8 +95,16 @@ public class ElasticsearchAppender extends AbstractAppender {
     }
 
     @Override
+    public void stop() {
+        /* Override the default implementation of stop to give us a reasonable time to stop. We don't really expect this to be called
+         * outside of unit tests but we may as well get it right. */
+        stop(30, TimeUnit.SECONDS);
+    }
+
+    @Override
     public boolean stop(final long timeout, final TimeUnit timeUnit) {
         boolean superStopped = super.stop(timeout, timeUnit);
+        // Stop the manager if it is not still in use by some other appender
         boolean managerStopped = manager.stop(timeout, timeUnit);
         return superStopped && managerStopped;
     }

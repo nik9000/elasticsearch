@@ -28,11 +28,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class ElasticsearchLogSyncManager extends AbstractManager {
-    public static ElasticsearchLogSyncManager getManager(String name, RemoteInfo remoteInfo) {
+    public static ElasticsearchLogSyncManager getManager(String name, Spec remoteInfo) {
         return AbstractManager.getManager(name, ElasticsearchLogSyncManager::new, remoteInfo);
     }
 
-    public static class RemoteInfo { // NOCOMMIT rename
+    public static class Spec {
         /**
          * Default {@link #socketTimeoutMillis}.
          */
@@ -63,9 +63,9 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         private final int numberOfShards;
         private final int batchSize;
 
-        public RemoteInfo(String scheme, String host, int port,
-                String username, String password, Map<String, String> headers, int socketTimeoutMillis, int connectTimeoutMillis,
-                String index, String type, int numberOfReplicas, int numberOfShards, int batchSize) {
+        public Spec(String scheme, String host, int port, String username, String password, Map<String, String> headers,
+                int socketTimeoutMillis, int connectTimeoutMillis, String index, String type, int numberOfReplicas, int numberOfShards,
+                int batchSize) {
             this.scheme = scheme;
             this.host = host;
             this.port = port;
@@ -85,12 +85,12 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
 
     private final CountDownLatch ready = new CountDownLatch(1); // NOCOMMIT replace with something fancy
 
-    private final RemoteInfo remoteInfo;
+    private final Spec spec;
     private final ElasticsearchClient client;
     private final LogBuffer buffer;
     private final String bulkPath;
 
-    private ElasticsearchLogSyncManager(String name, RemoteInfo spec) {
+    private ElasticsearchLogSyncManager(String name, Spec spec) {
         super(LoggerContext.getContext(false), name);
         if (spec.index.indexOf('/') >= 0) {
             throw new IllegalArgumentException("Index can't contain '/' but was [" + spec.index + "]");
@@ -98,7 +98,7 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         if (spec.type.indexOf('/') >= 0) {
             throw new IllegalArgumentException("Type can't contain '/' but was [" + spec.type + "]");
         }
-        this.remoteInfo = spec;
+        this.spec = spec;
         this.client = new ElasticsearchClient(this::logError, spec.host, spec.port, spec.scheme, spec.headers, spec.socketTimeoutMillis,
                 spec.connectTimeoutMillis, spec.username, spec.password);
         this.buffer = new LogBuffer((m, t) -> {
@@ -109,7 +109,7 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
             }
             logDebug(m, t);
         }, this::logWarn, this::logError, this::flush, spec.batchSize);
-        this.bulkPath = remoteInfo.index + "/" + remoteInfo.type + "/" + "_bulk";
+        this.bulkPath = spec.index + "/" + spec.type + "/" + "_bulk";
 
         // Now make sure the index is ready before going anywhere
         createIndexIfMissing();
@@ -153,7 +153,7 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
     }
 
     private void createIndexIfMissing() {
-        client.indexExists(remoteInfo.index, exists -> {
+        client.indexExists(spec.index, exists -> {
             if (exists) {
                 ready();
             } else {
@@ -166,7 +166,7 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         String config = 
                   "{\n"
                 + "  \"mappings\": {\n"
-                + "    \"" + remoteInfo.type + "\": {\n"
+                + "    \"" + spec.type + "\": {\n"
                 + "      \"dynamic\": false,\n"
                 + "      \"properties\": {\n"
                 + "        \"time\": {\n"
@@ -182,11 +182,11 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
                 + "    }\n"
                 + "  },\n"
                 + "  \"settings\": {\n"
-                + "    \"number_of_replicas\": " + remoteInfo.numberOfReplicas + ",\n"
-                + "    \"number_of_shards\": " + remoteInfo.numberOfShards + "\n"
+                + "    \"number_of_replicas\": " + spec.numberOfReplicas + ",\n"
+                + "    \"number_of_shards\": " + spec.numberOfShards + "\n"
                 + "  }\n"
                 + "}\n";
-        client.createIndex(remoteInfo.index, config, this::ready);
+        client.createIndex(spec.index, config, this::ready);
     }
 
     private void ready() {
