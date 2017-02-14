@@ -22,8 +22,11 @@ package org.elasticsearch.plugin.log4j.appender;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,15 +35,21 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.log4j.appender.DelayedExecutor;
 import org.elasticsearch.log4j.appender.ElasticsearchAppender;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -48,6 +57,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, ActionPlugin {
     private static final Pattern HOST_PATTERN = Pattern.compile(
@@ -55,10 +66,9 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
     public static final Setting<String> HOST = Setting.simpleString("external_logging.host", Property.Dynamic, Property.NodeScope);
 
     private static final Logger logger = ESLoggerFactory.getLogger(ElasticsearchAppenderPlugin.class);
-    private volatile ElasticsearchAppender appender;
 
-    public ElasticsearchAppenderPlugin() {
-    }
+    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+    private volatile ElasticsearchAppender appender;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -70,6 +80,13 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
         synchronized (this) {
             shutdownAppenderIfRunning();
         }
+    }
+
+    @Override
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
+        this.threadPool.set(threadPool);
+        return emptySet();
     }
 
     @Override
@@ -103,8 +120,10 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
                 String index = m.group("index");
                 String type = m.group("type");
                 logger.info("enabling external logging to [{}://{}:{}/{}/{}]", scheme, host, port, index, type);
+                DelayedExecutor executor = (afterMillis, runnable) -> threadPool.get().schedule(timeValueMillis(afterMillis),
+                        ThreadPool.Names.GENERIC, runnable);
                 appender = new ElasticsearchAppender.Builder().withName("remote_es").withScheme(scheme).withHost(host).withPort(port)
-                        .withIndex(index).withType(type).build();
+                        .withIndex(index).withType(type).withExecutor(executor).build();
                 appender.start();
                 LoggerContext context = (LoggerContext) LogManager.getContext(false);
                 context.getRootLogger().addAppender(appender);

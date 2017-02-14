@@ -23,17 +23,22 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractManager;
 import org.apache.logging.log4j.core.impl.ThrowableProxy;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class ElasticsearchLogSyncManager extends AbstractManager {
-    public static ElasticsearchLogSyncManager getManager(String name, Spec remoteInfo) {
+import static java.lang.Math.max;
+
+class ElasticsearchLogSyncManager extends AbstractManager {
+    static ElasticsearchLogSyncManager getManager(String name, Spec remoteInfo) {
         return AbstractManager.getManager(name, ElasticsearchLogSyncManager::new, remoteInfo);
     }
 
-    public static class Spec {
+    static class Spec {
         /**
          * Default {@link #socketTimeoutMillis}.
          */
@@ -61,13 +66,34 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         private final String index;
         private final String type;
         private final int numberOfReplicas;
+        /**
+         * Number of shards to give the log index when creating it. If the index already exists then this has no effect.
+         */
         private final int numberOfShards;
+        /**
+         * Number of logs that must be buffered before we start flushing the buffer to Elasticsearch. Defaults to {@code 100} which seems
+         * like as good a number as any.
+         */
         private final int targetBatchSize;
+        /**
+         * Maximum number of logs that can be buffered at any point before we start overwriting the last buffered log. Defaults to
+         * {@code 1000} which means that the buffer takes up about a megabyte of heap.
+         */
         private final int maxBatchSize;
+        /**
+         * Number of milliseconds that a log event can stay in the buffer before we initiate a flush even if the buffer is under the
+         * {@link #targetBatchSize}.
+         */
+        private final long flushAfterMillis;
 
-        public Spec(String scheme, String host, int port, String username, String password, Map<String, String> headers,
+        /**
+         * Executor used to schedule polling for logs to flush. Defaults to using starting a thread.
+         */
+        private final DelayedExecutor executor;
+
+        Spec(String scheme, String host, int port, String username, String password, Map<String, String> headers,
                 int socketTimeoutMillis, int connectTimeoutMillis, String index, String type, int numberOfReplicas, int numberOfShards,
-                int targetBatchSize, int maxBatchSize) {
+                int targetBatchSize, int maxBatchSize, long flushAfterMillis, DelayedExecutor executor) {
             this.scheme = scheme;
             this.host = host;
             this.port = port;
@@ -83,6 +109,9 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
             this.numberOfShards = numberOfShards;
             this.targetBatchSize = targetBatchSize;
             this.maxBatchSize = maxBatchSize;
+            this.flushAfterMillis = flushAfterMillis;
+
+            this.executor = executor;
         }
     }
 
@@ -92,6 +121,17 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
     private final ElasticsearchClient client;
     private final LogBuffer buffer;
     private final String bulkPath;
+
+    /**
+     * Executor used to schedule polling for logs to flush. Defaults to using starting a thread.
+     */
+    private final DelayedExecutor executor;
+    /**
+     * Single-thread thread pool that backs {@link #executor} if none is provided to the constructor.
+     */
+    private final ScheduledThreadPoolExecutor builtinExecutorBacking;
+
+    private volatile ScheduledFuture<?> nextPollForOldAgeFlush;
 
     private ElasticsearchLogSyncManager(String name, Spec spec) {
         super(LoggerContext.getContext(false), name);
@@ -104,11 +144,26 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         this.spec = spec;
         this.client = new ElasticsearchClient(this::logError, spec.host, spec.port, spec.scheme, spec.headers, spec.socketTimeoutMillis,
                 spec.connectTimeoutMillis, spec.username, spec.password);
-        this.buffer = new LogBuffer(this::logDebug, this::logWarn, this::logError, this::flush, spec.targetBatchSize, spec.maxBatchSize);
+        this.buffer = new LogBuffer(this::logDebug, this::logWarn, this::logError, this::flush, spec.targetBatchSize, spec.maxBatchSize,
+                spec.flushAfterMillis);
         this.bulkPath = spec.index + "/" + spec.type + "/" + "_bulk";
 
         // Now make sure the index is ready before going anywhere
         createIndexIfMissing();
+
+        if (spec.executor == null) {
+            builtinExecutorBacking = new ScheduledThreadPoolExecutor(0, r -> {
+                Thread t = new Thread(r);
+                t.setName("elasticsearch-manager-" + name);
+                return t;
+            });
+            executor = (d, r) -> builtinExecutorBacking.schedule(r, d, TimeUnit.MILLISECONDS);
+        } else {
+            builtinExecutorBacking = null;
+            executor = spec.executor;
+        }
+
+        nextPollForOldAgeFlush = executor.submit(spec.flushAfterMillis, this::pollForOldAgeFlush);
     }
 
     @Override
@@ -116,7 +171,23 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
         boolean superReleased = super.releaseSub(timeout, timeUnit);
         boolean bufferClosed = buffer.close(timeout, timeUnit);
         boolean clientClosed = client.close();
-        return superReleased && bufferClosed && clientClosed;
+        boolean executorBackingClosed = true;
+
+        ScheduledFuture<?> toCancel = nextPollForOldAgeFlush;
+        if (toCancel != null) {
+            // TODO back this out when we move this out of Elasticsearch.
+            FutureUtils.cancel(toCancel);
+        }
+        if (builtinExecutorBacking != null) {
+            builtinExecutorBacking.shutdown();
+            try {
+                builtinExecutorBacking.awaitTermination(timeout, timeUnit);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                executorBackingClosed = false;
+            }
+        }
+        return superReleased && bufferClosed && clientClosed && executorBackingClosed;
     }
 
     void buffer(LogEvent event) {
@@ -236,5 +307,21 @@ public class ElasticsearchLogSyncManager extends AbstractManager {
 
     private void ready() {
         ready.countDown();
+    }
+
+    private void pollForOldAgeFlush() {
+        long toWait = spec.flushAfterMillis;
+        try {
+            toWait = buffer.pollForFlushMillis(System.currentTimeMillis());
+            /* We don't want to get into the situation where we are busy polling because Elasticsearch is barely able to keep up so
+             * we limit ourselves to polling at most once every second.*/
+            toWait = max(1000, toWait);
+        } finally {
+            if (toWait > 0) {
+                nextPollForOldAgeFlush = executor.submit(toWait, this::pollForOldAgeFlush);
+            } else {
+                nextPollForOldAgeFlush = null;
+            }
+        }
     }
 }

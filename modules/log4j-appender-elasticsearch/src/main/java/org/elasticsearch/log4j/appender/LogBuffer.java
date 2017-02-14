@@ -35,8 +35,17 @@ class LogBuffer {
     private final BiConsumer<String, Throwable> warnLogger;
     private final BiConsumer<String, Throwable> errorLogger;
     private final BiConsumer<Iterable<? extends LogEvent>, Runnable> flush;
+    /**
+     * Number of logs that must be buffered before we start flushing the buffer to Elasticsearch. Defaults to {@code 100} which seems
+     * like as good a number as any.
+     */
     private final int targetBatchSize;
+    /**
+     * Maximum number of logs that can be buffered at any point before we start overwriting the last buffered log. Defaults to
+     * {@code 1000} which means that the buffer takes up about a megabyte of heap.
+     */
     private final int maxBatchSize;
+    private final long flushAfterMillis;
 
     private volatile MutableLogEvent[] building;
     private volatile int next;
@@ -45,13 +54,17 @@ class LogBuffer {
 
     LogBuffer(BiConsumer<String, Throwable> debugLogger, BiConsumer<String, Throwable> warnLogger,
             BiConsumer<String, Throwable> errorLogger, BiConsumer<Iterable<? extends LogEvent>, Runnable> flush, int targetBatchSize,
-            int maxBatchSize) {
+            int maxBatchSize, long flushAfterMillis) {
+        if (targetBatchSize > maxBatchSize) {
+            throw new IllegalArgumentException("targetBatchSize [" + targetBatchSize + "] must be <= maxBatchSize [" + maxBatchSize + "]");
+        }
         this.debugLogger = debugLogger;
         this.warnLogger = warnLogger;
         this.errorLogger = errorLogger;
         this.flush = flush;
         this.targetBatchSize = targetBatchSize;
         this.maxBatchSize = maxBatchSize;
+        this.flushAfterMillis = flushAfterMillis;
         building = initBuffer();
         flip = initBuffer();
     }
@@ -60,10 +73,9 @@ class LogBuffer {
      * Buffer a log event.
      * @return true if the buffer is currently over its target size
      */
-    public boolean buffer(LogEvent event) {
+    boolean buffer(LogEvent event) {
         // TODO be much fancier about stuff! Like:
-        // * Flush on errors and fatals.
-        // * Flush on a deadline so things don't sit in the buffer forever. Very important, I think.
+        // * Flush on errors and fatals?
         boolean overTargetSize = false;
         List<? extends LogEvent> toFlush = null;
         synchronized (this) {
@@ -86,15 +98,54 @@ class LogBuffer {
             }
         }
         if (toFlush != null) {
-            debugLogger.accept("Flushing", null);
+            debugLogger.accept("Flushing due to size", null);
             flushing = true;
             flush.accept(toFlush, this::flushed);
         }
         return overTargetSize;
     }
 
+    /**
+     * Is the buffer currently over its target size?
+     */
     boolean overTargetSize() {
         return next > targetBatchSize;
+    }
+
+    /**
+     * Initiate a flush if the oldest log enough is more than {@link #flushAfterMillis} millis behind {@code now}. Note that this uses wall
+     * clock time ({@link System#currentTimeMillis()}) instead of elapsed time ({@link System#nanoTime()}) because elapsed time is usually
+     * not stored by log4j. In addition this uses the first element in the buffer as the "earliest" element when this isn't *technically*
+     * true. The elements after it *might* have lower times but they are unlikely to be different enough to matter at a time scale of
+     * seconds and anyone who flushes more than once a second is going to be in trouble anyway.
+     *
+     * @return returns the number of milliseconds to wait until the next poll with all negative numbers meaning "don't reschedule at all"
+     */
+    long pollForFlushMillis(long now) {
+        if (building == null) {
+            // Closed
+            return Long.MIN_VALUE;
+        }
+        if (next == 0) {
+            // Nothing in the buffer
+            return flushAfterMillis;
+        }
+        long toWait = flushAfterMillis;
+        List<? extends LogEvent> toFlush = null;
+        synchronized (this) {
+            long timeSince = now - building[0].getTimeMillis();
+            if (timeSince >= flushAfterMillis) {
+                toFlush = flip();
+            } else {
+                toWait -= timeSince;
+            }
+        }
+        if (toFlush != null) {
+            debugLogger.accept("Flushing due to log age", null);
+            flushing = true;
+            flush.accept(toFlush, this::flushed);
+        }
+        return toWait;
     }
 
     private void flushed() {
@@ -103,7 +154,7 @@ class LogBuffer {
         // TODO immediately start a flush if we are at or over target batch size?
     }
 
-    public boolean close(long timeout, TimeUnit timeUnit) {
+    boolean close(long timeout, TimeUnit timeUnit) {
         long end = System.nanoTime() + timeUnit.toNanos(timeout);
 
         // Shutdown the buffer under lock
@@ -155,6 +206,9 @@ class LogBuffer {
         return true;
     }
 
+    /**
+     * Flip the backup buffer on top of the current one and return a list of {@link LogEvent}s to flush.
+     */
     private List<? extends LogEvent> flip() {
         List<? extends LogEvent> toFlush = Arrays.asList(building);
         MutableLogEvent[] tmp = building;

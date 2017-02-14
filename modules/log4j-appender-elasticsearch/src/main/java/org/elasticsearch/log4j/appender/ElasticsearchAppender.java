@@ -46,10 +46,34 @@ public class ElasticsearchAppender extends AbstractAppender {
 
         private String index;
         private String type;
+        /**
+         * Number of replicas to give the log index when creating it. If the idnex already exists then this has no effect.
+         */
         private int numberOfReplicas = 2;
+        /**
+         * Number of shards to give the log index when creating it. If the index already exists then this has no effect.
+         */
         private int numberOfShards = 1;
+
+        /**
+         * Number of logs that must be buffered before we start flushing the buffer to Elasticsearch. Defaults to {@code 100} which seems
+         * like as good a number as any.
+         */
         private int targetBatchSize = 100;
+        /**
+         * Maximum number of logs that can be buffered at any point before we start overwriting the last buffered log. Defaults to
+         * {@code 1000} which means that the buffer takes up about a megabyte of heap.
+         */
         private int maxBatchSize = 1000;
+        /**
+         * Number of milliseconds that a log event can stay in the buffer before we initiate a flush even if the buffer is under the
+         * {@link #targetBatchSize}.
+         */
+        private long flushAfterMillis = TimeUnit.SECONDS.toMillis(30);
+        /**
+         * Executor used to schedule polling for logs to flush. Defaults to using starting a thread.
+         */
+        private DelayedExecutor executor;
 
         public Builder withName(String name) {
             this.name = name;
@@ -81,8 +105,54 @@ public class ElasticsearchAppender extends AbstractAppender {
             return this;
         }
 
+        /**
+         * Number of replicas to give the log index when creating it. If the idnex already exists then this has no effect.
+         */
+        public Builder withNumberOfReplicas(int numberOfReplicas) {
+            this.numberOfReplicas = numberOfReplicas;
+            return this;
+        }
+
+        /**
+         * Number of shards to give the log index when creating it. If the index already exists then this has no effect.
+         */
+        public Builder withNumberOfShards(int numberOfShards) {
+            this.numberOfShards = numberOfShards;
+            return this;
+        }
+
+        /**
+         * Number of logs that must be buffered before we start flushing the buffer to Elasticsearch. Defaults to {@code 100} which seems
+         * like as good a number as any.
+         */
         public Builder withTargetBatchSize(int targetBatchSize) {
             this.targetBatchSize = targetBatchSize;
+            return this;
+        }
+
+        /**
+         * Maximum number of logs that can be buffered at any point before we start overwriting the last buffered log. Defaults to
+         * {@code 1000} which means that the buffer takes up about a megabyte of heap.
+         */
+        public Builder withMaxBatchSize(int maxBatchSize) {
+            this.maxBatchSize = maxBatchSize;
+            return this;
+        }
+
+        /**
+         * Number of milliseconds that a log event can stay in the buffer before we initiate a flush even if the buffer is under the
+         * {@link #targetBatchSize}.
+         */
+        public Builder withFlushAfterMillis(long flushAfterMillis) {
+            this.flushAfterMillis = flushAfterMillis;
+            return this;
+        }
+
+        /**
+         * Executor used to schedule polling for logs to flush. Defaults to using starting a thread.
+         */
+        public Builder withExecutor(DelayedExecutor executor) {
+            this.executor = executor;
             return this;
         }
 
@@ -90,7 +160,7 @@ public class ElasticsearchAppender extends AbstractAppender {
         public ElasticsearchAppender build() {
             ElasticsearchLogSyncManager.Spec remoteInfo = new ElasticsearchLogSyncManager.Spec(scheme, host, port, 
                     username, password, headers, socketTimeoutMillis, connectTimeoutMillis, index, type, numberOfReplicas, numberOfShards,
-                    targetBatchSize, maxBatchSize);
+                    targetBatchSize, maxBatchSize, flushAfterMillis, executor);
             // TODO be smarter about how managers are shared
             ElasticsearchLogSyncManager manager = ElasticsearchLogSyncManager.getManager(name, remoteInfo);
             return new ElasticsearchAppender(name, null, null, false, manager);
