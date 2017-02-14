@@ -23,12 +23,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -52,6 +54,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -61,18 +64,27 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, ActionPlugin {
+    static final Setting<List<String>> HOST_WHITELIST =
+            Setting.listSetting("external_logging.whitelist", emptyList(), Function.identity(), Property.NodeScope);
+    static final Setting<String> HOST = Setting.simpleString("external_logging.host", Property.Dynamic, Property.NodeScope);
+
     private static final Pattern HOST_PATTERN = Pattern.compile(
             "(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)/(?<index>[^/]+)/(?<type>[^/]+)");
-    public static final Setting<String> HOST = Setting.simpleString("external_logging.host", Property.Dynamic, Property.NodeScope);
 
     private static final Logger logger = ESLoggerFactory.getLogger(ElasticsearchAppenderPlugin.class);
 
+    private final CharacterRunAutomaton hostWhitelist;
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private volatile ElasticsearchAppender appender;
 
+    public ElasticsearchAppenderPlugin(Settings settings) {
+        hostWhitelist = Regex.buildWhitelist(HOST_WHITELIST.get(settings), "This would allow anyone to remotely log to any host they "
+                + "like, effectively having Elasticsearch do HTTP POSTs to any URL.");
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(HOST);
+        return Arrays.asList(HOST_WHITELIST, HOST);
     }
 
     @Override
@@ -95,17 +107,28 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
             Supplier<DiscoveryNodes> nodesInCluster) {
         // NOCOMMIT make ClusterSettings more widely available
         clusterSettings.addSettingsUpdateConsumer(HOST, this::setupAppender, host -> {
-            if (Strings.hasLength(host) && false == HOST_PATTERN.matcher(host).matches()) {
+            if (false == Strings.hasLength(host)) {
+                return;
+            }
+            Matcher m = HOST_PATTERN.matcher(host);
+            if (false == m.matches()) {
                 throw new IllegalArgumentException(
                         "[" + HOST.getKey() + "] must be of the form [scheme]://[host]:[port]/[index]/[type] but was [" + host + "]");
             }
+            checkWhitelist(m.group("host"), Integer.parseInt(m.group("port")));
         });
         return emptyList();
     }
 
+    void checkWhitelist(String host, int port) {
+        String check = host + ":" + port;
+        if (false == hostWhitelist.run(check)) {
+            throw new IllegalArgumentException('[' + check + "] not whitelisted in " + HOST_WHITELIST.getKey());
+        }
+    }
+
     private void setupAppender(String host) {
         synchronized (this) {
-            // NOCOMMIT whitelist
             shutdownAppenderIfRunning();
 
             if (Strings.hasLength(host)) {

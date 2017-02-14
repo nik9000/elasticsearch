@@ -18,11 +18,16 @@
  */
 package org.elasticsearch.common.regex;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ESTestCase {
@@ -63,4 +68,35 @@ public class RegexTests extends ESTestCase {
         assertTrue(Regex.simpleMatch("fff*******ddd", "fffabcddd"));
         assertFalse(Regex.simpleMatch("fff******ddd", "fffabcdd"));
     }
+
+    public void testBuildWhitelist() {
+        assertMatchesTooMuch(singletonList("*"));
+        assertMatchesTooMuch(singletonList("**"));
+        assertMatchesTooMuch(singletonList("***"));
+        assertMatchesTooMuch(Arrays.asList("realstuff", "*"));
+        assertMatchesTooMuch(Arrays.asList("*", "realstuff"));
+
+        String random = randomAsciiOfLength(5);
+
+        CharacterRunAutomaton whitelist = Regex.buildWhitelist(emptyList(), "");
+        assertFalse(whitelist.run(""));
+        assertFalse("Shouldn't match " + random, whitelist.run(random));
+
+        whitelist = Regex.buildWhitelist(singletonList(random), "");
+        assertFalse(whitelist.run(""));
+        assertTrue("Should match " + random, whitelist.run(random));
+        assertFalse("Shouldn't match " + random + "AAA", whitelist.run(random + "AAA"));
+
+        whitelist = Regex.buildWhitelist(singletonList(random + "*"), "");
+        assertFalse(whitelist.run(""));
+        assertTrue("Should match " + random, whitelist.run(random));
+        assertTrue("Should match " + random + "AAA", whitelist.run(random + "AAA"));
+    }
+
+    private void assertMatchesTooMuch(List<String> whitelist) {
+        String extra = "extra" + randomAsciiOfLength(5);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> Regex.buildWhitelist(whitelist, extra));
+        assertEquals("Refusing to start because whitelist " + whitelist + " accepts all addresses. " + extra, e.getMessage());
+    }
+
 }

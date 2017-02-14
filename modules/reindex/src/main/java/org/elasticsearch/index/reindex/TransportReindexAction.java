@@ -28,11 +28,7 @@ import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -55,7 +51,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.regex.Regex;
@@ -135,6 +130,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         throw new UnsupportedOperationException("task required");
     }
 
+    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
+        return Regex.buildWhitelist(whitelist, "This would allow anyone to reindex-from-remote any URL they like effectively having "
+                + "Elasticsearch make HTTP GETs for them.");
+    }
+
     static void checkRemoteWhitelist(CharacterRunAutomaton whitelist, RemoteInfo remoteInfo) {
         if (remoteInfo == null) {
             return;
@@ -144,24 +144,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             return;
         }
         throw new IllegalArgumentException('[' + check + "] not whitelisted in " + REMOTE_CLUSTER_WHITELIST.getKey());
-    }
-
-    /**
-     * Build the {@link CharacterRunAutomaton} that represents the reindex-from-remote whitelist and make sure that it doesn't whitelist
-     * the world.
-     */
-    static CharacterRunAutomaton buildRemoteWhitelist(List<String> whitelist) {
-        if (whitelist.isEmpty()) {
-            return new CharacterRunAutomaton(Automata.makeEmpty());
-        }
-        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
-        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
-        if (Operations.isTotal(automaton)) {
-            throw new IllegalArgumentException("Refusing to start because whitelist " + whitelist + " accepts all addresses. "
-                    + "This would allow users to reindex-from-remote any URL they like effectively having Elasticsearch make HTTP GETs "
-                    + "for them.");
-        }
-        return new CharacterRunAutomaton(automaton);
     }
 
     /**

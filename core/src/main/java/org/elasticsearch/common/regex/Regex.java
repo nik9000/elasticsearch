@@ -21,6 +21,8 @@ package org.elasticsearch.common.regex;
 
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 
@@ -73,6 +75,25 @@ public class Regex {
             automata.add(simpleMatchToAutomaton(pattern));
         }
         return Operations.union(automata);
+    }
+
+    /**
+     * Build a whitelist style automaton, making sure that the whitelist doesn't match all strings.
+     *
+     * @param whitelist the list of patterns to match
+     * @param extraExplanation extra explanation given in the thrown {@link IllegalArgumentException} if the whitelist matches all strings
+     */
+    public static CharacterRunAutomaton buildWhitelist(List<String> whitelist, String extraExplanation) {
+        if (whitelist.isEmpty()) {
+            return new CharacterRunAutomaton(Automata.makeEmpty());
+        }
+        Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
+        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        if (Operations.isTotal(automaton)) {
+            throw new IllegalArgumentException("Refusing to start because whitelist " + whitelist
+                    + " accepts all addresses. " + extraExplanation);
+        }
+        return new CharacterRunAutomaton(automaton);
     }
 
     /**

@@ -17,11 +17,6 @@
  * under the License.
  */
 
-repositories {
-  // NOCOMMIT remove these once we publish the jar
-  mavenLocal()
-}
-
 esplugin {
   description 'Adds a log4j appender that can send logs directly to Elasticsearch.'
   classname 'org.elasticsearch.plugin.log4j.appender.ElasticsearchAppenderPlugin'
