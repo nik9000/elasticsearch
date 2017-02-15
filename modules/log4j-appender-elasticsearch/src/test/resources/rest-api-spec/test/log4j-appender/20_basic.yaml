@@ -9,11 +9,22 @@ teardown:
 
 ---
 "Check index creation log":
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+
+  # enabled logging to the the Elasticsearch node
   - do:
       cluster.put_settings:
         body:
           transient:
-            external_logging.host: http://localhost:9200/log/log
+            external_logging.host: http://${host}/log/log
 
   - do:
       index:
@@ -22,12 +33,8 @@ teardown:
         id:     1
         body:   { "user": "kimchy" }
 
-  # shut down external logging to cause a flush
   - do:
-      cluster.put_settings:
-        body:
-          transient:
-            external_logging.host: null
+      flush_external_logging: {}
   - do:
     indices.refresh:
       index: log
@@ -36,17 +43,27 @@ teardown:
       search:
         index: log
         q:     message:twitter
-  - match: { hits.total: 1 }
+  - match: { hits.total: 2 }
 
 ---
 "Shut down and start up":
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+
   # Turn on logging, shut it down, and turn it on again. Turning it back on
   # should work!
   - do:
       cluster.put_settings:
         body:
           transient:
-            external_logging.host: http://localhost:9200/log/log
+            external_logging.host: http://${host}/log/log
   - do:
       cluster.put_settings:
         body:
@@ -56,7 +73,7 @@ teardown:
       cluster.put_settings:
         body:
           transient:
-            external_logging.host: http://localhost:9200/log/log
+            external_logging.host: http://${host}/log/log
 
   # Create an index so we make a log that we can search for.
   - do:
@@ -66,12 +83,8 @@ teardown:
         id:     1
         body:   { "user": "kimchy" }
 
-  # shut down external logging to cause a flush
   - do:
-      cluster.put_settings:
-        body:
-          transient:
-            external_logging.host: null
+      flush_external_logging: {}
   - do:
     indices.refresh:
       index: log
@@ -80,4 +93,4 @@ teardown:
       search:
         index: log
         q:     message:twitter
-  - match: { hits.total: 1 }
+  - match: { hits.total: 2 }

@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 /**
  * Buffers logs before sending them to Elasticsearch.
@@ -34,6 +35,7 @@ class LogBuffer {
     private final BiConsumer<String, Throwable> debugLogger;
     private final BiConsumer<String, Throwable> warnLogger;
     private final BiConsumer<String, Throwable> errorLogger;
+    private final BooleanSupplier flushReady;
     private final BiConsumer<Iterable<? extends LogEvent>, Runnable> flush;
     /**
      * Number of logs that must be buffered before we start flushing the buffer to Elasticsearch. Defaults to {@code 100} which seems
@@ -53,14 +55,15 @@ class LogBuffer {
     private volatile MutableLogEvent[] flip;
 
     LogBuffer(BiConsumer<String, Throwable> debugLogger, BiConsumer<String, Throwable> warnLogger,
-            BiConsumer<String, Throwable> errorLogger, BiConsumer<Iterable<? extends LogEvent>, Runnable> flush, int targetBatchSize,
-            int maxBatchSize, long flushAfterMillis) {
+            BiConsumer<String, Throwable> errorLogger, BooleanSupplier flushReady,
+            BiConsumer<Iterable<? extends LogEvent>, Runnable> flush, int targetBatchSize, int maxBatchSize, long flushAfterMillis) {
         if (targetBatchSize > maxBatchSize) {
             throw new IllegalArgumentException("targetBatchSize [" + targetBatchSize + "] must be <= maxBatchSize [" + maxBatchSize + "]");
         }
         this.debugLogger = debugLogger;
         this.warnLogger = warnLogger;
         this.errorLogger = errorLogger;
+        this.flushReady = flushReady;
         this.flush = flush;
         this.targetBatchSize = targetBatchSize;
         this.maxBatchSize = maxBatchSize;
@@ -80,11 +83,11 @@ class LogBuffer {
         List<? extends LogEvent> toFlush = null;
         synchronized (this) {
             if (building == null) {
-                throw new IllegalStateException("Can't log event while buffer is closed");
+                throw new IllegalStateException("can't log event while buffer is closed");
             }
             building[next++].initFrom(event);
             if (next >= targetBatchSize) {
-                if (flushing) {
+                if (flushing || false == flushReady.getAsBoolean()) {
                     if (next >= maxBatchSize) {
                         // TODO throw away more intelligently
                         warnLogger.accept("throwing away log that that would overfill buffer", null);
@@ -93,13 +96,13 @@ class LogBuffer {
                         overTargetSize = true;
                     }
                 } else {
+                    flushing = true;
                     toFlush = flip();
                 }
             }
         }
         if (toFlush != null) {
-            debugLogger.accept("Flushing due to size", null);
-            flushing = true;
+            debugLogger.accept("flushing due to size", null);
             flush.accept(toFlush, this::flushed);
         }
         return overTargetSize;
@@ -110,6 +113,44 @@ class LogBuffer {
      */
     boolean overTargetSize() {
         return next > targetBatchSize;
+    }
+
+    void flush(long timeout, TimeUnit unit) throws InterruptedException {
+        long end = System.nanoTime() + unit.toNanos(timeout);
+        List<? extends LogEvent> toFlush = null;
+        synchronized (this) {
+            while (true) {
+                if (next == 0 || building == null) {
+                    // Nothing to flush so we return immediately claiming we've flushed everything.
+                    return;
+                }
+                if (false == flushReady.getAsBoolean()) {
+                    if (end - System.nanoTime() < 0) {
+                        throw new RuntimeException("timed out while waiting for flush to become ready");
+                    }
+                    Thread.sleep(100);
+                    continue;
+                }
+                if (flushing) {
+                    if (end - System.nanoTime() < 0) {
+                        throw new RuntimeException("timed out waiting ongoing flush to finish");
+                    }
+                    Thread.sleep(100);
+                    continue;
+                }
+                toFlush = flip();
+                flushing = true;
+                break;
+            }
+        }
+        debugLogger.accept("explicitly flushing", null);
+        flush.accept(toFlush, this::flushed);
+        while (flushing) {
+            if (end - System.nanoTime() < 0) {
+                throw new RuntimeException("timed out waiting flush to finish");
+            }
+            Thread.sleep(100);
+        }
     }
 
     /**
@@ -129,6 +170,10 @@ class LogBuffer {
         if (next == 0) {
             // Nothing in the buffer
             return flushAfterMillis;
+        }
+        if (false == flushReady.getAsBoolean()) {
+            // Not ready, check back in a second
+            return 1000;
         }
         long toWait = flushAfterMillis;
         List<? extends LogEvent> toFlush = null;
@@ -185,7 +230,23 @@ class LogBuffer {
 
         // Flush any remaining logs
         if (false == toFlush.isEmpty()) {
-            debugLogger.accept("Flushing for shutdown", null);
+            if (false == flushReady.getAsBoolean()) {
+                debugLogger.accept("flush is not ready so skipping flush", null);
+                while (false == flushReady.getAsBoolean()) {
+                    if (end - System.nanoTime() < 0) {
+                        errorLogger.accept("timed out waiting for flush to become ready for shutting down", null);
+                        return false;
+                    }
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        errorLogger.accept("interrupted waiting for flush to become ready for shutting down", e);
+                        Thread.currentThread().interrupt();
+                        return false;
+                    }
+                }
+            }
+            debugLogger.accept("flushing for shutdown", null);
             flushing = true;
             flush.accept(toFlush, this::flushed);
 

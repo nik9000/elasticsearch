@@ -22,6 +22,18 @@ esplugin {
   classname 'org.elasticsearch.plugin.log4j.appender.ElasticsearchAppenderPlugin'
 }
 
+integTest {
+  cluster {
+    // Whitelist reindexing from the local node so we can test it.
+    setting 'external_logging.whitelist', '127.0.0.1:*'
+  }
+}
+
+run {
+  // Whitelist reindexing from the local node so we can test it.
+  setting 'external_logging.whitelist', '127.0.0.1:*'
+}
+
 dependencies {
   compile "org.elasticsearch.client:rest:${version}"
 }

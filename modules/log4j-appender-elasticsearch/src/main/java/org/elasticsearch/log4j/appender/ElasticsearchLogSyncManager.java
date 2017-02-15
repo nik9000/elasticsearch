@@ -26,7 +26,6 @@ import org.apache.logging.log4j.core.impl.ThrowableProxy;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -115,8 +114,6 @@ class ElasticsearchLogSyncManager extends AbstractManager {
         }
     }
 
-    private final CountDownLatch ready = new CountDownLatch(1); // NOCOMMIT replace with something fancy
-
     private final Spec spec;
     private final ElasticsearchClient client;
     private final LogBuffer buffer;
@@ -132,6 +129,7 @@ class ElasticsearchLogSyncManager extends AbstractManager {
     private final ScheduledThreadPoolExecutor builtinExecutorBacking;
 
     private volatile ScheduledFuture<?> nextPollForOldAgeFlush;
+    private volatile boolean ready = false;
 
     private ElasticsearchLogSyncManager(String name, Spec spec) {
         super(LoggerContext.getContext(false), name);
@@ -144,8 +142,8 @@ class ElasticsearchLogSyncManager extends AbstractManager {
         this.spec = spec;
         this.client = new ElasticsearchClient(this::logError, spec.host, spec.port, spec.scheme, spec.headers, spec.socketTimeoutMillis,
                 spec.connectTimeoutMillis, spec.username, spec.password);
-        this.buffer = new LogBuffer(this::logDebug, this::logWarn, this::logError, this::flush, spec.targetBatchSize, spec.maxBatchSize,
-                spec.flushAfterMillis);
+        this.buffer = new LogBuffer(this::logDebug, this::logWarn, this::logError, this::flushReady, this::flush, spec.targetBatchSize,
+                spec.maxBatchSize, spec.flushAfterMillis);
         this.bulkPath = spec.index + "/" + spec.type + "/" + "_bulk";
 
         // Now make sure the index is ready before going anywhere
@@ -167,8 +165,9 @@ class ElasticsearchLogSyncManager extends AbstractManager {
     }
 
     @Override
-    protected boolean releaseSub(long timeout, TimeUnit timeUnit) {
-        boolean superReleased = super.releaseSub(timeout, timeUnit);
+    public boolean stop(long timeout, TimeUnit timeUnit) {
+        // Note: do not override releaseSub for cleanup as that'll do it under a lock.....
+        boolean supetStopped = super.stop(timeout, timeUnit);
         boolean bufferClosed = buffer.close(timeout, timeUnit);
         boolean clientClosed = client.close();
         boolean executorBackingClosed = true;
@@ -187,19 +186,24 @@ class ElasticsearchLogSyncManager extends AbstractManager {
                 executorBackingClosed = false;
             }
         }
-        return superReleased && bufferClosed && clientClosed && executorBackingClosed;
+        return supetStopped && bufferClosed && clientClosed && executorBackingClosed;
+    }
+
+    void flush(long timeout, TimeUnit unit) throws InterruptedException {
+        buffer.flush(timeout, unit);
     }
 
     void buffer(LogEvent event) {
         buffer.buffer(event);
     }
 
+    private boolean flushReady() {
+        return ready;
+    }
+
     private void flush(Iterable<? extends LogEvent> events, Runnable callback) {
-        try {
-            // NOCOMMIT replace with something nicer
-            ready.await();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        if (false == ready) {
+            return;
         }
 
         StringBuilder requestBody = new StringBuilder();
@@ -240,73 +244,60 @@ class ElasticsearchLogSyncManager extends AbstractManager {
     }
 
     private void createIndexIfMissing() {
-        client.indexExists(spec.index, exists -> {
-            if (exists) {
-                ready();
-            } else {
-                createIndex();
-            }
-        });
-    }
-
-    private void createIndex() {
         String config = 
-                  "{\n"
-                + "  \"mappings\": {\n"
-                + "    \"" + spec.type + "\": {\n"
-                + "      \"dynamic\": false,\n"
-                + "      \"properties\": {\n"
-                + "        \"time\": {\n"
-                + "          \"type\": \"date\"\n"
-                + "        },\n"
-                + "        \"level\": {\n"
-                + "          \"type\": \"keyword\"\n"
-                + "        },\n"
-                + "        \"message\": {\n"
-                + "          \"type\": \"text\"\n"
-                + "        },\n"
-                + "        \"thread\": {\n"
-                + "          \"properties\": {\n"
-                + "            \"id\": {\n"
-                + "              \"type\": \"long\"\n"
-                + "            },\n"
-                + "            \"name\": {\n"
-                + "              \"type\": \"keyword\"\n"
-                + "            },\n"
-                + "            \"priority\": {\n"
-                + "              \"type\": \"integer\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"source\": {\n"
-                + "          \"type\": \"keyword\"\n"
-                + "        },\n"
-                + "        \"logger\": {\n"
-                + "          \"type\": \"keyword\"\n"
-                + "        },\n"
-                + "        \"exception\": {\n"
-                + "          \"properties\": {\n"
-                + "            \"message\": {\n"
-                + "              \"type\": \"text\"\n"
-                + "            },\n"
-                + "            \"trace\": {\n"
-                + "              \"type\": \"text\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"settings\": {\n"
-                + "    \"number_of_replicas\": " + spec.numberOfReplicas + ",\n"
-                + "    \"number_of_shards\": " + spec.numberOfShards + "\n"
-                + "  }\n"
-                + "}\n";
-        client.createIndex(spec.index, config, this::ready);
-    }
+                "{\n"
+              + "  \"mappings\": {\n"
+              + "    \"" + spec.type + "\": {\n"
+              + "      \"dynamic\": false,\n"
+              + "      \"properties\": {\n"
+              + "        \"time\": {\n"
+              + "          \"type\": \"date\"\n"
+              + "        },\n"
+              + "        \"level\": {\n"
+              + "          \"type\": \"keyword\"\n"
+              + "        },\n"
+              + "        \"message\": {\n"
+              + "          \"type\": \"text\"\n"
+              + "        },\n"
+              + "        \"thread\": {\n"
+              + "          \"properties\": {\n"
+              + "            \"id\": {\n"
+              + "              \"type\": \"long\"\n"
+              + "            },\n"
+              + "            \"name\": {\n"
+              + "              \"type\": \"keyword\"\n"
+              + "            },\n"
+              + "            \"priority\": {\n"
+              + "              \"type\": \"integer\"\n"
+              + "            }\n"
+              + "          }\n"
+              + "        },\n"
+              + "        \"source\": {\n"
+              + "          \"type\": \"keyword\"\n"
+              + "        },\n"
+              + "        \"logger\": {\n"
+              + "          \"type\": \"keyword\"\n"
+              + "        },\n"
+              + "        \"exception\": {\n"
+              + "          \"properties\": {\n"
+              + "            \"message\": {\n"
+              + "              \"type\": \"text\"\n"
+              + "            },\n"
+              + "            \"trace\": {\n"
+              + "              \"type\": \"text\"\n"
+              + "            }\n"
+              + "          }\n"
+              + "        }\n"
+              + "      }\n"
+              + "    }\n"
+              + "  },\n"
+              + "  \"settings\": {\n"
+              + "    \"number_of_replicas\": " + spec.numberOfReplicas + ",\n"
+              + "    \"number_of_shards\": " + spec.numberOfShards + "\n"
+              + "  }\n"
+              + "}\n";
 
-    private void ready() {
-        ready.countDown();
+        client.createIndexIfMissing(spec.index, config, () -> {this.ready = true;});
     }
 
     private void pollForOldAgeFlush() {

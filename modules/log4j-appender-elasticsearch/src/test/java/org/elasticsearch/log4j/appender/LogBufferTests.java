@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static java.lang.Math.max;
 import static org.hamcrest.Matchers.both;
@@ -42,7 +43,7 @@ public class LogBufferTests extends ESTestCase {
     public void testLessThanBuffer() {
         int batchSize = between(1000, 50000);
         AtomicReference<Iterable<? extends LogEvent>> flushData = new AtomicReference<>();
-        LogBuffer buffer = newLogBuffer(batchSize, batchSize, Long.MAX_VALUE, (events, callback) -> {
+        LogBuffer buffer = newLogBuffer(batchSize, batchSize, Long.MAX_VALUE, () -> true, (events, callback) -> {
             Object old = flushData.getAndSet(events);
             assertNull("Only expected one flush", old);
             callback.run();
@@ -71,7 +72,7 @@ public class LogBufferTests extends ESTestCase {
         int batchSize = between(50, 1000);
         int count = between(batchSize, 50000);
         List<Long> flushData = new ArrayList<>(count);
-        LogBuffer buffer = newLogBuffer(batchSize, batchSize, Long.MAX_VALUE, (events, callback) -> {
+        LogBuffer buffer = newLogBuffer(batchSize, batchSize, Long.MAX_VALUE, () -> true, (events, callback) -> {
             int flushSize = 0;
             for (LogEvent event: events) {
                 flushData.add(event.getTimeMillis());
@@ -105,7 +106,7 @@ public class LogBufferTests extends ESTestCase {
         Thread[] threads = new Thread[between(2, max(3, Runtime.getRuntime().availableProcessors()))];
         List<Long> flushData = new ArrayList<>(count);
         int maxBatchSize = batchSize * threads.length;
-        LogBuffer buffer = newLogBuffer(batchSize, maxBatchSize, Long.MAX_VALUE, (events, callback) -> {
+        LogBuffer buffer = newLogBuffer(batchSize, maxBatchSize, Long.MAX_VALUE, () -> true, (events, callback) -> {
             int flushSize = 0;
             for (LogEvent event: events) {
                 flushData.add(event.getTimeMillis());
@@ -146,10 +147,12 @@ public class LogBufferTests extends ESTestCase {
         assertThat(flushData, hasSize(count * threads.length));
     }
 
+    // NOCOMMIT test flushready
+
     public void testPollForFlushMillis() {
         long flushMillis = between(10, 100000);
         List<Long> flushData = new ArrayList<>();
-        LogBuffer buffer = newLogBuffer(5000, 5000, flushMillis, (events, callback) -> {
+        LogBuffer buffer = newLogBuffer(5000, 5000, flushMillis, () -> true, (events, callback) -> {
             for (LogEvent event: events) {
                 flushData.add(event.getTimeMillis());
             }
@@ -201,12 +204,12 @@ public class LogBufferTests extends ESTestCase {
         assertThat(buffer.pollForFlushMillis(randomLong()), lessThan(0L));
     }
 
-    private LogBuffer newLogBuffer(int targetBatchSize, int maxBatchSize, long flushAfterMillis,
+    private LogBuffer newLogBuffer(int targetBatchSize, int maxBatchSize, long flushAfterMillis, BooleanSupplier flushReady,
             BiConsumer<Iterable<? extends LogEvent>, Runnable> flush) {
         return new LogBuffer(
                 (m, t) -> {},
                 (m, t) -> {throw new AssertionError(m, t);},
                 (m, t) -> {throw new AssertionError(m, t);},
-                flush, targetBatchSize, maxBatchSize, flushAfterMillis);
+                flushReady, flush, targetBatchSize, maxBatchSize, flushAfterMillis);
     }
 }

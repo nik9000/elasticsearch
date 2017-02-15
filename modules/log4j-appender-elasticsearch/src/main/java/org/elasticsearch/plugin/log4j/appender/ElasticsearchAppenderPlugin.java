@@ -61,6 +61,7 @@ import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, ActionPlugin {
@@ -90,7 +91,7 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            shutdownAppenderIfRunning();
+            shutdownAppenderIfRunning(false);
         }
     }
 
@@ -117,7 +118,7 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
             }
             checkWhitelist(m.group("host"), Integer.parseInt(m.group("port")));
         });
-        return emptyList();
+        return singletonList(new RestFlushExternalLoggingHandler(settings, restController, () -> appender));
     }
 
     void checkWhitelist(String host, int port) {
@@ -128,8 +129,17 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
     }
 
     private void setupAppender(String host) {
+        // NOCOMMIT this synchronized block can prevent cluster states from being applied. The race is:
+        // 1. Enable logging
+        // 2. Disable logging
+        // 3. En
         synchronized (this) {
-            shutdownAppenderIfRunning();
+            /*
+             * Thread off shutdown and removal because that can block and it isn't cool to block the cluster state thread, especially if you
+             * are logging back to the cluster because that might be awaiting a cluster state update which might be blocked behind this
+             * shutdown.
+             */
+            shutdownAppenderIfRunning(true);
 
             if (Strings.hasLength(host)) {
                 Matcher m = HOST_PATTERN.matcher(host);
@@ -155,14 +165,22 @@ public class ElasticsearchAppenderPlugin extends Plugin implements Closeable, Ac
         }
     }
 
-    private void shutdownAppenderIfRunning() {
+    private void shutdownAppenderIfRunning(boolean fork) {
         if (appender == null) {
             return;
         }
-        logger.info("shutting down external logging");
-        LoggerContext context = (LoggerContext) LogManager.getContext(false);
-        context.getRootLogger().removeAppender(appender);
-        appender.stop(30, TimeUnit.SECONDS);
-        logger.info("shut down external logging");
+        ElasticsearchAppender toClose = appender;
+        Runnable shutdown = () -> {
+            logger.info("shutting down external logging");
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            context.getRootLogger().removeAppender(toClose);
+            toClose.stop(30, TimeUnit.SECONDS);  
+            logger.info("shut down external logging");
+        };
+        if (fork) {
+            threadPool.get().executor(ThreadPool.Names.GENERIC).submit(shutdown);
+        } else {
+            shutdown.run();
+        }
     }
 }

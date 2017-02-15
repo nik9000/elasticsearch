@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.synchronizedList;
@@ -105,16 +104,15 @@ class ElasticsearchClient {
         return true;
     }
 
-    public void indexExists(String name, Consumer<Boolean> callback) {
+    public void createIndexIfMissing(String name, String config, Runnable callback) {
         client.performRequestAsync("HEAD", name, new ResponseListener() {
             @Override
             public void onSuccess(Response response) {
                 if (response.getStatusLine().getStatusCode() == 200) {
-                    callback.accept(true);
+                    callback.run();
                 } else if (response.getStatusLine().getStatusCode() == 404) {
-                    callback.accept(false);
+                    createIndex(name, config, callback);
                 } else {
-                    // NOCOMMIT sleep and retry
                     try {
                         errorLogger.accept("remote failed to check if index exists, status [" + response.getStatusLine().getStatusCode()
                                 + "], response: " + EntityUtils.toString(response.getEntity()), null);
@@ -122,13 +120,15 @@ class ElasticsearchClient {
                         errorLogger.accept("remote failed to check if index exists, status [" + response.getStatusLine().getStatusCode()
                                 + "] and failed to extract response", null);
                     }
+                    // TODO for now we never give up. This is weird, but maybe not wrong?
+                    createIndexIfMissing(name, config, callback);
                 }
             }
 
             @Override
             public void onFailure(Exception exception) {
-                // NOCOMMIT sleep and retry
                 errorLogger.accept("failed to check if index [" + name + "] exists", exception);
+                createIndexIfMissing(name, config, callback);
             }
         });
     }
@@ -141,7 +141,6 @@ class ElasticsearchClient {
                 if (response.getStatusLine().getStatusCode() == 200 || response.getStatusLine().getStatusCode() == 201) {
                     callback.run();
                 } else {
-                    // TODO sleep and retry
                     try {
                         errorLogger.accept("remote failed to create index, status [" + response.getStatusLine().getStatusCode()
                                 + "], response: " + EntityUtils.toString(response.getEntity()), null);
@@ -149,13 +148,14 @@ class ElasticsearchClient {
                         errorLogger.accept("remote failed to create index, status [" + response.getStatusLine().getStatusCode()
                                 + "] and failed to extract response", null);
                     }
+                    createIndexIfMissing(name, config, callback);
                 }
             }
 
             @Override
             public void onFailure(Exception exception) {
-                // TODO sleep and retry
                 errorLogger.accept("failed to create index [" + name + "]", exception);
+                createIndexIfMissing(name, config, callback);
             }
         });
     }

@@ -175,6 +175,13 @@ public class ElasticsearchAppender extends AbstractAppender {
         this.manager = manager;
     }
 
+    /**
+     * Explicitly flush the buffer, blocking until the flush completes, the operation times out, or is interrupted.
+     */
+    public void flush(long timeout, TimeUnit unit) throws InterruptedException {
+        manager.flush(timeout, unit);
+    }
+
     @Override
     public void append(LogEvent event) {
         manager.buffer(event);
