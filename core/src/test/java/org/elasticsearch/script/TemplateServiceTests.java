@@ -109,7 +109,7 @@ public class TemplateServiceTests extends ESTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> templateService
                 .template("test", ScriptType.FILE, ScriptContext.Standard.SEARCH, null));
-        assertEquals("unable to find file template [id=test, contentType=text/plain]",
+        assertEquals("unable to find file template [id=test, contentType=application/json]",
                 e.getMessage());
     }
 
@@ -141,7 +141,8 @@ public class TemplateServiceTests extends ESTestCase {
 
         Exception e = expectThrows(ResourceNotFoundException.class, () -> templateService
                 .template("test", ScriptType.STORED, ScriptContext.Standard.SEARCH, null));
-        assertEquals("unable to find template [id=test, contentType=text/plain] in cluster state",
+        assertEquals(
+                "unable to find template [id=test, contentType=application/json] in cluster state",
                 e.getMessage());
     }
 
