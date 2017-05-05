@@ -19,15 +19,10 @@
 
 package org.elasticsearch.painless;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 public class AbortingRegexTests extends ESTestCase {
     public void testAlreadyStopped() {
@@ -44,6 +39,7 @@ public class AbortingRegexTests extends ESTestCase {
     public void testAfterSome() {
         class AfterSome extends AbortingCharSequence {
             private int remaining = 0;
+
             public AfterSome(CharSequence delegate, int max) {
                 super(delegate);
                 remaining = max;
@@ -53,6 +49,21 @@ public class AbortingRegexTests extends ESTestCase {
             protected void check() {
                 if (--remaining <= 0) {
                     throw new IllegalStateException();
+                }
+            }
+        };
+        class Counter extends AbortingCharSequence {
+            private int used = 0;
+
+            public Counter(CharSequence delegate) {
+                super(delegate);
+            }
+
+            @Override
+            protected void check() {
+                used++;
+                if (used % 1000000 == 0) {
+                    System.err.println(used);
                 }
             }
         };
@@ -72,50 +83,17 @@ public class AbortingRegexTests extends ESTestCase {
             Matcher m = Pattern.compile("f(a|b|c|d|e|o){10,88}").matcher(new AfterSome("fooooooooooooooooooooooooooooooooo", 80));
             expectThrows(IllegalStateException.class, () -> m.matches());
         }
-    }
-
-    public void testRandom() {
-        CodepointSetGenerator gen = new CodepointSetGenerator("qwertyuiopasdfghjklzxcvbnm1234567890[]{}\\?*+()");
-        Supplier<Pattern> patternGen = () -> {
-            while (true) {
-                String pattern = gen.ofCodeUnitsLength(random(), 30, 30);
-                try {
-                    return Pattern.compile(pattern);
-                } catch (PatternSyntaxException e) {
-                    continue;
-                }
-            }
-        };
-        class AfterTenMillis extends AbortingCharSequence {
-            private final long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(10);
-
-            public AfterTenMillis(CharSequence delegate) {
-                super(delegate);
-            }
-
-            @Override
-            protected void check() {
-                if (System.nanoTime() - end > 0) {
-                    throw new IllegalArgumentException();
-                }
-            }
-            
-        }
-        for (int i = 0; i < 10; i++) {
-            Pattern p = patternGen.get();
-            Matcher m = p.matcher(new AfterTenMillis(randomUnicodeOfLengthBetween(30, 50)));
-            Object result;
-            try {
-                result = m.matches();
-            } catch (IllegalStateException e) {
-                result = e;
-            }
-            if (result != Boolean.FALSE) {
-                System.err.println(p + " : " + result);
-            }
-            if (i % 1000 == 0) {
-                System.err.println(i);
-            }
+//        {
+//            Counter c = new Counter("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+//            Matcher m = Pattern.compile("((x+x+x+){3,100}x+){3,100}x+").matcher(c);
+//            assertTrue(m.matches());
+//            System.err.println(c.used);
+//        }
+        {
+            Matcher m = Pattern.compile("((x+x+x+){3,100}x+){3,100}x+") // Suffer
+                    .matcher(new AfterSome("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 100000000));
+            expectThrows(IllegalStateException.class, () -> m.matches());
         }
     }
+
 }
