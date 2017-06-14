@@ -54,7 +54,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 7);
 
         // Deletes two docs that matches "foo:a"
-        assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().deleted(2));
+        DeleteByQueryRequestBuilder delete = DeleteByQueryAction.INSTANCE.newRequestBuilder(client())
+                .source("test").filter(termQuery("foo", "a")).refresh(true);
+        delete.source().setSize(1); //    <------ This is the scroll size
+        assertThat(delete.get(), matcher().deleted(2));
         assertHitCount(client().prepareSearch("test").setTypes("test").setSize(0).get(), 5);
 
         // Deletes the two first docs with limit by size
