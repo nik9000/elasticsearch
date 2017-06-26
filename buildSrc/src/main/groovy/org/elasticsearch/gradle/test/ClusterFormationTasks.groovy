@@ -117,7 +117,7 @@ class ClusterFormationTasks {
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 
-        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)
+        Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks, config)
         runner.dependsOn(wait)
 
         return nodes
@@ -558,10 +558,10 @@ class ClusterFormationTasks {
         return start
     }
 
-    static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks) {
+    static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, ClusterConfiguration clusterConfig) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
-            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
+            ant.waitfor(maxwait: clusterConfig.debug ? '600' : '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
                         resourceexists {
