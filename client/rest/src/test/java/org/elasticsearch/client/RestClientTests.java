@@ -54,7 +54,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithUnsupportedMethod() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("unsupported", randomAsciiLettersOfLength(5), new ResponseListener() {
+            restClient.prepare("unsupported", randomAsciiLettersOfLength(5)).performAsync(new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     fail("should have failed because of unsupported method");
@@ -74,19 +74,20 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithNullParams() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5), null, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    fail("should have failed because of null parameters");
-                }
+            restClient.prepare(randomAsciiLettersOfLength(5), randomAsciiLettersOfLength(5)).params(null)
+                    .performAsync(new ResponseListener() {
+                        @Override
+                        public void onSuccess(Response response) {
+                            fail("should have failed because of null parameters");
+                        }
 
-                @Override
-                public void onFailure(Exception exception) {
-                    assertThat(exception, instanceOf(NullPointerException.class));
-                    assertEquals("params must not be null", exception.getMessage());
-                    latch.countDown();
-                }
-            });
+                        @Override
+                        public void onFailure(Exception exception) {
+                            assertThat(exception, instanceOf(NullPointerException.class));
+                            assertEquals("params must not be null", exception.getMessage());
+                            latch.countDown();
+                        }
+                    });
             latch.await();
         }
     }
@@ -94,7 +95,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithNullHeaders() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            ResponseListener listener = new ResponseListener() {
+            restClient.prepare("GET", randomAsciiLettersOfLength(5)).headers((Header) null).performAsync(new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     fail("should have failed because of null headers");
@@ -106,8 +107,7 @@ public class RestClientTests extends RestClientTestCase {
                     assertEquals("request header must not be null", exception.getMessage());
                     latch.countDown();
                 }
-            };
-            restClient.performRequestAsync("GET", randomAsciiLettersOfLength(5), listener, (Header) null);
+            });;
             latch.await();
         }
     }
@@ -115,7 +115,7 @@ public class RestClientTests extends RestClientTestCase {
     public void testPerformAsyncWithWrongEndpoint() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         try (RestClient restClient = createRestClient()) {
-            restClient.performRequestAsync("GET", "::http:///", new ResponseListener() {
+            restClient.prepare("GET", "::http:///").performAsync(new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     fail("should have failed because of wrong endpoint");
@@ -179,7 +179,7 @@ public class RestClientTests extends RestClientTestCase {
         try (RestClient restClient = createRestClient()) {
             for (String method : getHttpMethods()) {
                 try {
-                    restClient.performRequest(method, null);
+                    restClient.prepare(method, null).perform();
                     fail("path set to null should fail!");
                 } catch (NullPointerException e) {
                     assertEquals("path must not be null", e.getMessage());

@@ -29,6 +29,7 @@ import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
+import org.elasticsearch.client.PreparedRequest.SyncResponseListener;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -69,7 +70,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testOnSuccessNullResponse() {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         try {
             syncResponseListener.onSuccess(null);
             fail("onSuccess should have failed");
@@ -79,7 +80,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testOnFailureNullException() {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         try {
             syncResponseListener.onFailure(null);
             fail("onFailure should have failed");
@@ -89,7 +90,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testOnSuccess() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         Response mockResponse = mockResponse();
         syncResponseListener.onSuccess(mockResponse);
         Response response = syncResponseListener.get();
@@ -106,7 +107,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testOnFailure() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         RuntimeException firstException = new RuntimeException("first-test");
         syncResponseListener.onFailure(firstException);
         try {
@@ -145,7 +146,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testRuntimeIsBuiltCorrectly() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         RuntimeException runtimeException = new RuntimeException();
         syncResponseListener.onFailure(runtimeException);
         try {
@@ -162,7 +163,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testConnectTimeoutExceptionIsBuiltCorrectly() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         ConnectTimeoutException timeoutException = new ConnectTimeoutException();
         syncResponseListener.onFailure(timeoutException);
         try {
@@ -179,7 +180,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testSocketTimeoutExceptionIsBuiltCorrectly() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         SocketTimeoutException timeoutException = new SocketTimeoutException();
         syncResponseListener.onFailure(timeoutException);
         try {
@@ -196,7 +197,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testConnectionClosedExceptionIsWrapped() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         ConnectionClosedException closedException = new ConnectionClosedException(randomAsciiAlphanumOfLength(5));
         syncResponseListener.onFailure(closedException);
         try {
@@ -213,7 +214,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testSSLHandshakeExceptionIsWrapped() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         SSLHandshakeException exception = new SSLHandshakeException(randomAsciiAlphanumOfLength(5));
         syncResponseListener.onFailure(exception);
         try {
@@ -230,7 +231,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testIOExceptionIsBuiltCorrectly() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         IOException ioException = new IOException();
         syncResponseListener.onFailure(ioException);
         try {
@@ -247,7 +248,7 @@ public class SyncResponseListenerTests extends RestClientTestCase {
     }
 
     public void testExceptionIsWrapped() throws Exception {
-        RestClient.SyncResponseListener syncResponseListener = new RestClient.SyncResponseListener(10000);
+        SyncResponseListener syncResponseListener = new SyncResponseListener(10000);
         //we just need any checked exception
         URISyntaxException exception = new URISyntaxException("test", "test");
         syncResponseListener.onFailure(exception);

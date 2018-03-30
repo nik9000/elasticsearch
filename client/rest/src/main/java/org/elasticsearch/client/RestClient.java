@@ -20,7 +20,6 @@ package org.elasticsearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.ConnectionClosedException;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -39,7 +38,6 @@ import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.client.BasicAuthCache;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -47,10 +45,8 @@ import org.apache.http.nio.client.methods.HttpAsyncMethods;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 
-import javax.net.ssl.SSLHandshakeException;
 import java.io.Closeable;
 import java.io.IOException;
-import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -68,11 +64,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Client that connects to an Elasticsearch cluster through HTTP.
@@ -144,6 +138,14 @@ public class RestClient implements Closeable {
     }
 
     /**
+     * Build a request to perform with either {@link Request#perform} or
+     * {@link Request#performAsync}.
+     */
+    public PreparedRequest prepare(String method, String endpoint) {
+        return new PreparedRequest(this, method, endpoint);
+    }
+
+    /**
      * Sends a request to the Elasticsearch cluster that the client points to and waits for the corresponding response
      * to be returned. Shortcut to {@link #performRequest(String, String, Map, HttpEntity, Header...)} but without parameters
      * and request body.
@@ -155,9 +157,11 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), null, headers);
+        return prepare(method, endpoint).headers(headers).perform();
     }
 
     /**
@@ -172,9 +176,11 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, (HttpEntity)null, headers);
+        return prepare(method, endpoint).headers(headers).params(params).perform();
     }
 
     /**
@@ -192,10 +198,12 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, Header... headers) throws IOException {
-        return performRequest(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, headers);
+        return prepare(method, endpoint).headers(headers).params(params).entity(entity).perform();
     }
 
     /**
@@ -217,7 +225,7 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
+     * @param responseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
      * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
      * connection on the client side.
      * @param headers the optional request headers
@@ -225,14 +233,14 @@ public class RestClient implements Closeable {
      * @throws IOException in case of a problem or the connection was aborted
      * @throws ClientProtocolException in case of an http protocol error
      * @throws ResponseException in case Elasticsearch responded with a status code that indicated an error
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public Response performRequest(String method, String endpoint, Map<String, String> params,
-                                   HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                                   HttpEntity entity, HttpAsyncResponseConsumerFactory responseConsumerFactory,
                                    Header... headers) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
-        performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-            listener, headers);
-        return listener.get();
+        return prepare(method, endpoint).headers(headers).params(params).entity(entity)
+                .responseConsumerFactory(responseConsumerFactory).perform();
     }
 
     /**
@@ -244,9 +252,11 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, Collections.<String, String>emptyMap(), null, responseListener, headers);
+        prepare(method, endpoint).headers(headers).performAsync(responseListener);
     }
 
     /**
@@ -259,10 +269,12 @@ public class RestClient implements Closeable {
      * @param params the query_string parameters
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, null, responseListener, headers);
+        prepare(method, endpoint).headers(headers).params(params).performAsync(responseListener);
     }
 
     /**
@@ -278,10 +290,12 @@ public class RestClient implements Closeable {
      * @param entity the body of the request, null if not applicable
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, ResponseListener responseListener, Header... headers) {
-        performRequestAsync(method, endpoint, params, entity, HttpAsyncResponseConsumerFactory.DEFAULT, responseListener, headers);
+        prepare(method, endpoint).headers(headers).params(params).entity(entity).performAsync(responseListener);
     }
 
     /**
@@ -296,25 +310,27 @@ public class RestClient implements Closeable {
      * @param endpoint the path of the request (without host and port)
      * @param params the query_string parameters
      * @param entity the body of the request, null if not applicable
-     * @param httpAsyncResponseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
+     * @param responseConsumerFactory the {@link HttpAsyncResponseConsumerFactory} used to create one
      * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the response body gets streamed from a non-blocking HTTP
      * connection on the client side.
      * @param responseListener the {@link ResponseListener} to notify when the request is completed or fails
      * @param headers the optional request headers
+     * @deprecated prefer {@link #request(String, String)}
      */
+    @Deprecated
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                                    HttpEntity entity, HttpAsyncResponseConsumerFactory responseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
-        try {
-            performRequestAsyncNoCatch(method, endpoint, params, entity, httpAsyncResponseConsumerFactory,
-                responseListener, headers);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-        }
+        prepare(method, endpoint).headers(headers).params(params).entity(entity)
+                .responseConsumerFactory(responseConsumerFactory).performAsync(responseListener);
+    }
+
+    long getMaxRetryTimeoutMillis() {
+        return maxRetryTimeoutMillis;
     }
 
     void performRequestAsyncNoCatch(String method, String endpoint, Map<String, String> params,
-                                    HttpEntity entity, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+                                    HttpEntity entity, HttpAsyncResponseConsumerFactory responseConsumerFactory,
                                     ResponseListener responseListener, Header... headers) {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
@@ -348,7 +364,7 @@ public class RestClient implements Closeable {
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
         long startTime = System.nanoTime();
-        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, httpAsyncResponseConsumerFactory,
+        performRequestAsync(startTime, nextHost(), request, ignoreErrorCodes, responseConsumerFactory,
                 failureTrackingResponseListener);
     }
 
@@ -634,109 +650,6 @@ public class RestClient implements Closeable {
          */
         void trackFailure(Exception exception) {
             this.exception = addSuppressedException(this.exception, exception);
-        }
-    }
-
-    /**
-     * Listener used in any sync performRequest calls, it waits for a response or an exception back up to a timeout
-     */
-    static class SyncResponseListener implements ResponseListener {
-        private final CountDownLatch latch = new CountDownLatch(1);
-        private final AtomicReference<Response> response = new AtomicReference<>();
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
-
-        private final long timeout;
-
-        SyncResponseListener(long timeout) {
-            assert timeout > 0;
-            this.timeout = timeout;
-        }
-
-        @Override
-        public void onSuccess(Response response) {
-            Objects.requireNonNull(response, "response must not be null");
-            boolean wasResponseNull = this.response.compareAndSet(null, response);
-            if (wasResponseNull == false) {
-                throw new IllegalStateException("response is already set");
-            }
-
-            latch.countDown();
-        }
-
-        @Override
-        public void onFailure(Exception exception) {
-            Objects.requireNonNull(exception, "exception must not be null");
-            boolean wasExceptionNull = this.exception.compareAndSet(null, exception);
-            if (wasExceptionNull == false) {
-                throw new IllegalStateException("exception is already set");
-            }
-            latch.countDown();
-        }
-
-        /**
-         * Waits (up to a timeout) for some result of the request: either a response, or an exception.
-         */
-        Response get() throws IOException {
-            try {
-                //providing timeout is just a safety measure to prevent everlasting waits
-                //the different client timeouts should already do their jobs
-                if (latch.await(timeout, TimeUnit.MILLISECONDS) == false) {
-                    throw new IOException("listener timeout after waiting for [" + timeout + "] ms");
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException("thread waiting for the response was interrupted", e);
-            }
-
-            Exception exception = this.exception.get();
-            Response response = this.response.get();
-            if (exception != null) {
-                if (response != null) {
-                    IllegalStateException e = new IllegalStateException("response and exception are unexpectedly set at the same time");
-                    e.addSuppressed(exception);
-                    throw e;
-                }
-                /*
-                 * Wrap and rethrow whatever exception we received, copying the type
-                 * where possible so the synchronous API looks as much as possible
-                 * like the asynchronous API. We wrap the exception so that the caller's
-                 * signature shows up in any exception we throw.
-                 */
-                if (exception instanceof ResponseException) {
-                    throw new ResponseException((ResponseException) exception);
-                }
-                if (exception instanceof ConnectTimeoutException) {
-                    ConnectTimeoutException e = new ConnectTimeoutException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof SocketTimeoutException) {
-                    SocketTimeoutException e = new SocketTimeoutException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof ConnectionClosedException) {
-                    ConnectionClosedException e = new ConnectionClosedException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof SSLHandshakeException) {
-                    SSLHandshakeException e = new SSLHandshakeException(exception.getMessage());
-                    e.initCause(exception);
-                    throw e;
-                }
-                if (exception instanceof IOException) {
-                    throw new IOException(exception.getMessage(), exception);
-                }
-                if (exception instanceof RuntimeException){
-                    throw new RuntimeException(exception.getMessage(), exception);
-                }
-                throw new RuntimeException("error while performing request", exception);
-            }
-
-            if (response == null) {
-                throw new IllegalStateException("response not set and no exception caught either");
-            }
-            return response;
         }
     }
 

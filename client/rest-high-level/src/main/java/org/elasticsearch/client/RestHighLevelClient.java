@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -251,21 +252,38 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a bulk request using the Bulk API
+     * Prepare a bulk request.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      */
+    public final PreparedHighLevelRequest<BulkResponse> prepare(BulkRequest request) throws IOException {
+        return prepare(request, Request::bulk, BulkResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Executes a bulk request using the Bulk API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @deprecated Prefer {@link #prepare(BulkRequest)}
+     */
+    @Deprecated
     public final BulkResponse bulk(BulkRequest bulkRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, emptySet(), headers);
+        return prepare(bulkRequest).headers(headers).perform();
     }
 
     /**
      * Asynchronously executes a bulk request using the Bulk API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
+     * @deprecated Prefer {@link #prepare(BulkRequest)}
      */
+    @Deprecated
     public final void bulkAsync(BulkRequest bulkRequest, ActionListener<BulkResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(bulkRequest, Request::bulk, BulkResponse::fromXContent, listener, emptySet(), headers);
+        try {
+            prepare(bulkRequest).headers(headers).performAsync(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -285,40 +303,74 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Retrieves a document by id using the Get API
+     * Prepare a request to retrieve a document by id using the Get API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
      */
+    public final PreparedHighLevelRequest<GetResponse> prepare(GetRequest request) throws IOException {
+        return prepare(request, Request::get, GetResponse::fromXContent, singleton(404));
+    }
+
+    /**
+     * Retrieves a document by id using the Get API
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @deprecated Prefer {@link #prepare(GetRequest)}
+     */
+    @Deprecated
     public final GetResponse get(GetRequest getRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, singleton(404), headers);
+        return prepare(getRequest).headers(headers).perform();
     }
 
     /**
      * Asynchronously retrieves a document by id using the Get API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html">Get API on elastic.co</a>
+     * @deprecated Prefer {@link #prepare(GetRequest)}
      */
+    @Deprecated
     public final void getAsync(GetRequest getRequest, ActionListener<GetResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(getRequest, Request::get, GetResponse::fromXContent, listener, singleton(404), headers);
+        try {
+            prepare(getRequest).headers(headers).performAsync(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Prepare a request to retrieve multiple documents by id using the
+     * Multi Get API.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     */
+    public final PreparedHighLevelRequest<MultiGetResponse> prepare(MultiGetRequest request) throws IOException {
+        return prepare(request, Request::multiGet, MultiGetResponse::fromXContent, singleton(404));
     }
 
     /**
      * Retrieves multiple documents by id using the Multi Get API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @deprecated Prefer {@link #prepare(MultiGetRequest)}
      */
+    @Deprecated
     public final MultiGetResponse multiGet(MultiGetRequest multiGetRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, singleton(404), headers);
+        return prepare(multiGetRequest).headers(headers).perform();
     }
 
     /**
      * Asynchronously retrieves multiple documents by id using the Multi Get API
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-multi-get.html">Multi Get API on elastic.co</a>
+     * @deprecated Prefer {@link #prepare(MultiGetRequest)}
      */
+    @Deprecated
     public final void multiGetAsync(MultiGetRequest multiGetRequest, ActionListener<MultiGetResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(multiGetRequest, Request::multiGet, MultiGetResponse::fromXContent, listener,
-                singleton(404), headers);
+        try {
+            prepare(multiGetRequest).headers(headers).performAsync(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -501,139 +553,39 @@ public class RestHighLevelClient implements Closeable {
                 headers);
     }
 
-    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
-                                                                            CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                            CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                            Set<Integer> ignores, Header... headers) throws IOException {
-        return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
-    }
-
-    protected final <Req extends ActionRequest, Resp> Resp performRequest(Req request,
-                                                          CheckedFunction<Req, Request, IOException> requestConverter,
-                                                          CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                          Set<Integer> ignores, Header... headers) throws IOException {
+    protected final <Req extends ActionRequest> Request convert(Req request,
+            CheckedFunction<Req, Request, IOException> requestConverter) throws IOException {
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {
             throw validationException;
         }
-        Request req = requestConverter.apply(request);
-        Response response;
-        try {
-            response = client.performRequest(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), headers);
-        } catch (ResponseException e) {
-            if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                try {
-                    return responseConverter.apply(e.getResponse());
-                } catch (Exception innerException) {
-                    //the exception is ignored as we now try to parse the response as an error.
-                    //this covers cases like get where 404 can either be a valid document not found response,
-                    //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
-                    //first. If parsing of the response breaks, we fall back to parsing it as an error.
-                    throw parseResponseException(e);
-                }
-            }
-            throw parseResponseException(e);
-        }
-
-        try {
-            return responseConverter.apply(response);
-        } catch(Exception e) {
-            throw new IOException("Unable to parse response body for " + response, e);
-        }
+        return requestConverter.apply(request);
     }
 
-    protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
-                                                                 CheckedFunction<Req, Request, IOException> requestConverter,
-                                                                 CheckedFunction<XContentParser, Resp, IOException> entityParser,
-                                                                 ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
-        performRequestAsync(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser),
-                listener, ignores, headers);
+    protected final <RequestT extends ActionRequest, ResponseT extends ActionResponse>
+            PreparedHighLevelRequest<ResponseT> prepare(
+                RequestT request,
+                CheckedFunction<RequestT, Request, IOException> requestConverter,
+                CheckedFunction<XContentParser, ResponseT, IOException> entityParser,
+                Set<Integer> ignores) throws IOException {
+        return prepareConvertEntity(
+                request,
+                requestConverter,
+                response -> parseEntity(response.getEntity(), entityParser),
+                ignores);
     }
 
-    protected final <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
-                                                               CheckedFunction<Req, Request, IOException> requestConverter,
-                                                               CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                               ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
-        ActionRequestValidationException validationException = request.validate();
-        if (validationException != null) {
-            listener.onFailure(validationException);
-            return;
-        }
-        Request req;
-        try {
-            req = requestConverter.apply(request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        client.performRequestAsync(req.getMethod(), req.getEndpoint(), req.getParameters(), req.getEntity(), responseListener, headers);
-    }
-
-    final <Resp> ResponseListener wrapResponseListener(CheckedFunction<Response, Resp, IOException> responseConverter,
-                                                        ActionListener<Resp> actionListener, Set<Integer> ignores) {
-        return new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                try {
-                    actionListener.onResponse(responseConverter.apply(response));
-                } catch(Exception e) {
-                    IOException ioe = new IOException("Unable to parse response body for " + response, e);
-                    onFailure(ioe);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                if (exception instanceof ResponseException) {
-                    ResponseException responseException = (ResponseException) exception;
-                    Response response = responseException.getResponse();
-                    if (ignores.contains(response.getStatusLine().getStatusCode())) {
-                        try {
-                            actionListener.onResponse(responseConverter.apply(response));
-                        } catch (Exception innerException) {
-                            //the exception is ignored as we now try to parse the response as an error.
-                            //this covers cases like get where 404 can either be a valid document not found response,
-                            //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
-                            //first. If parsing of the response breaks, we fall back to parsing it as an error.
-                            actionListener.onFailure(parseResponseException(responseException));
-                        }
-                    } else {
-                        actionListener.onFailure(parseResponseException(responseException));
-                    }
-                } else {
-                    actionListener.onFailure(exception);
-                }
-            }
-        };
-    }
-
-    /**
-     * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.
-     * If a response body was returned, tries to parse it as an error returned from Elasticsearch.
-     * If no response body was returned or anything goes wrong while parsing the error, returns a new {@link ElasticsearchStatusException}
-     * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
-     * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
-     */
-    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
-        Response response = responseException.getResponse();
-        HttpEntity entity = response.getEntity();
-        ElasticsearchStatusException elasticsearchException;
-        if (entity == null) {
-            elasticsearchException = new ElasticsearchStatusException(
-                    responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()), responseException);
-        } else {
-            try {
-                elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
-                elasticsearchException.addSuppressed(responseException);
-            } catch (Exception e) {
-                RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
-                elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
-                elasticsearchException.addSuppressed(e);
-            }
-        }
-        return elasticsearchException;
+    protected final <RequestT extends ActionRequest, ResponseT extends ActionResponse>
+            PreparedHighLevelRequest<ResponseT> prepareConvertEntity(
+                RequestT request,
+                CheckedFunction<RequestT, Request, IOException> requestConverter,
+                CheckedFunction<Response, ResponseT, IOException> responseConverter,
+                Set<Integer> ignores) throws IOException {
+        return new PreparedHighLevelRequest<ResponseT>(
+                this,
+                convert(request, requestConverter).prepare(client),
+                responseConverter,
+                ignores);
     }
 
     protected final <Resp> Resp parseEntity(final HttpEntity entity,

@@ -28,6 +28,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -89,6 +90,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 
+/**
+ * HTTPified version of an {@link ActionRequest}.
+ */
 public final class Request {
 
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
@@ -103,6 +107,12 @@ public final class Request {
         this.endpoint = Objects.requireNonNull(endpoint, "endpoint cannot be null");
         this.parameters = Objects.requireNonNull(parameters, "parameters cannot be null");
         this.entity = entity;
+    }
+
+    public PreparedRequest prepare(RestClient client) {
+        return client.prepare(method, endpoint)
+                    .params(parameters)
+                    .entity(entity);
     }
 
     public String getMethod() {
