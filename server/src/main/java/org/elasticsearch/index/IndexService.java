@@ -50,8 +50,10 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -88,6 +90,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -253,6 +256,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return mapperService;
     }
 
+    public Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup() {
+        return indexFieldData::getForField;
+    }
+
     public NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
     }
@@ -380,7 +387,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, engineFactory,
+                indexCache, mapperService, fieldDataLookup(), similarityService, engineFactory,
                 eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
                 searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
                 circuitBreakerService);

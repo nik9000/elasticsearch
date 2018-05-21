@@ -19,10 +19,12 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.FieldMapper.SourceRelocationHandler;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -39,7 +42,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -55,9 +60,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     private final boolean loadSource;
     private final Set<String> requiredFields;
-    protected BytesReference source;
-    protected String type, id;
-    protected Map<String, List<Object>> fieldsValues;
+
+    private BytesReference loadedSource;
+    private BytesReference source;
+    private Map<String, List<Object>> fieldsValues;
+    protected String type;
+    protected String id;
 
     public FieldsVisitor(boolean loadSource) {
         this.loadSource = loadSource;
@@ -83,7 +91,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService) {
+    public void postProcess(MapperService mapperService, LeafReaderContext context, int docId,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
         final DocumentMapper mapper = mapperService.documentMapper();
         if (mapper != null) {
             type = mapper.type();
@@ -99,12 +108,24 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
             }
         }
+        if (loadSource) {
+            SourceRelocationHandler relocationHandler = mapperService.documentMapper().relocationHandler();
+            if (relocationHandler == null) {
+                // Loading source from doc values is disabled
+                source = loadedSource;
+            } else {
+                Objects.requireNonNull(context, "context is required if loading source with relocated fields");
+                Objects.requireNonNull(fieldDataLookup, "fieldDataLookup is required if loading source with relocated fields");
+                    source = SourceSynthesizer.synthesizeSource(loadedSource,
+                        relocationHandler.resynthesize(context, docId, fieldDataLookup));
+            }
+        }
     }
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
-            source = new BytesArray(value);
+            loadedSource = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             id = Uid.decodeId(value);
         } else {
@@ -169,6 +190,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     public void reset() {
         if (fieldsValues != null) fieldsValues.clear();
+        loadedSource = null;
         source = null;
         type = null;
         id = null;

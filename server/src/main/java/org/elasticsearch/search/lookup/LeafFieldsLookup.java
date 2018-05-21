@@ -146,7 +146,7 @@ public class LeafFieldsLookup implements Map {
             fieldVisitor.reset(fieldName);
             try {
                 reader.document(docId, fieldVisitor);
-                fieldVisitor.postProcess(mapperService);
+                fieldVisitor.postProcess(mapperService, null, -1, null);
                 List<Object> storedFields = fieldVisitor.fields().get(data.fieldType().name());
                 data.fields(singletonMap(name, storedFields));
             } catch (IOException e) {

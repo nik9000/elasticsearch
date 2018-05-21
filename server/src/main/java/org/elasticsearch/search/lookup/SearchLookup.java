@@ -38,7 +38,7 @@ public class SearchLookup {
     public SearchLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                         @Nullable String[] types) {
         docMap = new DocLookup(mapperService, fieldDataLookup, types);
-        sourceLookup = new SourceLookup();
+        sourceLookup = new SourceLookup(mapperService, fieldDataLookup);
         fieldsLookup = new FieldsLookup(mapperService, types);
     }
 

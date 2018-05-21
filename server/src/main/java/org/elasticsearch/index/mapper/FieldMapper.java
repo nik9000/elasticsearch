@@ -26,7 +26,9 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -47,6 +50,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
@@ -642,6 +646,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public List<String> copyToFields() {
             return copyToFields;
         }
+    }
+
+    public SourceRelocationHandler sourceRelocationHandler() {
+        // TODO make abstract when converted
+        return null;
+    }
+    public interface SourceRelocationHandler {
+        CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+                Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException;
     }
 
 }

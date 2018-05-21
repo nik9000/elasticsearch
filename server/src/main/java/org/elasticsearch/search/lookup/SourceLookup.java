@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,25 +25,36 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
 public class SourceLookup implements Map {
+    private final MapperService mapperService;
+    private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
-    private LeafReader reader;
+    private LeafReaderContext context;
 
     private int docId = -1;
 
     private BytesReference sourceAsBytes;
     private Map<String, Object> source;
     private XContentType sourceContentType;
+
+    SourceLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        this.mapperService = mapperService;
+        this.fieldDataLookup = fieldDataLookup;
+    }
 
     public Map<String, Object> source() {
         return source;
@@ -66,8 +76,10 @@ public class SourceLookup implements Map {
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            reader.document(docId, sourceFieldVisitor);
+            context.reader().document(docId, sourceFieldVisitor);
+            sourceFieldVisitor.postProcess(mapperService, context, docId, fieldDataLookup);
             BytesReference source = sourceFieldVisitor.source();
+
             if (source == null) {
                 this.source = emptyMap();
                 this.sourceContentType = null;
@@ -91,11 +103,11 @@ public class SourceLookup implements Map {
     }
 
     public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-        if (this.reader == context.reader() && this.docId == docId) {
+        if (this.context == context && this.docId == docId) {
             // if we are called with the same document, don't invalidate source
             return;
         }
-        this.reader = context.reader();
+        this.context = context;
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = docId;

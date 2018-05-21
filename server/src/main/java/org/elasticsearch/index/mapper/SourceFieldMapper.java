@@ -189,8 +189,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
-        final boolean filtered = (includes != null && includes.length > 0) || (excludes != null && excludes.length > 0);
-        this.filter = enabled && filtered && fieldType().stored() ? XContentMapValues.filter(includes, excludes) : null;
+        final boolean filtered =
+                   (includes != null && includes.length > 0)
+                || (excludes != null && excludes.length > 0);
+        if (enabled && filtered && fieldType().stored()) {
+            this.filter = XContentMapValues.filter(includes, excludes);
+        } else {
+            this.filter = null;
+        }
         this.complete = enabled && includes == null && excludes == null;
     }
 
@@ -227,11 +233,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         BytesReference source = context.sourceToParse().source();
         if (enabled && fieldType().stored() && source != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            if (filter != null) {
+            Function<Map<String, ?>, Map<String, Object>> relocatedFilter = context.docMapper().relocatedFilter();
+            if (relocatedFilter != null || filter != null) {
                 // we don't update the context source if we filter, we want to keep it as is...
                 Tuple<XContentType, Map<String, Object>> mapTuple =
                     XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
-                Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
+                Map<String, Object> filteredSource = relocatedFilter == null ? mapTuple.v2() : relocatedFilter.apply(mapTuple.v2());
+                filteredSource = filter == null ? filteredSource : filter.apply(filteredSource);
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 XContentType contentType = mapTuple.v1();
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);

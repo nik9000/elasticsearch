@@ -29,6 +29,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -38,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -48,7 +50,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -62,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -1061,4 +1066,37 @@ public class NumberFieldMapper extends FieldMapper {
             builder.field("null_value", fieldType().nullValue());
         }
     }
+
+    @Override
+    public SourceRelocationHandler sourceRelocationHandler() {
+        // TODO make this once
+        return new SourceRelocationHandler() {
+            @Override
+            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+                IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+                AtomicFieldData ifd = fieldData.load(context);
+                ScriptDocValues<?> sdv = ifd.getScriptValues();
+                // TODO do I need to use scripitdocvalues?
+                sdv.setNextDocId(docId);
+                if (sdv.isEmpty()) {
+                    return b -> {};
+                } else {
+                    return b -> {
+                        b.startArray(name());
+                        for (Object v : sdv) {
+                            b.value(v);
+                        }
+                        b.endArray();
+                    };
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "Numeric[" + name() + "]";
+            }
+        };
+    }
+
 }

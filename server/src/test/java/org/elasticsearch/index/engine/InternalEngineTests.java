@@ -99,7 +99,9 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -178,6 +180,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -1871,6 +1874,12 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testConcurrentGetAndSetOnPrimary() throws IOException, InterruptedException {
+        // Setup the mapper service so we can pretend source has no relocated fields
+        MapperService mapperService = mock(MapperService.class);
+        DocumentMapper docMapper = mock(DocumentMapper.class);
+        when(mapperService.documentMapper()).thenReturn(docMapper);
+        // TODO this is lame
+
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         final int opsPerThread = randomIntBetween(10, 20);
@@ -1903,6 +1912,7 @@ public class InternalEngineTests extends EngineTestCase {
                     try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), uidTerm), searcherFactory)) {
                         FieldsVisitor visitor = new FieldsVisitor(true);
                         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+                        visitor.postProcess(mapperService, null, -1, null);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                         String added = "v_" + idGenerator.incrementAndGet();
@@ -1945,6 +1955,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+            visitor.postProcess(mapperService, null, -1, null);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }

@@ -19,14 +19,19 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class SingleFieldsVisitor extends FieldsVisitor {
-
+    // TODO it'd be nice not to extend our (very big) FieldsVisitor and maybe make a common superclass?
     private String field;
 
     public SingleFieldsVisitor(String field) {
@@ -48,8 +53,14 @@ public class SingleFieldsVisitor extends FieldsVisitor {
     }
 
     @Override
-    public void postProcess(MapperService mapperService) {
-        super.postProcess(mapperService);
+    public void postProcess(MapperService mapperService, LeafReaderContext context, int docId,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        try {
+            super.postProcess(mapperService, null, -1, null);
+        } catch (IOException e) {
+            // TODO a common superclass for field visiting would really help here
+            throw new ElasticsearchException("Shouldn't be possible", e);
+        }
         if (id != null) {
             addValue(IdFieldMapper.NAME, id);
         }

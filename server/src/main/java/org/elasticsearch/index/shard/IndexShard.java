@@ -87,12 +87,14 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -155,6 +157,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -248,6 +251,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             Supplier<Sort> indexSortSupplier,
             IndexCache indexCache,
             MapperService mapperService,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
             SimilarityService similarityService,
             @Nullable EngineFactory engineFactory,
             IndexEventListener indexEventListener,
@@ -282,7 +286,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
         searchListenersList.add(searchStats);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
-        this.getService = new ShardGetService(indexSettings, this, mapperService);
+        this.getService = new ShardGetService(indexSettings, this, mapperService, fieldDataLookup);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();

@@ -63,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
@@ -196,7 +195,6 @@ public class FetchPhase implements SearchPhase {
             return new SearchHit(docId);
         }
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
-        fieldsVisitor.postProcess(context.mapperService());
 
         Map<String, DocumentField> searchFields = null;
         if (!fieldsVisitor.fields().isEmpty()) {
@@ -235,7 +233,6 @@ public class FetchPhase implements SearchPhase {
         if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
             loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
-            rootFieldsVisitor.postProcess(context.mapperService());
             uid = rootFieldsVisitor.uid();
             source = rootFieldsVisitor.source();
         } else {
@@ -315,7 +312,6 @@ public class FetchPhase implements SearchPhase {
                     fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, false);
             if (nestedFieldsVisitor != null) {
                 loadStoredFields(context, subReaderContext, nestedFieldsVisitor, nestedSubDocId);
-                nestedFieldsVisitor.postProcess(context.mapperService());
                 if (!nestedFieldsVisitor.fields().isEmpty()) {
                     searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
                     for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
@@ -385,6 +381,7 @@ public class FetchPhase implements SearchPhase {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);
+            fieldVisitor.postProcess(searchContext.mapperService(), readerContext, docId, searchContext::getForField);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(searchContext, "Failed to fetch doc id [" + docId + "]", e);
         }

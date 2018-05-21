@@ -36,10 +36,12 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -52,19 +54,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public final class ShardGetService extends AbstractIndexShardComponent {
     private final MapperService mapperService;
+    private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
     private final MeanMetric existsMetric = new MeanMetric();
     private final MeanMetric missingMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
     private final IndexShard indexShard;
 
     public ShardGetService(IndexSettings indexSettings, IndexShard indexShard,
-                           MapperService mapperService) {
+                           MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
+        this.fieldDataLookup = fieldDataLookup;
     }
 
     public GetStats stats() {
@@ -176,7 +181,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
     }
 
-    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
+    private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields,
+            FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
         Map<String, DocumentField> fields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
@@ -184,13 +190,20 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         if (fieldVisitor != null) {
             try {
                 docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
+                if (get.docIdAndVersion().context == null) {
+                    // Loading from the translog
+                    // TODO fix this to not blow up
+                    fieldVisitor.postProcess(mapperService, null, -1, null);
+                } else {
+                    // Loading from the index
+                    fieldVisitor.postProcess(mapperService, get.docIdAndVersion().context, get.docIdAndVersion().docId, fieldDataLookup);
+                }
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
             source = fieldVisitor.source();
 
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(mapperService);
                 fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
                     fields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));

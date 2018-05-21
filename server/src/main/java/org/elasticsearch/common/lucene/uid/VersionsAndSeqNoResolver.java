@@ -100,12 +100,26 @@ public final class VersionsAndSeqNoResolver {
         public final long version;
         public final LeafReader reader;
         public final int docBase;
+        /**
+         * Only available if not reading from the translog.
+         */
+        public final LeafReaderContext context;
+        // TODO having to check this is pretty lame. There should be a better way.
+
+        public DocIdAndVersion(int docId, long version, LeafReaderContext context) {
+            this.docId = docId;
+            this.version = version;
+            this.reader = context.reader();
+            this.docBase = context.docBase;
+            this.context = context;
+        }
 
         public DocIdAndVersion(int docId, long version, LeafReader reader, int docBase) {
             this.docId = docId;
             this.version = version;
             this.reader = reader;
             this.docBase = docBase;
+            context = null;
         }
     }
 
