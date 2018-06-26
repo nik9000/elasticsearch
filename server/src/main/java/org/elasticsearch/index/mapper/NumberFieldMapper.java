@@ -30,6 +30,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -52,7 +53,9 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -69,7 +72,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
-public class NumberFieldMapper extends FieldMapper {
+public class NumberFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
 
     public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
@@ -1069,34 +1072,45 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public SourceRelocationHandler sourceRelocationHandler() {
-        // TODO make this once
-        return new SourceRelocationHandler() {
-            @Override
-            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
-                IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
-                AtomicFieldData ifd = fieldData.load(context);
-                ScriptDocValues<?> sdv = ifd.getScriptValues();
-                // TODO do I need to use scripitdocvalues?
-                sdv.setNextDocId(docId);
-                if (sdv.isEmpty()) {
-                    return b -> {};
-                } else {
-                    return b -> {
-                        b.startArray(name());
-                        for (Object v : sdv) {
-                            b.value(v);
-                        }
-                        b.endArray();
-                    };
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "Numeric[" + name() + "]";
-            }
-        };
+        if (fieldType.hasDocValues()) {
+            return this;
+        }
+        return null;
     }
 
+    @Override
+    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+        IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldDataLookup.apply(fieldType);
+        AtomicFieldData ifd = fieldData.load(context);
+        if (fieldData.getNumericType().isFloatingPoint()) {
+            SortedNumericDoubleValues dv = (SortedNumericDoubleValues) ifd;
+            dv.advanceExact(docId);
+            if (dv.docValueCount() == 0) {
+                return b -> {};
+            } else {
+                return b -> {
+                    b.startArray(name());
+                    for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                        b.value(dv.nextValue());
+                    }
+                    b.endArray();
+                };
+            }
+        } else {
+            SortedNumericDocValues dv = (SortedNumericDocValues) ifd;
+            dv.advanceExact(docId);
+            if (dv.docValueCount() == 0) {
+                return b -> {};
+            } else {
+                return b -> {
+                    b.startArray(name());
+                    for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                        b.value(dv.nextValue());
+                    }
+                    b.endArray();
+                };
+            }
+        }
+    }
 }

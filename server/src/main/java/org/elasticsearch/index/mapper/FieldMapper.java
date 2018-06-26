@@ -648,6 +648,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    /**
+     * Behavior to resynthesize the field into source if that is supported
+     * by this field type or {@code null} if it is not.
+     */
     public SourceRelocationHandler sourceRelocationHandler() {
         // TODO make abstract when converted
         return null;
