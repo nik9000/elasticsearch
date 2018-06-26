@@ -174,10 +174,19 @@ public class DocumentMapper implements ToXContentFragment {
 
         // TODO link to metadata
         if (mapperService.getIndexSettings().getRelocateFieldsIfPossible()) {
+            /*
+             * Build the infrastructure for relocating fields from source and
+             * resynthesizing them.
+             * 1. Iterate mapping.root rather than newFieldMappers because we
+             *    only know how to handle fields at the root level.
+             */
             List<String> relocateFields = new ArrayList<>();
             List<SourceRelocationHandler> relocationHandlers = new ArrayList<>();
-            for (FieldMapper mapper : newFieldMappers) {
-                SourceRelocationHandler handler = mapper.sourceRelocationHandler();
+            for (Mapper mapper : mapping.root) {
+                if (false == mapper instanceof FieldMapper) {
+                    continue;
+                }
+                SourceRelocationHandler handler = ((FieldMapper) mapper).sourceRelocationHandler();
                 if (handler != null) {
                     relocateFields.add(mapper.name());
                     relocationHandlers.add(handler);

@@ -52,9 +52,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -1082,9 +1082,9 @@ public class NumberFieldMapper extends FieldMapper implements FieldMapper.Source
     public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
             Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
         IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldDataLookup.apply(fieldType);
-        AtomicFieldData ifd = fieldData.load(context);
+        AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
         if (fieldData.getNumericType().isFloatingPoint()) {
-            SortedNumericDoubleValues dv = (SortedNumericDoubleValues) ifd;
+            SortedNumericDoubleValues dv = ifd.getDoubleValues();
             dv.advanceExact(docId);
             if (dv.docValueCount() == 0) {
                 return b -> {};
@@ -1098,7 +1098,7 @@ public class NumberFieldMapper extends FieldMapper implements FieldMapper.Source
                 };
             }
         } else {
-            SortedNumericDocValues dv = (SortedNumericDocValues) ifd;
+            SortedNumericDocValues dv = ifd.getLongValues();
             dv.advanceExact(docId);
             if (dv.docValueCount() == 0) {
                 return b -> {};
