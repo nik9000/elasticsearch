@@ -172,7 +172,6 @@ public class DocumentMapper implements ToXContentFragment {
         }
         this.hasNestedObjects = hasNestedObjects;
 
-        // TODO link to metadata
         if (mapperService.getIndexSettings().getRelocateFieldsIfPossible()) {
             /*
              * Build the infrastructure for relocating fields from source and
