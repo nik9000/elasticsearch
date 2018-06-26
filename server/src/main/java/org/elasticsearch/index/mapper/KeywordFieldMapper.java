@@ -26,11 +26,13 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +41,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -48,13 +52,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
-public final class KeywordFieldMapper extends FieldMapper {
+public final class KeywordFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -408,6 +413,32 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (includeDefaults || fieldType().splitQueriesOnWhitespace) {
             builder.field("split_queries_on_whitespace", fieldType().splitQueriesOnWhitespace);
+        }
+    }
+
+    @Override
+    public SourceRelocationHandler innerSourceRelocationHandler() {
+        return this;
+    }
+
+    @Override
+    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+        IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+        AtomicFieldData ifd = fieldData.load(context);
+        SortedBinaryDocValues dv = ifd.getBytesValues();
+        dv.advanceExact(docId);
+        if (dv.docValueCount() == 0) {
+            return b -> {};
+        } else {
+            return b -> {
+                b.startArray(name());
+                for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                    BytesRef val = dv.nextValue();
+                    b.utf8Value(val.bytes, val.offset, val.length);
+                }
+                b.endArray();
+            };
         }
     }
 }

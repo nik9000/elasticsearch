@@ -1,0 +1,33 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            relocate_fields_if_possible: true
+
+---
+"basic":
+  - do:
+      index:
+          index:  test
+          type:   doc
+          id:     1
+          body:
+              foo: bar
+              i:   1
+              f:   1.2
+              d:   2018-01-01T12:33:55
+
+  - do:
+      get:
+          index:  test
+          type:   doc
+          id:     1
+
+  - match: { _source.foo: bar }
+  - match: { _source.i.0: 1 }
+  - match: { _source.f.0: 1.2 }
+  - match: { _source.d:   2018-01-01T12:33:55 }

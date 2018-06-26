@@ -25,7 +25,9 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -33,6 +35,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -52,16 +56,19 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
-/** A {@link FieldMapper} for ip addresses. */
-public class DateFieldMapper extends FieldMapper {
+/** A {@link FieldMapper} for dates. */
+public class DateFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
 
     public static final String CONTENT_TYPE = "date";
     public static final FormatDateTimeFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
@@ -494,6 +501,31 @@ public class DateFieldMapper extends FieldMapper {
         if (includeDefaults
                 || fieldType().dateTimeFormatter().locale() != Locale.ROOT) {
             builder.field("locale", fieldType().dateTimeFormatter().locale());
+        }
+    }
+
+    @Override
+    public SourceRelocationHandler innerSourceRelocationHandler() {
+        return this;
+    }
+
+    @Override
+    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+        IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+        AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
+        SortedNumericDocValues dv = ifd.getLongValues();
+        dv.advanceExact(docId);
+        if (dv.docValueCount() == 0) {
+            return b -> {};
+        } else {
+            return b -> {
+                b.startArray(name());
+                for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                    b.value(fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
+                }
+                b.endArray();
+            };
         }
     }
 }

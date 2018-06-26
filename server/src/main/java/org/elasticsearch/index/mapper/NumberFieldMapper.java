@@ -51,7 +51,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -1071,11 +1070,8 @@ public class NumberFieldMapper extends FieldMapper implements FieldMapper.Source
     }
 
     @Override
-    public SourceRelocationHandler sourceRelocationHandler() {
-        if (fieldType.hasDocValues()) {
-            return this;
-        }
-        return null;
+    public SourceRelocationHandler innerSourceRelocationHandler() {
+        return this;
     }
 
     @Override
