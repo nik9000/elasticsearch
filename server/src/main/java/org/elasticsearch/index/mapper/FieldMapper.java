@@ -657,15 +657,29 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * Behavior to resynthesize the field into source if that is supported
      * by this field type or {@code null} if it is not.
      */
-    public final SourceRelocationHandler sourceRelocationHandler() {
-        if (false == fieldType.hasDocValues()) {
-            return null;
+    public final SourceRelocationHandler sourceRelocationHandler(String name) {
+        // TODO doc values is mutable, what happens if it is enabled or disabled?
+        if (fieldType.hasDocValues()) {
+            // TODO if ignore_malformed or otherwise non-strict we'll start to lose things
+            SourceRelocationHandler handler = innerSourceRelocationHandler(name);
+            if (handler != null) {
+                return handler;
+            }
         }
-        // TODO if ignore_malformed or otherwise non-strict we'll start to lose things
-        return innerSourceRelocationHandler();
+        Iterator<Mapper> itr = multiFields.iterator();
+        while (itr.hasNext()) {
+            Mapper m = itr.next();
+            if (false == m instanceof FieldMapper) continue;
+            FieldMapper fm = (FieldMapper) m;
+            SourceRelocationHandler handler = fm.sourceRelocationHandler(name);
+            if (handler != null) {
+                return handler;
+            }
+        }
+        return null;
     }
 
-    public SourceRelocationHandler innerSourceRelocationHandler() {
+    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
         // TODO make abstract when most converted
         return null;
     }

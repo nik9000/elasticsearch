@@ -59,7 +59,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
-public final class KeywordFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
+public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -417,28 +417,28 @@ public final class KeywordFieldMapper extends FieldMapper implements FieldMapper
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler() {
-        return this;
-    }
-
-    @Override
-    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
-        IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
-        AtomicFieldData ifd = fieldData.load(context);
-        SortedBinaryDocValues dv = ifd.getBytesValues();
-        dv.advanceExact(docId);
-        if (dv.docValueCount() == 0) {
-            return b -> {};
-        } else {
-            return b -> {
-                b.startArray(name());
-                for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                    BytesRef val = dv.nextValue();
-                    b.utf8Value(val.bytes, val.offset, val.length);
+    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+        return new SourceRelocationHandler() {
+            @Override
+            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+                IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+                AtomicFieldData ifd = fieldData.load(context);
+                SortedBinaryDocValues dv = ifd.getBytesValues();
+                dv.advanceExact(docId);
+                if (dv.docValueCount() == 0) {
+                    return b -> {};
+                } else {
+                    return b -> {
+                        b.startArray(name);
+                        for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                            BytesRef val = dv.nextValue();
+                            b.utf8Value(val.bytes, val.offset, val.length);
+                        }
+                        b.endArray();
+                    };
                 }
-                b.endArray();
-            };
-        }
+            }
+        };
     }
 }

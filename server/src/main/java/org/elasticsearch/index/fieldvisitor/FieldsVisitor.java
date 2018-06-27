@@ -114,9 +114,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 // Loading source from doc values is disabled
                 source = loadedSource;
             } else {
+                System.err.println("ASDFADSF " + loadedSource.utf8ToString());
                 Objects.requireNonNull(context, "context is required if loading source with relocated fields");
                 Objects.requireNonNull(fieldDataLookup, "fieldDataLookup is required if loading source with relocated fields");
-                    source = SourceSynthesizer.synthesizeSource(loadedSource,
+                source = SourceSynthesizer.synthesizeSource(loadedSource,
                         relocationHandler.resynthesize(context, docId, fieldDataLookup));
             }
         }

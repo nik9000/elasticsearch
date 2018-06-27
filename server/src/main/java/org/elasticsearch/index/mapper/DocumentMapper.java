@@ -185,7 +185,7 @@ public class DocumentMapper implements ToXContentFragment {
                 if (false == mapper instanceof FieldMapper) {
                     continue;
                 }
-                SourceRelocationHandler handler = ((FieldMapper) mapper).sourceRelocationHandler();
+                SourceRelocationHandler handler = ((FieldMapper) mapper).sourceRelocationHandler(mapper.name());
                 if (handler != null) {
                     relocateFields.add(mapper.name());
                     relocationHandlers.add(handler);

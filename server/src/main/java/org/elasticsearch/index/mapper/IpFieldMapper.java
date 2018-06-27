@@ -59,7 +59,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /** A {@link FieldMapper} for ip addresses. */
-public class IpFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
+public class IpFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
 
@@ -423,28 +423,29 @@ public class IpFieldMapper extends FieldMapper implements FieldMapper.SourceRelo
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler() {
-        return this;
-    }
-
-    @Override
-    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
-        IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
-        AtomicFieldData ifd = fieldData.load(context);
-        SortedBinaryDocValues dv = ifd.getBytesValues();
-        dv.advanceExact(docId);
-        if (dv.docValueCount() == 0) {
-            return b -> {};
-        } else {
-            return b -> {
-                b.startArray(name());
-                for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                    BytesRef val = dv.nextValue();
-                    b.utf8Value(val.bytes, val.offset, val.length);
+    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+        return new SourceRelocationHandler() {
+            @Override
+            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+                IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+                AtomicFieldData ifd = fieldData.load(context);
+                SortedBinaryDocValues dv = ifd.getBytesValues();
+                dv.advanceExact(docId);
+                if (dv.docValueCount() == 0) {
+                    return b -> {};
+                } else {
+                    return b -> {
+                        b.startArray(name());
+                        for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                            BytesRef val = dv.nextValue();
+                            b.value(InetAddresses.toAddrString(InetAddressPoint.decode(
+                                    Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length))));
+                        }
+                        b.endArray();
+                    };
                 }
-                b.endArray();
-            };
-        }
+            }
+        };
     }
 }

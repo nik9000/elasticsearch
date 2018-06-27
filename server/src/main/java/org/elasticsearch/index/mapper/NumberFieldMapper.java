@@ -71,7 +71,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
-public class NumberFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
+public class NumberFieldMapper extends FieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
@@ -1070,43 +1070,43 @@ public class NumberFieldMapper extends FieldMapper implements FieldMapper.Source
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler() {
-        return this;
-    }
-
-    @Override
-    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
-        IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldDataLookup.apply(fieldType);
-        AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
-        if (fieldData.getNumericType().isFloatingPoint()) {
-            SortedNumericDoubleValues dv = ifd.getDoubleValues();
-            dv.advanceExact(docId);
-            if (dv.docValueCount() == 0) {
-                return b -> {};
-            } else {
-                return b -> {
-                    b.startArray(name());
-                    for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                        b.value(dv.nextValue());
+    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+        return new SourceRelocationHandler() {
+            @Override
+            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+                IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldDataLookup.apply(fieldType);
+                AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
+                if (fieldData.getNumericType().isFloatingPoint()) {
+                    SortedNumericDoubleValues dv = ifd.getDoubleValues();
+                    dv.advanceExact(docId);
+                    if (dv.docValueCount() == 0) {
+                        return b -> {};
+                    } else {
+                        return b -> {
+                            b.startArray(name);
+                            for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                                b.value(dv.nextValue());
+                            }
+                            b.endArray();
+                        };
                     }
-                    b.endArray();
-                };
-            }
-        } else {
-            SortedNumericDocValues dv = ifd.getLongValues();
-            dv.advanceExact(docId);
-            if (dv.docValueCount() == 0) {
-                return b -> {};
-            } else {
-                return b -> {
-                    b.startArray(name());
-                    for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                        b.value(dv.nextValue());
+                } else {
+                    SortedNumericDocValues dv = ifd.getLongValues();
+                    dv.advanceExact(docId);
+                    if (dv.docValueCount() == 0) {
+                        return b -> {};
+                    } else {
+                        return b -> {
+                            b.startArray(name);
+                            for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                                b.value(dv.nextValue());
+                            }
+                            b.endArray();
+                        };
                     }
-                    b.endArray();
-                };
+                }
             }
-        }
+        };
     }
 }

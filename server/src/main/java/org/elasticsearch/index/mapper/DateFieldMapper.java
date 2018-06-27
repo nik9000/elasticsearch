@@ -68,7 +68,7 @@ import java.util.function.Function;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for dates. */
-public class DateFieldMapper extends FieldMapper implements FieldMapper.SourceRelocationHandler {
+public class DateFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "date";
     public static final FormatDateTimeFormatter DEFAULT_DATE_TIME_FORMATTER = Joda.forPattern(
@@ -505,27 +505,27 @@ public class DateFieldMapper extends FieldMapper implements FieldMapper.SourceRe
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler() {
-        return this;
-    }
-
-    @Override
-    public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
-        IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
-        AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
-        SortedNumericDocValues dv = ifd.getLongValues();
-        dv.advanceExact(docId);
-        if (dv.docValueCount() == 0) {
-            return b -> {};
-        } else {
-            return b -> {
-                b.startArray(name());
-                for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                    b.value(fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
+    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+        return new SourceRelocationHandler() {
+            @Override
+            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+                IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+                AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
+                SortedNumericDocValues dv = ifd.getLongValues();
+                dv.advanceExact(docId);
+                if (dv.docValueCount() == 0) {
+                    return b -> {};
+                } else {
+                    return b -> {
+                        b.startArray(name);
+                        for (int i = 0, count = dv.docValueCount(); i < count; i++) {
+                            b.value(fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
+                        }
+                        b.endArray();
+                    };
                 }
-                b.endArray();
-            };
-        }
+            }
+        };
     }
 }

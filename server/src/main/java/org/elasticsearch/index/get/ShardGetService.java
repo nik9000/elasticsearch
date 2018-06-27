@@ -192,7 +192,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
                 if (get.docIdAndVersion().context == null) {
                     // Loading from the translog
-                    // TODO fix this to not blow up
+                    // TODO this will return a document that is too different if relocation is enabled
                     fieldVisitor.postProcess(mapperService, null, -1, null);
                 } else {
                     // Loading from the index
