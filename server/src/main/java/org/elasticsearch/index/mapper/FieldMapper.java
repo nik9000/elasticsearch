@@ -661,6 +661,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         // TODO doc values is mutable, what happens if it is enabled or disabled?
         if (fieldType.hasDocValues()) {
             // TODO if ignore_malformed or otherwise non-strict we'll start to lose things
+            // which might be ok, but wouldn't be ok if we also had a more precise way of analyzing
             SourceRelocationHandler handler = innerSourceRelocationHandler(name);
             if (handler != null) {
                 return handler;

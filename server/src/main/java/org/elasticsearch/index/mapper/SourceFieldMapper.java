@@ -240,6 +240,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
                 Map<String, Object> filteredSource = relocatedFilter == null ? mapTuple.v2() : relocatedFilter.apply(mapTuple.v2());
                 filteredSource = filter == null ? filteredSource : filter.apply(filteredSource);
+
+                if (filteredSource.isEmpty()) {
+                    // Don't store the source at all if filter removes everything.
+                    // NOCOMMIT test when exclude removes everything rather than relocate
+                    return;
+                }
+
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 XContentType contentType = mapTuple.v1();
                 XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
