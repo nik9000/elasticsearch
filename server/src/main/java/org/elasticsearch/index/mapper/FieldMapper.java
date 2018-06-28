@@ -649,30 +649,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     public interface SourceRelocationHandler {
-        CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-                Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException;
+        void resynthesize(LeafReaderContext context, int docId,
+                Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                XContentBuilder builder) throws IOException;
     }
 
     /**
      * Behavior to resynthesize the field into source if that is supported
      * by this field type or {@code null} if it is not.
      */
-    public final SourceRelocationHandler sourceRelocationHandler(String name) {
+    public final SourceRelocationHandler sourceRelocationHandler() {
         // TODO doc values is mutable, what happens if it is enabled or disabled?
         if (fieldType.hasDocValues()) {
             // TODO if ignore_malformed or otherwise non-strict we'll start to lose things
             // which might be ok, but wouldn't be ok if we also had a more precise way of analyzing
-            SourceRelocationHandler handler = innerSourceRelocationHandler(name);
-            if (handler != null) {
-                return handler;
-            }
-        }
-        Iterator<Mapper> itr = multiFields.iterator();
-        while (itr.hasNext()) {
-            Mapper m = itr.next();
-            if (false == m instanceof FieldMapper) continue;
-            FieldMapper fm = (FieldMapper) m;
-            SourceRelocationHandler handler = fm.sourceRelocationHandler(name);
+            SourceRelocationHandler handler = innerSourceRelocationHandler();
             if (handler != null) {
                 return handler;
             }
@@ -680,7 +671,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return null;
     }
 
-    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+    public SourceRelocationHandler innerSourceRelocationHandler() {
         // TODO make abstract when most converted
         return null;
     }

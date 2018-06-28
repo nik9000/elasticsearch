@@ -505,25 +505,24 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+    public SourceRelocationHandler innerSourceRelocationHandler() {
         return new SourceRelocationHandler() {
             @Override
-            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+            public void resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                    XContentBuilder builder) throws IOException {
                 IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
                 AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
                 SortedNumericDocValues dv = ifd.getLongValues();
                 dv.advanceExact(docId);
-                if (dv.docValueCount() == 0) {
-                    return b -> {};
-                } else {
-                    return b -> {
-                        b.startArray(name);
-                        for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                            b.value(fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
-                        }
-                        b.endArray();
-                    };
+                switch (dv.docValueCount()) {
+                case 0:
+                    return;
+                case 1:
+                    builder.value(fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
+                    return;
+                default:
+                    throw new IllegalStateException("only single valued fields supported");
                 }
             }
         };

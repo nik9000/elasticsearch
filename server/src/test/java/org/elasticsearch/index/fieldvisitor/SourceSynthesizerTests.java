@@ -23,6 +23,9 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,49 +39,75 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 public class SourceSynthesizerTests extends ESTestCase {
+    private BytesReference original;
+    private XContent expectedXContent;
+
     public void testNullSource() throws IOException {
-        try (XContentParser parser = synthesizeSource(null, b -> {})) {
+        original = null;
+        expectedXContent = JsonXContent.jsonXContent;
+        try (XContentParser parser = synthesizeSource(emptyMap())) {
             assertEquals(emptyMap(), parser.map());
         }
 
-        try (XContentParser parser = synthesizeSource(null, b -> b.field("foo", "bar"))) {
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.value("bar")))) {
             assertEquals(singletonMap("foo", "bar"), parser.map());
         }
     }
-
 
     public void testEmptyObject() throws IOException {
-        try (XContentParser parser = synthesizeSource(
-                b -> b.startObject().endObject(), b -> {})) {
+        initTestData(b -> b.startObject().endObject());
+        try (XContentParser parser = synthesizeSource(emptyMap())) {
             assertEquals(emptyMap(), parser.map());
         }
 
-        try (XContentParser parser = synthesizeSource(
-                b -> b.startObject().endObject(), b -> b.field("foo", "bar"))) {
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.value("bar")))) {
             assertEquals(singletonMap("foo", "bar"), parser.map());
         }
     }
 
-    // TODO non-empty starting, different stuff adding
-
-    private XContentParser synthesizeSource(
-                CheckedConsumer<XContentBuilder, IOException> build,
-                CheckedConsumer<XContentBuilder, IOException> synthesizer) throws IOException {
-        XContent xContent;
-        BytesReference bytes;
-        if (build == null) {
-            xContent = JsonXContent.jsonXContent;
-            bytes = null;
-        } else {
-            xContent = randomFrom(XContentType.values()).xContent();
-            try (XContentBuilder b = XContentBuilder.builder(xContent)) {
-                build.accept(b);
-                bytes = BytesReference.bytes(b);
+    public void testWithField() throws IOException {
+        initTestData(b -> {
+            b.startObject();
+            {
+                b.field("foo", 1);
             }
+            b.endObject();
+        });
+
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.value("bar")))) {
+            assertEquals(singletonMap("foo", 1), parser.map());
         }
 
-        BytesReference synthesized = SourceSynthesizer.synthesizeSource(bytes, synthesizer);
-        return xContent.createParser(
+        try (XContentParser parser = synthesizeSource(singletonMap("bar", b -> b.value(2)))) {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("foo", 1);
+            expected.put("bar", 2);
+            assertEquals(expected, parser.map());
+        }
+
+        Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters = new TreeMap<>();
+        valueWriters.put("foo", b -> b.value(1));
+        valueWriters.put("bar", b -> b.value(2));
+        try (XContentParser parser = synthesizeSource(valueWriters)) {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("foo", 1);
+            expected.put("bar", 2);
+            assertEquals(expected, parser.map());
+        }
+    }
+
+    private void initTestData(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
+        expectedXContent = randomFrom(XContentType.values()).xContent();
+        try (XContentBuilder b = XContentBuilder.builder(expectedXContent)) {
+            build.accept(b);
+            original = BytesReference.bytes(b);
+        }
+    }
+
+    private XContentParser synthesizeSource(
+                Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters) throws IOException {
+        BytesReference synthesized = SourceSynthesizer.synthesizeSource(original, new TreeMap<>(valueWriters));
+        return expectedXContent.createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, synthesized.streamInput());
     }
 }

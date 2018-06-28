@@ -423,27 +423,26 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler(String name) {
+    public SourceRelocationHandler innerSourceRelocationHandler() {
         return new SourceRelocationHandler() {
             @Override
-            public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+            public void resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                    XContentBuilder builder) throws IOException {
                 IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
                 AtomicFieldData ifd = fieldData.load(context);
                 SortedBinaryDocValues dv = ifd.getBytesValues();
                 dv.advanceExact(docId);
-                if (dv.docValueCount() == 0) {
-                    return b -> {};
-                } else {
-                    return b -> {
-                        b.startArray(name());
-                        for (int i = 0, count = dv.docValueCount(); i < count; i++) {
-                            BytesRef val = dv.nextValue();
-                            b.value(InetAddresses.toAddrString(InetAddressPoint.decode(
-                                    Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length))));
-                        }
-                        b.endArray();
-                    };
+                switch (dv.docValueCount()) {
+                case 0:
+                    return;
+                case 1:
+                    BytesRef val = dv.nextValue();
+                    builder.value(InetAddresses.toAddrString(InetAddressPoint.decode(
+                        Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length))));
+                    return;
+                default:
+                    throw new IllegalStateException("only single valued fields supported");
                 }
             }
         };

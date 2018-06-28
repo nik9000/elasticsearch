@@ -31,16 +31,12 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Map;
 
 class SourceSynthesizer {
-    private SourceSynthesizer() {
-        // Static utils
-    }
-
     static BytesReference synthesizeSource(BytesReference original,
-            CheckedConsumer<XContentBuilder, IOException> resynthesize) throws IOException {
+            Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters) throws IOException {
         XContentBuilder recreationBuilder;
-        // TODO use bigarrays?
         if (original == null) {
             // TODO is json right here? probably not too wrong at least.
             recreationBuilder = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput());
@@ -49,21 +45,25 @@ class SourceSynthesizer {
             try (XContentParser originalParser = XContentHelper.createParser(
                         NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, original)) {
                 recreationBuilder = new XContentBuilder(originalParser.contentType().xContent(), new BytesStreamOutput());
-                copyAllButLastEndObject(originalParser, recreationBuilder);
+                if (originalParser.nextToken() != Token.START_OBJECT) {
+                    throw new IllegalStateException("unexpected xcontent layout [" + originalParser.currentToken() + "]");
+                }
+                recreationBuilder.startObject();
+                Token token;
+                while ((token = originalParser.nextToken()) != Token.END_OBJECT) {
+                    assert token == Token.FIELD_NAME;
+                    valueWriters.remove(originalParser.currentName());
+                    recreationBuilder.copyCurrentStructure(originalParser);
+                }
             }
         }
-        resynthesize.accept(recreationBuilder);
+
+        for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> e : valueWriters.entrySet()) {
+            recreationBuilder.field(e.getKey());
+            e.getValue().accept(recreationBuilder);
+        }
         recreationBuilder.endObject();
         return BytesReference.bytes(recreationBuilder);
     }
 
-    private static void copyAllButLastEndObject(XContentParser originalParser, XContentBuilder recreationBuilder) throws IOException {
-        if (originalParser.nextToken() != Token.START_OBJECT) {
-            throw new IllegalStateException("unexpected xcontent layout [" + originalParser.currentToken() + "]");
-        }
-        recreationBuilder.startObject();
-        while (originalParser.nextToken() != Token.END_OBJECT) {
-            recreationBuilder.copyCurrentStructure(originalParser);
-        }
-    }
 }

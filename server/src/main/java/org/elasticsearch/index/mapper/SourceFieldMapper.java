@@ -238,14 +238,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 // we don't update the context source if we filter, we want to keep it as is...
                 Tuple<XContentType, Map<String, Object>> mapTuple =
                     XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
-                Map<String, Object> filteredSource = relocatedFilter == null ? mapTuple.v2() : relocatedFilter.apply(mapTuple.v2());
+
+                Map<String, Object> filteredSource = mapTuple.v2();
+                filteredSource = relocatedFilter == null ? filteredSource : relocatedFilter.apply(filteredSource);
                 filteredSource = filter == null ? filteredSource : filter.apply(filteredSource);
 
-                if (filteredSource.isEmpty()) {
-                    // Don't store the source at all if filter removes everything.
-                    // NOCOMMIT test when exclude removes everything rather than relocate
-                    return;
-                }
+                // TODO investigate not writing anything when the result is empty
+                // TODO it feels like it'd be more efficient to filter XContent then objects....
 
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 XContentType contentType = mapTuple.v1();

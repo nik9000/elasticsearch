@@ -22,8 +22,10 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -109,15 +111,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
             }
         }
         if (loadSource) {
-            SourceRelocationHandler relocationHandler = mapperService.documentMapper().relocationHandler();
-            if (relocationHandler == null) {
+            Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters =
+                    mapperService.documentMapper().relocationHandlers(context, docId, fieldDataLookup);
+            if (valueWriters == null) {
                 // Loading source from doc values is disabled
                 source = loadedSource;
             } else {
                 Objects.requireNonNull(context, "context is required if loading source with relocated fields");
                 Objects.requireNonNull(fieldDataLookup, "fieldDataLookup is required if loading source with relocated fields");
-                source = SourceSynthesizer.synthesizeSource(loadedSource,
-                        relocationHandler.resynthesize(context, docId, fieldDataLookup));
+                source = SourceSynthesizer.synthesizeSource(loadedSource, valueWriters);
             }
         }
     }

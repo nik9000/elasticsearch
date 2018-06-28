@@ -42,14 +42,18 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.internal.SearchContext;
 
+import static java.util.Collections.unmodifiableMap;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 
@@ -129,7 +133,7 @@ public class DocumentMapper implements ToXContentFragment {
     private final boolean hasNestedObjects;
 
     private final Function<Map<String, ?>, Map<String, Object>> relocatedFilter;
-    private final SourceRelocationHandler relocationHandler;
+    private final Map<String, SourceRelocationHandler> relocationHandlers;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
         this.mapperService = mapperService;
@@ -173,44 +177,33 @@ public class DocumentMapper implements ToXContentFragment {
         this.hasNestedObjects = hasNestedObjects;
 
         if (mapperService.getIndexSettings().getRelocateFieldsIfPossible()) {
-            /*
-             * Build the infrastructure for relocating fields from source and
-             * resynthesizing them.
-             * 1. Iterate mapping.root rather than newFieldMappers because we
-             *    only know how to handle fields at the root level.
-             */
             List<String> relocateFields = new ArrayList<>();
-            List<SourceRelocationHandler> relocationHandlers = new ArrayList<>();
+            Map<String, SourceRelocationHandler> relocationHandlers = new TreeMap<>();
+            // TODO switch to iterating newFields when we opt in and have validation
             for (Mapper mapper : mapping.root) {
                 if (false == mapper instanceof FieldMapper) {
                     continue;
                 }
-                SourceRelocationHandler handler = ((FieldMapper) mapper).sourceRelocationHandler(mapper.name());
+                SourceRelocationHandler handler = ((FieldMapper) mapper).sourceRelocationHandler();
                 if (handler != null) {
                     relocateFields.add(mapper.name());
-                    relocationHandlers.add(handler);
+                    relocationHandlers.put(mapper.name(), handler);
                 }
             }
-            relocatedFilter = XContentMapValues.filter(Strings.EMPTY_ARRAY, relocateFields.toArray(new String[0]));
-            // TODO there is almost certainly a more efficient way of doing this but this gets the job done for now.
-            relocationHandler = new SourceRelocationHandler() {
-                @Override
-                public CheckedConsumer<XContentBuilder, IOException> resynthesize(LeafReaderContext context, int docId,
-                        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
-                    List<CheckedConsumer<XContentBuilder, IOException>> consumers = new ArrayList<>();
-                    for (SourceRelocationHandler handler : relocationHandlers) {
-                        consumers.add(handler.resynthesize(context, docId, fieldDataLookup));
+            relocatedFilter = map -> {
+                // Filter only supports top level elements so this is fairly simple
+                Map<String, Object> filtered = new HashMap<>();
+                for (Map.Entry<String, ?> e : map.entrySet()) {
+                    if (false == relocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
+                        filtered.put(e.getKey(), e.getValue());
                     }
-                    return b -> {
-                        for (CheckedConsumer<XContentBuilder, IOException> c : consumers) {
-                            c.accept(b);
-                        }
-                    };
                 }
+                return filtered;
             };
+            this.relocationHandlers = unmodifiableMap(relocationHandlers);
         } else {
             relocatedFilter = null;
-            relocationHandler = null;
+            relocationHandlers = null;
         }
 
         try {
@@ -355,7 +348,15 @@ public class DocumentMapper implements ToXContentFragment {
         return relocatedFilter;
     }
 
-    public SourceRelocationHandler relocationHandler() {
-        return relocationHandler;
+    public Map<String, CheckedConsumer<XContentBuilder, IOException>> relocationHandlers(
+            LeafReaderContext context, int docId, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        if (relocationHandlers == null) {
+            return null;
+        }
+        Map<String, CheckedConsumer<XContentBuilder, IOException>> result = new TreeMap<>();
+        for (Map.Entry<String, SourceRelocationHandler> e : relocationHandlers.entrySet()) {
+            result.put(e.getKey(), b -> e.getValue().resynthesize(context, docId, fieldDataLookup, b));
+        }
+        return result;
     }
 }

@@ -122,6 +122,7 @@ import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mock.orig.Mockito;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -1878,6 +1879,7 @@ public class InternalEngineTests extends EngineTestCase {
         MapperService mapperService = mock(MapperService.class);
         DocumentMapper docMapper = mock(DocumentMapper.class);
         when(mapperService.documentMapper()).thenReturn(docMapper);
+        when(docMapper.relocationHandlers(Mockito.any(), Mockito.anyInt(), Mockito.any())).thenReturn(null);
         // TODO this is lame
 
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
