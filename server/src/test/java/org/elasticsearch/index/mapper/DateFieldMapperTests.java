@@ -415,7 +415,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
     }
 
-    public void testRelocateToWithoutDocValues() throws IOException {
+    public void testRelocateToDocValuesWithoutDocValues() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
                         .startObject("_doc")

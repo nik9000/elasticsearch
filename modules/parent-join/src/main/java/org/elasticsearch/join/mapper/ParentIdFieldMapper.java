@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RelocateTo;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -141,7 +142,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
                                   Set<String> children,
                                   MappedFieldType fieldType,
                                   Settings indexSettings) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
         this.parentName = parentName;
         this.children = children;
     }

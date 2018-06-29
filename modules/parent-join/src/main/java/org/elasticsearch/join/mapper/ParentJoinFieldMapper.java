@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RelocateTo;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -253,7 +254,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                                     MetaJoinFieldMapper uniqueFieldMapper,
                                     List<ParentIdFieldMapper> parentIdFields,
                                     boolean eagerGlobalOrdinals) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.uniqueFieldMapper.setFieldMapper(this);

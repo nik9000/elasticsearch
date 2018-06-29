@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RelocateTo;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -115,7 +116,8 @@ public class MetaJoinFieldMapper extends FieldMapper {
     }
 
     MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings) {
-        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(),
+                CopyTo.empty(), RelocateTo.DEFAULT);
     }
 
     void setFieldMapper(ParentJoinFieldMapper mapper) {

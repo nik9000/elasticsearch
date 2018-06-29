@@ -136,7 +136,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
             return new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo,
+                    relocateTo());
         }
     }
 
@@ -340,8 +341,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             Explicit<Boolean> coerce,
             Settings indexSettings,
             MultiFields multiFields,
-            CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            CopyTo copyTo,
+            Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         final double scalingFactor = fieldType().getScalingFactor();
         if (Double.isFinite(scalingFactor) == false || scalingFactor <= 0) {
             throw new IllegalArgumentException("[scaling_factor] must be a positive number, got [" + scalingFactor + "]");

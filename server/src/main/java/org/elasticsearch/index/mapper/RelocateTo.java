@@ -31,7 +31,7 @@ import static java.util.Collections.unmodifiableMap;
  * Should this field be relocated from {@code _source} for more efficient
  * storage and, if so, how?
  */
-enum RelocateTo {
+public enum RelocateTo {
     /**
      * Don't attempt to relocate this field from the source.
      */
