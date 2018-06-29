@@ -429,9 +429,10 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
 
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(MapperParsingException.class,
                 () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
                     MapperService.MergeReason.MAPPING_UPDATE));
-            assertEquals("ASDFSAF", e.getMessage());
+            assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to "
+                    + "[doc_values] which requires doc_values to be enabled", e.getMessage());
     }
 }

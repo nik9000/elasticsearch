@@ -692,16 +692,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return null;
         }
         if (depth > 0) {
-            throw new IllegalArgumentException("[relocate_to] is only supported for top level objects");
+            throw new IllegalArgumentException("[" + name() + "] sets [relocate_to] but it is only supported for top level objects");
         }
         switch (val) {
         case DOC_VALUES:
             if (false == fieldType().hasDocValues()) {
-                throw new IllegalArgumentException("setting [relocate_to] to [doc_values] requires doc_values be enabled");
+                throw new IllegalArgumentException("[" + name()
+                    + "] sets [relocate_to] to [doc_values] which requires doc_values to be enabled");
             }
             return relocateToDocValuesHandler();
         default:
-            throw new IllegalArgumentException("unsupported value for [relocate_to]: [" + val + "]");
+            throw new IllegalArgumentException("[" + name() + "] sets [relocate_to] to an unsupported value: [" + val + "]");
         }
     }
 
