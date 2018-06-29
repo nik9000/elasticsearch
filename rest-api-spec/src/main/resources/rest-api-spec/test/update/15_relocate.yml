@@ -1,6 +1,5 @@
 ---
 setup:
-
   - do:
       indices.create:
         index: test
@@ -11,6 +10,9 @@ setup:
 
 ---
 "basic":
+  - skip:
+      version: " - 6.99.99"
+      reason: introduced in 7.0 (TODO change to 6.x when backported if backported)
   - do:
       index:
           index:  test
