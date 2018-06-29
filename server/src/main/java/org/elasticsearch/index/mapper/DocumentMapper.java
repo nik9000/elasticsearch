@@ -24,7 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -50,7 +50,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 import java.util.function.Function;
 
 
@@ -112,6 +111,18 @@ public class DocumentMapper implements ToXContentFragment {
         }
     }
 
+    public static class SourceFieldsFromDocValuesContext {
+        private LeafReaderContext context;
+        private int docId;
+        private Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
+
+        public SourceFieldsFromDocValuesContext(LeafReaderContext context, int docId, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+            this.context = context;
+            this.docId = docId;
+            this.fieldDataLookup = fieldDataLookup;
+        }
+    }
+
     private final MapperService mapperService;
 
     private final String type;
@@ -130,7 +141,8 @@ public class DocumentMapper implements ToXContentFragment {
     private final boolean hasNestedObjects;
 
     private final Function<Map<String, ?>, Map<String, Object>> relocatedFilter;
-    private final Map<String, SourceRelocationHandler> relocationHandlers;
+    private final Map<String, CheckedBiConsumer<SourceFieldsFromDocValuesContext, XContentBuilder, IOException>>
+            sourceFieldsFromDocValues;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
         this.mapperService = mapperService;
@@ -173,9 +185,10 @@ public class DocumentMapper implements ToXContentFragment {
         }
         this.hasNestedObjects = hasNestedObjects;
 
-        Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>();
-        collectRelocationHandlers(mapping.root, 0, relocationHandlers);
-        relocatedFilter = relocationHandlers.isEmpty() ? null : map -> {
+        Map<String, CheckedBiConsumer<SourceFieldsFromDocValuesContext, XContentBuilder, IOException>>
+                sourceFieldsFromDocValues = new HashMap<>();
+        collectRelocationHandlers(mapping.root, 0, sourceFieldsFromDocValues);
+        relocatedFilter = sourceFieldsFromDocValues.isEmpty() ? null : map -> {
             /*
              * Filter fields from source if we know how to relocate them.
              * We don't know how to relocate field inside objects or
@@ -183,13 +196,13 @@ public class DocumentMapper implements ToXContentFragment {
              */
             Map<String, Object> filtered = new HashMap<>();
             for (Map.Entry<String, ?> e : map.entrySet()) {
-                if (false == relocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
+                if (false == sourceFieldsFromDocValues.containsKey(e.getKey()) || e.getValue() instanceof List) {
                     filtered.put(e.getKey(), e.getValue());
                 }
             }
             return filtered;
         };
-        this.relocationHandlers = unmodifiableMap(relocationHandlers);
+        this.sourceFieldsFromDocValues = unmodifiableMap(sourceFieldsFromDocValues);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -203,13 +216,14 @@ public class DocumentMapper implements ToXContentFragment {
      * relocation handlers will validate that the fields are appropriately
      * configured for relocation.
      */
-    private static void collectRelocationHandlers(ObjectMapper mapper, int depth, Map<String, SourceRelocationHandler> handlers) {
+    private static void collectRelocationHandlers(ObjectMapper mapper, int depth,
+            Map<String, CheckedBiConsumer<SourceFieldsFromDocValuesContext, XContentBuilder, IOException>> handlers) {
         for (Mapper m : mapper) {
             if (m instanceof FieldMapper) {
                 SourceRelocationHandler handler = ((FieldMapper) m).sourceRelocationHandler(depth);
                 if (handler != null) {
                     // Here null means "I don't want to relocate"
-                    handlers.put(m.name(), handler);
+                    handlers.put(m.name(), (c, b) -> handler.resynthesize(c.context, c.docId, c.fieldDataLookup, b));
                 }
             } else if (m instanceof ObjectMapper) {
                 collectRelocationHandlers((ObjectMapper) m, depth + 1, handlers);
@@ -354,16 +368,8 @@ public class DocumentMapper implements ToXContentFragment {
         return relocatedFilter;
     }
 
-    public Map<String, CheckedConsumer<XContentBuilder, IOException>> relocationHandlers(
-            LeafReaderContext context, int docId, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
-        // TODO replace building a new map with sending a context
-        if (relocationHandlers.isEmpty()) {
-            return null;
-        }
-        Map<String, CheckedConsumer<XContentBuilder, IOException>> result = new TreeMap<>();
-        for (Map.Entry<String, SourceRelocationHandler> e : relocationHandlers.entrySet()) {
-            result.put(e.getKey(), b -> e.getValue().resynthesize(context, docId, fieldDataLookup, b));
-        }
-        return result;
+    public Map<String, CheckedBiConsumer<SourceFieldsFromDocValuesContext, XContentBuilder, IOException>>
+            sourceFieldsFromDocValues() {
+        return sourceFieldsFromDocValues;
     }
 }

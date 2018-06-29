@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -31,17 +31,21 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 class SourceSynthesizer {
-    static BytesReference synthesizeSource(BytesReference original,
-            Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters) throws IOException {
+    static <T> BytesReference synthesizeSource(BytesReference original, T context,
+            Map<String, CheckedBiConsumer<T, XContentBuilder, IOException>> valueWriters) throws IOException {
         XContentBuilder recreationBuilder;
+        Map<String, CheckedBiConsumer<T, XContentBuilder, IOException>> valueWritersToIterate;
         if (original == null) {
             // TODO is json right here? probably not too wrong at least.
             recreationBuilder = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput());
             recreationBuilder.startObject();
+            valueWritersToIterate = valueWriters;
         } else {
+            valueWritersToIterate = new HashMap<>(valueWriters);
             try (XContentParser originalParser = XContentHelper.createParser(
                         NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, original)) {
                 recreationBuilder = new XContentBuilder(originalParser.contentType().xContent(), new BytesStreamOutput());
@@ -52,15 +56,15 @@ class SourceSynthesizer {
                 Token token;
                 while ((token = originalParser.nextToken()) != Token.END_OBJECT) {
                     assert token == Token.FIELD_NAME;
-                    valueWriters.remove(originalParser.currentName());
+                    valueWritersToIterate.remove(originalParser.currentName());
                     recreationBuilder.copyCurrentStructure(originalParser);
                 }
             }
         }
 
-        for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> e : valueWriters.entrySet()) {
+        for (Map.Entry<String, CheckedBiConsumer<T, XContentBuilder, IOException>> e : valueWritersToIterate.entrySet()) {
             recreationBuilder.field(e.getKey());
-            e.getValue().accept(recreationBuilder);
+            e.getValue().accept(context, recreationBuilder);
         }
         recreationBuilder.endObject();
         return BytesReference.bytes(recreationBuilder);

@@ -21,12 +21,14 @@ package org.elasticsearch.index.fieldvisitor;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -105,8 +107,12 @@ public class SourceSynthesizerTests extends ESTestCase {
     }
 
     private XContentParser synthesizeSource(
-                Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters) throws IOException {
-        BytesReference synthesized = SourceSynthesizer.synthesizeSource(original, new TreeMap<>(valueWriters));
+                Map<String, CheckedConsumer<XContentBuilder, IOException>> testValueWriters) throws IOException {
+        Map<String, CheckedBiConsumer<Void, XContentBuilder, IOException>> contextValueWriters = new HashMap<>(testValueWriters.size());
+        for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> w : testValueWriters.entrySet()) {
+            contextValueWriters.put(w.getKey(), (v, b) -> w.getValue().accept(b));
+        }
+        BytesReference synthesized = SourceSynthesizer.synthesizeSource(original, null, unmodifiableMap(contextValueWriters));
         return expectedXContent.createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, synthesized.streamInput());
     }
