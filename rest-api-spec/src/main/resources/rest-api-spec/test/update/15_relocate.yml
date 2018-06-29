@@ -5,8 +5,21 @@ setup:
         index: test
         body:
           settings:
-            relocate_fields_if_possible: true
             refresh_interval: -1
+          mappings:
+            _doc:
+              i:
+                type: integer
+                relocate_to: doc_values
+              f:
+                type: double
+                relocate_to: doc_values
+              ip:
+                type: ip
+                relocate_to: doc_values
+              d:
+                type: date
+                relocate_to: doc_values
 
 ---
 "basic":

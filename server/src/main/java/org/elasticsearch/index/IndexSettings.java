@@ -254,15 +254,6 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_REGEX_LENGTH_SETTING = Setting.intSetting("index.max_regex_length",
         1000, 1, Property.Dynamic, Property.IndexScope);
 
-    /**
-     * Should we attempt move all possible fields out of source before storing it?
-     * This modifies the source that the user provides to us, requires rewriting the
-     * source while indexing, and requires rebuilding the source on load.
-     */
-    public static final Setting<Boolean> RELOCATE_FIELDS_IF_POSSIBLE = Setting.boolSetting(
-        "index.relocate_fields_if_possible", false, Setting.Property.IndexScope, Setting.Property.Final);
-
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -302,7 +293,6 @@ public final class IndexSettings {
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
-    private final boolean relocateFieldsIfPossible;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -418,7 +408,6 @@ public final class IndexSettings {
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
-        relocateFieldsIfPossible = scopedSettings.get(RELOCATE_FIELDS_IF_POSSIBLE);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -833,13 +822,4 @@ public final class IndexSettings {
      * Returns the time that an index shard becomes search idle unless it's accessed in between
      */
     public TimeValue getSearchIdleAfter() { return searchIdleAfter; }
-
-    /**
-     * Should we attempt move all possible fields out of source before storing it?
-     * This modifies the source that the user provides to us, requires rewriting the
-     * source while indexing, and requires rebuilding the source on load.
-     */
-    public boolean getRelocateFieldsIfPossible() {
-        return relocateFieldsIfPossible;
-    }
 }

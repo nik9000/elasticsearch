@@ -173,29 +173,23 @@ public class DocumentMapper implements ToXContentFragment {
         }
         this.hasNestedObjects = hasNestedObjects;
 
-        if (mapperService.getIndexSettings().getRelocateFieldsIfPossible()) {
-            // TODO remove the index setting
-            Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>();
-            collectRelocationHandlers(mapping.root, 0, relocationHandlers);
-            relocatedFilter = map -> {
-                /*
-                 * Filter fields from source if we know how to relocate them.
-                 * We don't know how to relocate field inside objects or
-                 * multi valued fields.
-                 */
-                Map<String, Object> filtered = new HashMap<>();
-                for (Map.Entry<String, ?> e : map.entrySet()) {
-                    if (false == relocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
-                        filtered.put(e.getKey(), e.getValue());
-                    }
+        Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>();
+        collectRelocationHandlers(mapping.root, 0, relocationHandlers);
+        relocatedFilter = relocationHandlers.isEmpty() ? null : map -> {
+            /*
+             * Filter fields from source if we know how to relocate them.
+             * We don't know how to relocate field inside objects or
+             * multi valued fields.
+             */
+            Map<String, Object> filtered = new HashMap<>();
+            for (Map.Entry<String, ?> e : map.entrySet()) {
+                if (false == relocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
+                    filtered.put(e.getKey(), e.getValue());
                 }
-                return filtered;
-            };
-            this.relocationHandlers = unmodifiableMap(relocationHandlers);
-        } else {
-            relocationHandlers = null;
-            relocatedFilter = null;
-        }
+            }
+            return filtered;
+        };
+        this.relocationHandlers = unmodifiableMap(relocationHandlers);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -213,7 +207,10 @@ public class DocumentMapper implements ToXContentFragment {
         for (Mapper m : mapper) {
             if (m instanceof FieldMapper) {
                 SourceRelocationHandler handler = ((FieldMapper) m).sourceRelocationHandler(depth);
-                handlers.put(m.name(), handler);
+                if (handler != null) {
+                    // Here null means "I don't want to relocate"
+                    handlers.put(m.name(), handler);
+                }
             } else if (m instanceof ObjectMapper) {
                 collectRelocationHandlers((ObjectMapper) m, depth + 1, handlers);
             } else {
@@ -360,7 +357,7 @@ public class DocumentMapper implements ToXContentFragment {
     public Map<String, CheckedConsumer<XContentBuilder, IOException>> relocationHandlers(
             LeafReaderContext context, int docId, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         // TODO replace building a new map with sending a context
-        if (relocationHandlers == null) {
+        if (relocationHandlers.isEmpty()) {
             return null;
         }
         Map<String, CheckedConsumer<XContentBuilder, IOException>> result = new TreeMap<>();
