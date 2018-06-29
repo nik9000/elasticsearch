@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.FieldMapper.SourceRelocationHandler;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

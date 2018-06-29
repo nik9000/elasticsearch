@@ -28,7 +28,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;

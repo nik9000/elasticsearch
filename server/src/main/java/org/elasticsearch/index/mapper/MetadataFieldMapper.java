@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
