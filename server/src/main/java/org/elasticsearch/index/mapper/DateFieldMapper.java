@@ -503,7 +503,7 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler() {
+    public SourceRelocationHandler relocateToDocValuesHandler() {
         assert fieldType().hasDocValues();
         return new SourceRelocationHandler() {
             @Override

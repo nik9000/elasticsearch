@@ -418,19 +418,20 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     public void testRelocateToDocValuesWithoutDocValues() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
-                        .startObject("_doc")
-                                .startObject("properties")
-                                        .startObject("date")
-                                                .field("type", "date")
-                                                .field("relocate_to", "doc_values")
-                                                .field("doc_values", false)
-                                        .endObject()
-                                .endObject()
+                    .startObject("_doc")
+                        .startObject("properties")
+                           .startObject("date")
+                                .field("type", "date")
+                                .field("relocate_to", "doc_values")
+                                .field("doc_values", false)
+                            .endObject()
                         .endObject()
+                    .endObject()
                 .endObject());
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge(
-                "_doc",new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
-        assertEquals("ASDFADF", e.getMessage());
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+                    MapperService.MergeReason.MAPPING_UPDATE));
+            assertEquals("ASDFSAF", e.getMessage());
     }
 }

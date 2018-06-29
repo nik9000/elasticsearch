@@ -687,19 +687,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * by this field or {@code null} if it is not.
      */
     public final SourceRelocationHandler sourceRelocationHandler(int depth) {
-        if (RelocateTo.NONE == relocateTo.value()) {
+        RelocateTo val = relocateTo.value();
+        if (RelocateTo.NONE == val) {
             return null;
         }
         if (depth > 0) {
             throw new IllegalArgumentException("[relocate_to] is only supported for top level objects");
         }
-        if (false == fieldType().hasDocValues()) {
-            throw new IllegalArgumentException("setting [relocate_to] to [doc_values] requires doc_values be enabled");
+        switch (val) {
+        case DOC_VALUES:
+            if (false == fieldType().hasDocValues()) {
+                throw new IllegalArgumentException("setting [relocate_to] to [doc_values] requires doc_values be enabled");
+            }
+            return relocateToDocValuesHandler();
+        default:
+            throw new IllegalArgumentException("unsupported value for [relocate_to]: [" + val + "]");
         }
-        return innerSourceRelocationHandler();
     }
 
-    protected SourceRelocationHandler innerSourceRelocationHandler() {
-        throw new IllegalArgumentException("source relocation not supported by [" + name() + "]");
+    protected SourceRelocationHandler relocateToDocValuesHandler() {
+        throw new IllegalArgumentException("relocating to doc_values not supported");
     }
 }

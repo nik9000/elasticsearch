@@ -209,7 +209,7 @@ public class DocumentMapper implements ToXContentFragment {
      * relocation handlers will validate that the fields are appropriately
      * configured for relocation.
      */
-    private void collectRelocationHandlers(ObjectMapper mapper, int depth, Map<String, SourceRelocationHandler> handlers) {
+    private static void collectRelocationHandlers(ObjectMapper mapper, int depth, Map<String, SourceRelocationHandler> handlers) {
         for (Mapper m : mapper) {
             if (m instanceof FieldMapper) {
                 SourceRelocationHandler handler = ((FieldMapper) m).sourceRelocationHandler(depth);

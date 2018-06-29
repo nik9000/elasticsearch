@@ -1070,7 +1070,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceRelocationHandler innerSourceRelocationHandler() {
+    public SourceRelocationHandler relocateToDocValuesHandler() {
         return new SourceRelocationHandler() {
             @Override
             public void resynthesize(LeafReaderContext context, int docId,
