@@ -159,7 +159,7 @@ public class RangeFieldMapper extends FieldMapper {
         public RangeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new RangeFieldMapper(name, fieldType, defaultFieldType, coerce(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -297,14 +297,15 @@ public class RangeFieldMapper extends FieldMapper {
     private Explicit<Boolean> coerce;
 
     private RangeFieldMapper(
-        String simpleName,
-        MappedFieldType fieldType,
-        MappedFieldType defaultFieldType,
-        Explicit<Boolean> coerce,
-        Settings indexSettings,
-        MultiFields multiFields,
-        CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            String simpleName,
+            MappedFieldType fieldType,
+            MappedFieldType defaultFieldType,
+            Explicit<Boolean> coerce,
+            Settings indexSettings,
+            MultiFields multiFields,
+            CopyTo copyTo,
+            Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         this.coerce = coerce;
     }
 

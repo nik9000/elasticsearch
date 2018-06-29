@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+        super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
     }
 
     /**

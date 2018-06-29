@@ -414,4 +414,23 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                 () -> mapper.merge(update.mapping()));
         assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
     }
+
+    public void testRelocateToWithoutDocValues() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                        .startObject("_doc")
+                                .startObject("properties")
+                                        .startObject("date")
+                                                .field("type", "date")
+                                                .field("relocate_to", "doc_values")
+                                                .field("doc_values", false)
+                                        .endObject()
+                                .endObject()
+                        .endObject()
+                .endObject());
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> indexService.mapperService().merge(
+                "_doc",new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("ASDFADF", e.getMessage());
+    }
 }

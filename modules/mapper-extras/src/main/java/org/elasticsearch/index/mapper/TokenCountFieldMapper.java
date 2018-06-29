@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -80,7 +81,8 @@ public class TokenCountFieldMapper extends FieldMapper {
         public TokenCountFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new TokenCountFieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), analyzer, enablePositionIncrements, multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), analyzer, enablePositionIncrements, multiFieldsBuilder.build(this, context),
+                    copyTo, relocateTo());
         }
     }
 
@@ -119,8 +121,9 @@ public class TokenCountFieldMapper extends FieldMapper {
     private boolean enablePositionIncrements;
 
     protected TokenCountFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            Settings indexSettings, NamedAnalyzer analyzer, boolean enablePositionIncrements, MultiFields multiFields,
+            CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         this.analyzer = analyzer;
         this.enablePositionIncrements = enablePositionIncrements;
     }

@@ -31,6 +31,7 @@ import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
@@ -400,14 +401,16 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             completionFieldType.setContextMappings(contextMappings);
             completionFieldType.setPreservePositionIncrements(preservePositionIncrements);
             completionFieldType.setPreserveSep(preserveSeparators);
-            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, maxInputLength);
+            return new CompletionFieldMapper(name, this.fieldType, context.indexSettings(), multiFieldsBuilder.build(this, context),
+                    copyTo, maxInputLength, relocateTo());
         }
     }
 
     private int maxInputLength;
 
-    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, int maxInputLength) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+    public CompletionFieldMapper(String simpleName, MappedFieldType fieldType, Settings indexSettings, MultiFields multiFields,
+            CopyTo copyTo, int maxInputLength, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo, relocateTo);
         this.maxInputLength = maxInputLength;
     }
 

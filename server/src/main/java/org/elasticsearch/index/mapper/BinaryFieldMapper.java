@@ -31,6 +31,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -74,7 +75,7 @@ public class BinaryFieldMapper extends FieldMapper {
         public BinaryFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new BinaryFieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -153,8 +154,8 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     protected BinaryFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
     }
 
     @Override

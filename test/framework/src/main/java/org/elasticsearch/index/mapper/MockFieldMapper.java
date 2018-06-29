@@ -41,7 +41,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public MockFieldMapper(String fullName, MappedFieldType fieldType) {
         super(findSimpleName(fullName), setName(fullName, fieldType), setName(fullName, fieldType), dummySettings,
-            MultiFields.empty(), new CopyTo.Builder().build());
+            MultiFields.empty(), new CopyTo.Builder().build(), RelocateTo.DEFAULT);
     }
 
     static MappedFieldType setName(String fullName, MappedFieldType fieldType) {

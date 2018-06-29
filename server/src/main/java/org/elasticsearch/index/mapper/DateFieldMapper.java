@@ -35,7 +35,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -56,8 +55,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -139,7 +136,7 @@ public class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new DateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -406,8 +403,9 @@ public class DateFieldMapper extends FieldMapper {
             Explicit<Boolean> ignoreMalformed,
             Settings indexSettings,
             MultiFields multiFields,
-            CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            CopyTo copyTo,
+            Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         this.ignoreMalformed = ignoreMalformed;
     }
 
@@ -506,6 +504,7 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     public SourceRelocationHandler innerSourceRelocationHandler() {
+        assert fieldType().hasDocValues();
         return new SourceRelocationHandler() {
             @Override
             public void resynthesize(LeafReaderContext context, int docId,

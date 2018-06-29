@@ -108,7 +108,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         private static final Settings SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
-            super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, MultiFields.empty(), CopyTo.empty());
+            super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
         }
 
         @Override

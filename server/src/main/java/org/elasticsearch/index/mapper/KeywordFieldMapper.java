@@ -33,6 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -148,7 +149,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             return new KeywordFieldMapper(
                     name, fieldType, defaultFieldType, ignoreAbove,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -307,8 +308,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                  int ignoreAbove, Settings indexSettings,
-                                 MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+                                 MultiFields multiFields, CopyTo copyTo,
+                                 Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
     }

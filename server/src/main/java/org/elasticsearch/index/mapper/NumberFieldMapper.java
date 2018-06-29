@@ -40,7 +40,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -136,7 +135,7 @@ public class NumberFieldMapper extends FieldMapper {
         public NumberFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -971,8 +970,9 @@ public class NumberFieldMapper extends FieldMapper {
             Explicit<Boolean> coerce,
             Settings indexSettings,
             MultiFields multiFields,
-            CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            CopyTo copyTo,
+            Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
     }

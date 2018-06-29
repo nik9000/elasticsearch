@@ -95,7 +95,7 @@ public class IpFieldMapper extends FieldMapper {
         public IpFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new IpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -329,8 +329,9 @@ public class IpFieldMapper extends FieldMapper {
             Explicit<Boolean> ignoreMalformed,
             Settings indexSettings,
             MultiFields multiFields,
-            CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+            CopyTo copyTo,
+            Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         this.ignoreMalformed = ignoreMalformed;
     }
 

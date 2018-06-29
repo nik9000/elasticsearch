@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -69,7 +70,7 @@ public class FakeStringFieldMapper extends FieldMapper {
             setupFieldType(context);
             return new FakeStringFieldMapper(
                 name, fieldType(), defaultFieldType,
-                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -116,8 +117,8 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     protected FakeStringFieldMapper(String simpleName, FakeStringFieldType fieldType, MappedFieldType defaultFieldType,
-                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
     }
 
     @Override

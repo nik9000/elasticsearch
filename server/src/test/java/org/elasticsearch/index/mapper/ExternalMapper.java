@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.locationtech.spatial4j.shape.Point;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -93,7 +94,7 @@ public class ExternalMapper extends FieldMapper {
             setupFieldType(context);
 
             return new ExternalMapper(name, fieldType, generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -156,8 +157,9 @@ public class ExternalMapper extends FieldMapper {
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
+                          GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields,
+                          CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo, relocateTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;
         this.binMapper = binMapper;

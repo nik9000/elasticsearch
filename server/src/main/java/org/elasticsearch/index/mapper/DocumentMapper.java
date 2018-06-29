@@ -25,7 +25,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -48,7 +46,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -177,21 +174,15 @@ public class DocumentMapper implements ToXContentFragment {
         this.hasNestedObjects = hasNestedObjects;
 
         if (mapperService.getIndexSettings().getRelocateFieldsIfPossible()) {
-            List<String> relocateFields = new ArrayList<>();
-            Map<String, SourceRelocationHandler> relocationHandlers = new TreeMap<>();
-            // TODO switch to iterating newFields when we opt in and have validation
-            for (Mapper mapper : mapping.root) {
-                if (false == mapper instanceof FieldMapper) {
-                    continue;
-                }
-                SourceRelocationHandler handler = ((FieldMapper) mapper).sourceRelocationHandler();
-                if (handler != null) {
-                    relocateFields.add(mapper.name());
-                    relocationHandlers.put(mapper.name(), handler);
-                }
-            }
+            // TODO remove the index setting
+            Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>();
+            collectRelocationHandlers(mapping.root, 0, relocationHandlers);
             relocatedFilter = map -> {
-                // Filter only supports top level elements so this is fairly simple
+                /*
+                 * Filter fields from source if we know how to relocate them.
+                 * We don't know how to relocate field inside objects or
+                 * multi valued fields.
+                 */
                 Map<String, Object> filtered = new HashMap<>();
                 for (Map.Entry<String, ?> e : map.entrySet()) {
                     if (false == relocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
@@ -202,14 +193,32 @@ public class DocumentMapper implements ToXContentFragment {
             };
             this.relocationHandlers = unmodifiableMap(relocationHandlers);
         } else {
-            relocatedFilter = null;
             relocationHandlers = null;
+            relocatedFilter = null;
         }
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
+        }
+    }
+
+    /**
+     * Collect relocation handlers into a map. The act of fetching the
+     * relocation handlers will validate that the fields are appropriately
+     * configured for relocation.
+     */
+    private void collectRelocationHandlers(ObjectMapper mapper, int depth, Map<String, SourceRelocationHandler> handlers) {
+        for (Mapper m : mapper) {
+            if (m instanceof FieldMapper) {
+                SourceRelocationHandler handler = ((FieldMapper) m).sourceRelocationHandler(depth);
+                handlers.put(m.name(), handler);
+            } else if (m instanceof ObjectMapper) {
+                collectRelocationHandlers((ObjectMapper) m, depth + 1, handlers);
+            } else {
+                throw new IllegalArgumentException("Unexpected mapper type [" + m.getClass() + "] for [" + m.name() + "]");
+            }
         }
     }
 
@@ -350,6 +359,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public Map<String, CheckedConsumer<XContentBuilder, IOException>> relocationHandlers(
             LeafReaderContext context, int docId, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        // TODO replace building a new map with sending a context
         if (relocationHandlers == null) {
             return null;
         }

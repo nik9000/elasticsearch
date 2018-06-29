@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -68,6 +69,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected boolean docValuesSet = false;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo = CopyTo.empty();
+        private RelocateTo relocateTo;
 
         protected Builder(String name, MappedFieldType fieldType, MappedFieldType defaultFieldType) {
             super(name);
@@ -203,6 +205,18 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
+        public T relocateTo(RelocateTo relocateTo) {
+            this.relocateTo = relocateTo;
+            return builder;
+        }
+
+        protected Explicit<RelocateTo> relocateTo() {
+            if (relocateTo != null) {
+                return new Explicit<>(relocateTo, true);
+            }
+            return RelocateTo.DEFAULT;
+        }
+
         protected String buildFullName(BuilderContext context) {
             return context.path().pathAsText(name);
         }
@@ -230,8 +244,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final MappedFieldType defaultFieldType;
     protected MultiFields multiFields;
     protected CopyTo copyTo;
+    /**
+     * Should this field attempt to relocate itself from the {@code _source}
+     * for more efficient storage, and if so, how should it do it?
+     */
+    private Explicit<RelocateTo> relocateTo;
 
-    protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+    protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+            Settings indexSettings, MultiFields multiFields, CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
@@ -244,6 +264,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.defaultFieldType = defaultFieldType;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+        this.relocateTo = Objects.requireNonNull(relocateTo);
     }
 
     @Override
@@ -334,6 +355,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         // apply changeable values
         this.fieldType = fieldMergeWith.fieldType;
         this.copyTo = fieldMergeWith.copyTo;
+        if (fieldMergeWith.relocateTo.explicit()) {
+            // NOCOMMIT think more about this one
+            this.relocateTo = fieldMergeWith.relocateTo;
+        }
     }
 
     @Override
@@ -399,6 +424,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             builder.field("similarity", fieldType().similarity().name());
         } else if (includeDefaults) {
             builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
+        }
+
+        if (includeDefaults || relocateTo.explicit()) {
+            builder.field("relocate_to", relocateTo.value().toString());
         }
 
         multiFields.toXContent(builder, params);
@@ -656,23 +685,22 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     /**
      * Behavior to resynthesize the field into source if that is supported
-     * by this field type or {@code null} if it is not.
+     * by this field or {@code null} if it is not.
      */
-    public final SourceRelocationHandler sourceRelocationHandler() {
-        // TODO doc values is mutable, what happens if it is enabled or disabled?
-        if (fieldType.hasDocValues()) {
-            // TODO if ignore_malformed or otherwise non-strict we'll start to lose things
-            // which might be ok, but wouldn't be ok if we also had a more precise way of analyzing
-            SourceRelocationHandler handler = innerSourceRelocationHandler();
-            if (handler != null) {
-                return handler;
-            }
+    public final SourceRelocationHandler sourceRelocationHandler(int depth) {
+        if (RelocateTo.NONE == relocateTo.value()) {
+            return null;
         }
-        return null;
+        if (depth > 0) {
+            throw new IllegalArgumentException("[relocate_to] is only supported for top level objects");
+        }
+        if (false == fieldType().hasDocValues()) {
+            throw new IllegalArgumentException("setting [relocate_to] to [doc_values] requires doc_values be enabled");
+        }
+        return innerSourceRelocationHandler();
     }
 
-    public SourceRelocationHandler innerSourceRelocationHandler() {
-        // TODO make abstract when most converted
-        return null;
+    protected SourceRelocationHandler innerSourceRelocationHandler() {
+        throw new IllegalArgumentException("source relocation not supported by [" + name() + "]");
     }
 }

@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
@@ -190,6 +191,9 @@ public class TypeParsers {
                 } else {
                     parseCopyFields(propNode, builder);
                 }
+                iterator.remove();
+            } else if (propName.equals("relocate_to")) {
+                builder.relocateTo(RelocateTo.fromString(Objects.toString(propNode)));
                 iterator.remove();
             }
         }

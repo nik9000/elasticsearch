@@ -118,7 +118,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
                                          Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
             setupFieldType(context);
             return new GeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, multiFields,
-                ignoreMalformed, ignoreZValue, copyTo);
+                ignoreMalformed, ignoreZValue, copyTo, relocateTo());
         }
 
         @Override
@@ -182,8 +182,9 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Settings indexSettings, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> ignoreZValue, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+                               Explicit<Boolean> ignoreZValue, CopyTo copyTo,
+                               Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
     }

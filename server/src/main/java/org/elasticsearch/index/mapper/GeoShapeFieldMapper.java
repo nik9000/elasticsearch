@@ -190,7 +190,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             setupFieldType(context);
 
             return new GeoShapeFieldMapper(name, fieldType, ignoreMalformed(context), coerce(context), ignoreZValue(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -465,8 +465,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Explicit<Boolean> ignoreMalformed,
                                Explicit<Boolean> coerce, Explicit<Boolean> ignoreZValue, Settings indexSettings,
-                               MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+                               MultiFields multiFields, CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo, relocateTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;

@@ -41,6 +41,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -204,7 +205,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             return new TextFieldMapper(
                     name, fieldType(), defaultFieldType, positionIncrementGap, prefixMapper,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
     }
 
@@ -412,7 +413,7 @@ public class TextFieldMapper extends FieldMapper {
     private static final class PhraseFieldMapper extends FieldMapper {
 
         PhraseFieldMapper(PhraseFieldType fieldType, Settings indexSettings) {
-            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
         }
 
         @Override
@@ -429,7 +430,7 @@ public class TextFieldMapper extends FieldMapper {
     private static final class PrefixFieldMapper extends FieldMapper {
 
         protected PrefixFieldMapper(PrefixFieldType fieldType, Settings indexSettings) {
-            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
+            super(fieldType.name(), fieldType, fieldType, indexSettings, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
         }
 
         void addField(String value, List<IndexableField> fields) {
@@ -708,8 +709,9 @@ public class TextFieldMapper extends FieldMapper {
 
     protected TextFieldMapper(String simpleName, TextFieldType fieldType, MappedFieldType defaultFieldType,
                                 int positionIncrementGap, PrefixFieldMapper prefixFieldMapper,
-                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
+                                Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         assert fieldType.tokenized();
         assert fieldType.hasDocValues() == false;
         if (fieldType().indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
