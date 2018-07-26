@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'runtime')
+  testCompile project(path: xpackModule('core'), configuration: 'shadow')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
@@ -39,6 +39,7 @@ integTestRunner {
     'ml/delete_model_snapshot/Test delete snapshot missing job_id',
     'ml/delete_model_snapshot/Test delete with in-use model',
     'ml/filter_crud/Test create filter api with mismatching body ID',
+    'ml/filter_crud/Test create filter given invalid filter_id',
     'ml/filter_crud/Test get filter API with bad ID',
     'ml/filter_crud/Test invalid param combinations',
     'ml/filter_crud/Test non-existing filter',
