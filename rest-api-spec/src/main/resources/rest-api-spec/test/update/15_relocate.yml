@@ -7,19 +7,20 @@ setup:
           settings:
             refresh_interval: -1
           mappings:
-            _doc:
-              i:
-                type: integer
-                relocate_to: doc_values
-              f:
-                type: double
-                relocate_to: doc_values
-              ip:
-                type: ip
-                relocate_to: doc_values
-              d:
-                type: date
-                relocate_to: doc_values
+            doc:
+              properties:
+                i:
+                  type: integer
+                  relocate_to: doc_values
+                f:
+                  type: double
+                  relocate_to: doc_values
+                ip:
+                  type: ip
+                  relocate_to: doc_values
+                d:
+                  type: date
+                  relocate_to: doc_values
 
 ---
 "basic":
