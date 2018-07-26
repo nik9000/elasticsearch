@@ -222,7 +222,6 @@ public class FetchPhase implements SearchPhase {
                                                        Map<String, Set<String>> storedToRequestedFields,
                                                        LeafReaderContext subReaderContext) {
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
-        fieldsVisitor.postProcess(context.mapperService());
 
         if (fieldsVisitor.fields().isEmpty()) {
             return null;
@@ -332,25 +331,6 @@ public class FetchPhase implements SearchPhase {
             context.lookup().source().setSourceContentType(contentType);
         }
         return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
-    }
-
-    private Map<String, DocumentField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames,
-                                                       List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
-        Map<String, DocumentField> searchFields = null;
-        if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
-            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.emptySet() : fieldNames,
-                    fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, false);
-            if (nestedFieldsVisitor != null) {
-                loadStoredFields(context, subReaderContext, nestedFieldsVisitor, nestedSubDocId);
-                if (!nestedFieldsVisitor.fields().isEmpty()) {
-                    searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
-                    for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
-                        searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
-                    }
-                }
-            }
-        }
-        return searchFields;
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,
