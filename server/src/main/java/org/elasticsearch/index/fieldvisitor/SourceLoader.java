@@ -43,6 +43,9 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
+/**
+ * Loads {@code _source} from a Lucene index.
+ */
 public class SourceLoader {
     private static final Logger logger = LogManager.getLogger(SourceLoader.class);
 
