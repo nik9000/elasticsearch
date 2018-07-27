@@ -4751,7 +4751,7 @@ public class InternalEngineTests extends EngineTestCase {
         SourceLoader sourceLoader = new SourceLoader(emptyMap(), mft -> null);
         FieldsVisitor visitor = new FieldsVisitor(sourceLoader);
         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-        sourceLoader.finishWithDocValues(get.docIdAndVersion().context, get.docIdAndVersion().docId);
+        sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
         visitor.postProcess(mock(MapperService.class));
         return sourceLoader.source().utf8ToString();
     }
