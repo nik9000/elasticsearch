@@ -108,7 +108,10 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             /*
-             * This is a little tricky:
+             * This is a little tricky. We can get the `_source` field here
+             * without a source loader if the user requests `*`. Luckilly,
+             * this has always just thrown the `_source` on the floor instead
+             * of loading it. So we do that here too.
              */
             if (sourceLoader != null) {
                 sourceLoader.setLoadedSource(new BytesArray(value));
