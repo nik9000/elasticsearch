@@ -1875,13 +1875,6 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testConcurrentGetAndSetOnPrimary() throws IOException, InterruptedException {
-        // Setup the mapper service so we can pretend source has no relocated fields
-        MapperService mapperService = mock(MapperService.class);
-        DocumentMapper docMapper = mock(DocumentMapper.class);
-        when(mapperService.documentMapper()).thenReturn(docMapper);
-        when(docMapper.sourceFieldsFromDocValues()).thenReturn(null);
-        // TODO this is lame
-
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         final int opsPerThread = randomIntBetween(10, 20);
@@ -4754,12 +4747,12 @@ public class InternalEngineTests extends EngineTestCase {
      * were created without any fields relocated to doc values to keep the
      * fetch simpler.
      */
-    private String loadSource(Engine.GetResult get) {
-        SourceLoader sourceLoader = new SourceLoader(emptyMap(), emptyMap());
+    private String loadSource(Engine.GetResult get) throws IOException {
+        SourceLoader sourceLoader = new SourceLoader(emptyMap(), mft -> null);
         FieldsVisitor visitor = new FieldsVisitor(sourceLoader);
         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-        sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
-        visitor.postProcess(mapperService, null, -1, null);
+        sourceLoader.finishWithDocValues(get.docIdAndVersion().context, get.docIdAndVersion().docId);
+        visitor.postProcess(mock(MapperService.class));
         return sourceLoader.source().utf8ToString();
     }
 }

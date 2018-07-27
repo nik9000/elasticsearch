@@ -62,6 +62,14 @@ public class SourceLoader {
     }
 
     /**
+     * Called by {@link FieldsVisitor} when it moves to the next document.
+     */
+    void reset() {
+        loadedSource = null;
+        source = null;
+    }
+
+    /**
      * Called by {@link FieldsVisitor} when it loads the stored field portion
      * of the {@code _source}.
      */
@@ -69,11 +77,9 @@ public class SourceLoader {
         this.loadedSource = loadedSource;
     }
 
-    void reset() {
-        loadedSource = null;
-        source = null;
-    }
-
+    /**
+     * Loads the remainder of the source from doc values.
+     */
     public void load(LeafReaderContext context, int docId) throws IOException {
         if (relocationHandlers.isEmpty()) {
             // Loading source from doc values is disabled

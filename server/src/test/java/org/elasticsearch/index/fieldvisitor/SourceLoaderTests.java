@@ -19,15 +19,6 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static java.util.Collections.unmodifiableMap;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TreeMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,6 +33,18 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.FieldMapper.SourceRelocationHandler;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Function;
+
+import static org.mockito.Mockito.mock;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.unmodifiableMap;
+
 
 public class SourceLoaderTests extends ESTestCase {
     private BytesReference original;
@@ -127,8 +130,9 @@ public class SourceLoaderTests extends ESTestCase {
                 e.getValue().accept(builder);
             });
         }
-        SourceLoader loader = new SourceLoader(unmodifiableMap(relocationHandlers), mockContext, mockDocId, mockFieldDataLookup);
+        SourceLoader loader = new SourceLoader(unmodifiableMap(relocationHandlers), mockFieldDataLookup);
         loader.setLoadedSource(original);
+        loader.load(mockContext, mockDocId);
         return expectedXContent.createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loader.source().streamInput());
     }
