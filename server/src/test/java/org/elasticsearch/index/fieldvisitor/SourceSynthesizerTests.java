@@ -51,7 +51,7 @@ public class SourceSynthesizerTests extends ESTestCase {
             assertEquals(emptyMap(), parser.map());
         }
 
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.value("bar")))) {
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
             assertEquals(singletonMap("foo", "bar"), parser.map());
         }
     }
@@ -62,7 +62,11 @@ public class SourceSynthesizerTests extends ESTestCase {
             assertEquals(emptyMap(), parser.map());
         }
 
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.value("bar")))) {
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> {}))) {
+            assertEquals(emptyMap(), parser.map());
+        }
+
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
             assertEquals(singletonMap("foo", "bar"), parser.map());
         }
     }
@@ -76,11 +80,11 @@ public class SourceSynthesizerTests extends ESTestCase {
             b.endObject();
         });
 
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.value("bar")))) {
+        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
             assertEquals(singletonMap("foo", 1), parser.map());
         }
 
-        try (XContentParser parser = synthesizeSource(singletonMap("bar", b -> b.value(2)))) {
+        try (XContentParser parser = synthesizeSource(singletonMap("bar", b -> b.field("bar", 2)))) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("foo", 1);
             expected.put("bar", 2);
@@ -88,8 +92,8 @@ public class SourceSynthesizerTests extends ESTestCase {
         }
 
         Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters = new TreeMap<>();
-        valueWriters.put("foo", b -> b.value(1));
-        valueWriters.put("bar", b -> b.value(2));
+        valueWriters.put("foo", b -> b.field("foo", 1));
+        valueWriters.put("bar", b -> b.field("bar", 2));
         try (XContentParser parser = synthesizeSource(valueWriters)) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("foo", 1);
