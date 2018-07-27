@@ -438,7 +438,7 @@ public class IpFieldMapper extends FieldMapper {
                     return;
                 case 1:
                     BytesRef val = dv.nextValue();
-                    builder.value(InetAddresses.toAddrString(InetAddressPoint.decode(
+                    builder.field(name(), InetAddresses.toAddrString(InetAddressPoint.decode(
                         Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length))));
                     return;
                 default:

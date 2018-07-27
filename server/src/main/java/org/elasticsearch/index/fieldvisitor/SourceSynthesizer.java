@@ -63,7 +63,6 @@ class SourceSynthesizer {
         }
 
         for (Map.Entry<String, CheckedBiConsumer<T, XContentBuilder, IOException>> e : valueWritersToIterate.entrySet()) {
-            recreationBuilder.field(e.getKey());
             e.getValue().accept(context, recreationBuilder);
         }
         recreationBuilder.endObject();

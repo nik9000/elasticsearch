@@ -518,7 +518,7 @@ public class DateFieldMapper extends FieldMapper {
                 case 0:
                     return;
                 case 1:
-                    builder.value(fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
+                    builder.field(name(), fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
                     return;
                 default:
                     throw new IllegalStateException("only single valued fields supported");

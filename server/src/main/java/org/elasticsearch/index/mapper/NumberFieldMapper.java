@@ -1085,7 +1085,7 @@ public class NumberFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
-                        builder.value(dv.nextValue());
+                        builder.field(name(), dv.nextValue());
                         return;
                     default:
                         throw new IllegalStateException("only single valued fields supported");
@@ -1097,7 +1097,7 @@ public class NumberFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
-                        builder.value(dv.nextValue());
+                        builder.field(name(), dv.nextValue());
                         return;
                     default:
                         throw new IllegalStateException("only single valued fields supported");
