@@ -215,9 +215,11 @@ public class FetchPhase implements SearchPhase {
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
-        BytesReference source = sourceLoader.source();
-        if (source != null) {
-            sourceLookup.setSource(source);
+        if (sourceLoader != null) {
+            BytesReference source = sourceLoader.source();
+            if (source != null) {
+                sourceLookup.setSource(source);
+            }
         }
         return searchHit;
     }
