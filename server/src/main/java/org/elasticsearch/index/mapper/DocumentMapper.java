@@ -228,6 +228,8 @@ public class DocumentMapper implements ToXContentFragment {
                 }
             } else if (m instanceof ObjectMapper) {
                 collectRelocationHandlers((ObjectMapper) m, depth + 1, handlers);
+            } else if (m instanceof FieldAliasMapper) {
+                // Do nothing with there mappers
             } else {
                 throw new IllegalArgumentException("Unexpected mapper type [" + m.getClass() + "] for [" + m.name() + "]");
             }

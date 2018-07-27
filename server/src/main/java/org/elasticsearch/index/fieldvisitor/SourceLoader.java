@@ -89,6 +89,9 @@ public class SourceLoader {
         }
     }
 
+    /**
+     * The actual source.
+     */
     public BytesReference source() {
         return source;
     }
