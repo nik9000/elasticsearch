@@ -58,6 +58,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
+
 public final class ShardGetService extends AbstractIndexShardComponent {
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
@@ -262,6 +264,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // TODO this is fairly lame to have to check
             return SourceLoader.forReadingFromTranslog();
         }
-        return new SourceLoader(mapperService.documentMapper().sourceRelocationHandlers(), fieldDataLookup);
+        DocumentMapper docMapper = mapperService.documentMapper();
+        Map<String, FieldMapper.SourceRelocationHandler> relocationHandlers =
+                docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
+        return new SourceLoader(relocationHandlers, fieldDataLookup);
     }
 }

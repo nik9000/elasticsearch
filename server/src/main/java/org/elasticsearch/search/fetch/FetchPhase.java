@@ -39,6 +39,7 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.SourceLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -62,6 +63,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -396,7 +399,10 @@ public class FetchPhase implements SearchPhase {
     }
 
     private SourceLoader createSourceLoader(SearchContext searchContext) {
-        return new SourceLoader(searchContext.mapperService().documentMapper().sourceRelocationHandlers(), searchContext::getForField);
+        DocumentMapper docMapper = searchContext.mapperService().documentMapper();
+        Map<String, FieldMapper.SourceRelocationHandler> relocationHanlders =
+                docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
+        return new SourceLoader(relocationHanlders, searchContext::getForField);
     }
 
     private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, int docId,

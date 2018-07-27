@@ -288,6 +288,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
+     * Should this field attempt to relocate itself from {@code _source} to
+     * save storage space.
+     */
+    public RelocateTo relocateTo() {
+        return relocateTo.value();
+    }
+
+    /**
      * Parse using the provided {@link ParseContext} and return a mapping
      * update if dynamic mappings modified the mappings, or {@code null} if
      * mappings were not modified.
@@ -360,7 +368,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.fieldType = fieldMergeWith.fieldType;
         this.copyTo = fieldMergeWith.copyTo;
         if (fieldMergeWith.relocateTo.explicit()) {
-            // NOCOMMIT think more about this one
+            if (relocateTo.value() != RelocateTo.NONE && relocateTo.value() != fieldMergeWith.relocateTo.value()) {
+                throw new IllegalArgumentException("mapper [" + fieldType().name() + "] attempted to change [relocate_to] from ["
+                        + relocateTo.value() + "] to [" + fieldMergeWith.relocateTo.value() + "] but [relocate_to] cannot be "
+                        + "changed unless it is [NONE].");
+            }
             this.relocateTo = fieldMergeWith.relocateTo;
         }
     }

@@ -28,8 +28,10 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.SourceLoader;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collection;
@@ -76,7 +78,10 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            SourceLoader sourceLoader = new SourceLoader(mapperService.documentMapper().sourceRelocationHandlers(), fieldDataLookup);
+            DocumentMapper docMapper = mapperService.documentMapper();
+            Map<String, FieldMapper.SourceRelocationHandler> relocationHandlers =
+                    docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
+            SourceLoader sourceLoader = new SourceLoader(relocationHandlers, fieldDataLookup);
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(sourceLoader);
             context.reader().document(docId, sourceFieldVisitor);
             sourceFieldVisitor.postProcess(mapperService);
