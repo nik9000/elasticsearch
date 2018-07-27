@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Locale;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -66,6 +67,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
 
         assertEquals(mapping, mapper.mappingSource().toString());
+        assertEquals(null, mapper.relocatedFilter());
+        assertEquals(emptyMap(), mapper.sourceRelocationHandlers());
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
