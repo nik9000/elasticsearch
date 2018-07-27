@@ -190,17 +190,21 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> fields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        SourceLoader sourceLoader = buildSourceLoader(fetchSourceContext.fetchSource(), get);
+        SourceLoader sourceLoader = fetchSourceContext.fetchSource() ? buildSourceLoader(get) : null;
         FieldsVisitor fieldVisitor = buildFieldsVisitor(gFields, sourceLoader);
         if (fieldVisitor != null) {
             try {
                 docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
                 fieldVisitor.postProcess(mapperService);
-                sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
+                if (sourceLoader != null) {
+                    sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
+                }
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
-            source = sourceLoader.source();
+            if (sourceLoader != null) {
+                source = sourceLoader.source();
+            }
 
             if (!fieldVisitor.fields().isEmpty()) {
                 fields = new HashMap<>(fieldVisitor.fields().size());
@@ -256,10 +260,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return new CustomFieldsVisitor(Sets.newHashSet(fields), sourceLoader);
     }
 
-    private SourceLoader buildSourceLoader(boolean fetchSource, Engine.GetResult get) {
-        if (false == fetchSource) {
-            return null;
-        }
+    private SourceLoader buildSourceLoader(Engine.GetResult get) {
         if (get.docIdAndVersion().context == null) {
             // TODO this is fairly lame to have to check
             return SourceLoader.forReadingFromTranslog();

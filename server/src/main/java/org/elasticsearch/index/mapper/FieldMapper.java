@@ -371,7 +371,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             if (relocateTo.value() != RelocateTo.NONE && relocateTo.value() != fieldMergeWith.relocateTo.value()) {
                 throw new IllegalArgumentException("mapper [" + fieldType().name() + "] attempted to change [relocate_to] from ["
                         + relocateTo.value() + "] to [" + fieldMergeWith.relocateTo.value() + "] but [relocate_to] cannot be "
-                        + "changed unless it is [NONE].");
+                        + "changed unless it is [NONE]");
             }
             this.relocateTo = fieldMergeWith.relocateTo;
         }
