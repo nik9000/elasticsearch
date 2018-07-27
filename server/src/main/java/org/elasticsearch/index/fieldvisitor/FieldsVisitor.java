@@ -107,6 +107,9 @@ public class FieldsVisitor extends StoredFieldVisitor {
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            /*
+             * This is a little tricky:
+             */
             if (sourceLoader != null) {
                 sourceLoader.setLoadedSource(new BytesArray(value));
             }
