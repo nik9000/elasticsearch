@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
+import org.elasticsearch.index.mapper.RelocateTo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
@@ -574,11 +575,11 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private final BiFunction<String, BytesRef, Field> getDVField;
 
     protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo, String rules, String language,
-                                             String country, String variant,
+                                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
+                                             String rules, String language, String country, String variant,
                                              String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
                                              boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, RelocateTo.DEFAULT);
         assert collator.isFrozen();
         this.rules = rules;
         this.language = language;
