@@ -1085,6 +1085,7 @@ public class NumberFieldMapper extends FieldMapper {
                     case 0:
                         return;
                     case 1:
+
                         builder.field(name(), dv.nextValue());
                         return;
                     default:

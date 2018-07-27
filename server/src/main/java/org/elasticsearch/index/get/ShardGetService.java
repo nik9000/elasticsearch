@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.SourceLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -187,21 +188,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> fields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
+        SourceLoader sourceLoader = buildSourceLoader(fetchSourceContext.fetchSource(), get);
+        FieldsVisitor fieldVisitor = buildFieldsVisitor(gFields, sourceLoader);
         if (fieldVisitor != null) {
             try {
                 docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
-                if (get.docIdAndVersion().context == null) {
-                    // Loading from the translog
-                    fieldVisitor.postProcess(mapperService, null, -1, null);
-                } else {
-                    // Loading from the index
-                    fieldVisitor.postProcess(mapperService, get.docIdAndVersion().context, get.docIdAndVersion().docId, fieldDataLookup);
-                }
+                fieldVisitor.postProcess(mapperService);
+                sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
-            source = fieldVisitor.source();
+            source = sourceLoader.source();
 
             if (!fieldVisitor.fields().isEmpty()) {
                 fields = new HashMap<>(fieldVisitor.fields().size());
@@ -226,6 +223,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (!fetchSourceContext.fetchSource()) {
+            // NOCOMMIT I don't think we need this branch at all
             source = null;
         } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
             Map<String, Object> sourceAsMap;
@@ -245,11 +243,25 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return new GetResult(shardId.getIndexName(), type, id, get.version(), get.exists(), source, fields);
     }
 
-    private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
+    private static FieldsVisitor buildFieldsVisitor(String[] fields, SourceLoader sourceLoader) {
         if (fields == null || fields.length == 0) {
-            return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
+            if (sourceLoader == null) {
+                return null;
+            }
+            return new FieldsVisitor(sourceLoader);
         }
 
-        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
+        return new CustomFieldsVisitor(Sets.newHashSet(fields), sourceLoader);
+    }
+
+    private SourceLoader buildSourceLoader(boolean fetchSource, Engine.GetResult get) {
+        if (false == fetchSource) {
+            return null;
+        }
+        if (get.docIdAndVersion().context == null) {
+            // TODO this is fairly lame to have to check
+            return SourceLoader.forReadingFromTranslog();
+        }
+        return new SourceLoader(mapperService.documentMapper().sourceRelocationHandlers(), fieldDataLookup);
     }
 }

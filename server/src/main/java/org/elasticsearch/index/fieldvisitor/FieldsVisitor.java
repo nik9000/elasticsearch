@@ -19,12 +19,11 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -43,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
@@ -57,17 +55,15 @@ public class FieldsVisitor extends StoredFieldVisitor {
             IdFieldMapper.NAME,
             RoutingFieldMapper.NAME));
 
-    private final boolean loadSource;
+    private final SourceLoader sourceLoader;
     private final Set<String> requiredFields;
 
-    private BytesReference loadedSource;
-    private BytesReference source;
     private Map<String, List<Object>> fieldsValues;
     protected String type;
     protected String id;
 
-    public FieldsVisitor(boolean loadSource) {
-        this.loadSource = loadSource;
+    public FieldsVisitor(@Nullable SourceLoader sourceLoader) {
+        this.sourceLoader = sourceLoader;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -90,8 +86,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 : Status.NO;
     }
 
-    public void postProcess(MapperService mapperService, LeafReaderContext context, int docId,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) throws IOException {
+    public void postProcess(MapperService mapperService) {
         final DocumentMapper mapper = mapperService.documentMapper();
         if (mapper != null) {
             type = mapper.type();
@@ -107,25 +102,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
             }
         }
-        if (loadSource) {
-            DocumentMapper documentMapper = mapperService.documentMapper();
-            if (documentMapper.sourceFieldsFromDocValues().isEmpty()) {
-                // Loading source from doc values is disabled
-                source = loadedSource;
-            } else {
-                Objects.requireNonNull(context, "context is required if loading source with relocated fields");
-                Objects.requireNonNull(fieldDataLookup, "fieldDataLookup is required if loading source with relocated fields");
-                source = SourceSynthesizer.synthesizeSource(loadedSource,
-                    new DocumentMapper.SourceFieldsFromDocValuesContext(context, docId, fieldDataLookup),
-                    documentMapper.sourceFieldsFromDocValues());
-            }
-        }
     }
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
-            loadedSource = new BytesArray(value);
+            sourceLoader.setLoadedSource(new BytesArray(value));
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             id = Uid.decodeId(value);
         } else {
@@ -159,10 +141,6 @@ public class FieldsVisitor extends StoredFieldVisitor {
         addValue(fieldInfo.name, value);
     }
 
-    public BytesReference source() {
-        return source;
-    }
-
     public Uid uid() {
         if (id == null) {
             return null;
@@ -190,13 +168,11 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     public void reset() {
         if (fieldsValues != null) fieldsValues.clear();
-        loadedSource = null;
-        source = null;
         type = null;
         id = null;
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
-        if (loadSource) {
+        if (sourceLoader != null) {
             requiredFields.add(SourceFieldMapper.NAME);
         }
     }

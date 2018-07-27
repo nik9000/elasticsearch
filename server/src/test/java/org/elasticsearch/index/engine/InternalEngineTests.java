@@ -98,6 +98,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.SourceLoader;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -1911,10 +1912,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 for (int op = 0; op < opsPerThread; op++) {
                     try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), uidTerm), searcherFactory)) {
-                        FieldsVisitor visitor = new FieldsVisitor(true);
-                        get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-                        visitor.postProcess(mapperService, null, -1, null);
-                        List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
+                        List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(loadSource(get)));
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                         String added = "v_" + idGenerator.incrementAndGet();
                         values.add(added);
@@ -1954,10 +1952,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), uidTerm), searcherFactory)) {
-            FieldsVisitor visitor = new FieldsVisitor(true);
-            get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-            visitor.postProcess(mapperService, null, -1, null);
-            List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
+            List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(loadSource(get)));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }
     }
@@ -4752,5 +4747,19 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(message, engine.getNumDocAppends(), equalTo(expectedAppends));
         assertThat(message, engine.getNumDocUpdates(), equalTo(expectedUpdates));
         assertThat(message, engine.getNumDocDeletes(), equalTo(expectedDeletes));
+    }
+
+    /**
+     * Load the source from the index. This functions as though the index
+     * were created without any fields relocated to doc values to keep the
+     * fetch simpler.
+     */
+    private String loadSource(Engine.GetResult get) {
+        SourceLoader sourceLoader = new SourceLoader(emptyMap(), emptyMap());
+        FieldsVisitor visitor = new FieldsVisitor(sourceLoader);
+        get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+        sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
+        visitor.postProcess(mapperService, null, -1, null);
+        return sourceLoader.source().utf8ToString();
     }
 }

@@ -87,9 +87,9 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
 
         Set<String> fieldNames = Sets.newHashSet("field1", "field2", "field3", "field4", "field5",
             "field6", "field7", "field8", "field9", "field10");
-        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
+        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, null);
         searcher.doc(0, fieldsVisitor);
-        fieldsVisitor.postProcess(mapperService, null, -1, null);
+        fieldsVisitor.postProcess(mapperService);
         assertThat(fieldsVisitor.fields().size(), equalTo(10));
         assertThat(fieldsVisitor.fields().get("field1").size(), equalTo(1));
         assertThat(fieldsVisitor.fields().get("field1").get(0), equalTo((byte) 1));

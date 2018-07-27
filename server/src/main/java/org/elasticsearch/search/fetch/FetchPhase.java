@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.SourceLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -81,6 +82,7 @@ public class FetchPhase implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) {
+        final SourceLoader sourceLoader;
         final FieldsVisitor fieldsVisitor;
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
@@ -90,9 +92,11 @@ public class FetchPhase implements SearchPhase {
             if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            sourceLoader = context.sourceRequested() ? createSourceLoader(context) : null;
+            fieldsVisitor = new FieldsVisitor(sourceLoader);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
+            sourceLoader = null;
             fieldsVisitor = null;
         } else {
             for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
@@ -119,12 +123,12 @@ public class FetchPhase implements SearchPhase {
                     }
                 }
             }
-            boolean loadSource = context.sourceRequested();
+            sourceLoader = context.sourceRequested() ? createSourceLoader(context) : null;
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                fieldsVisitor = new FieldsVisitor(loadSource);
+                fieldsVisitor = new FieldsVisitor(sourceLoader);
             } else {
-                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
+                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), sourceLoader);
             }
         }
 
@@ -146,7 +150,7 @@ public class FetchPhase implements SearchPhase {
                     searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId,
                         storedToRequestedFields, subReaderContext);
                 } else {
-                    searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId,
+                    searchHit = createSearchHit(context, fieldsVisitor, sourceLoader, docId, subDocId,
                         storedToRequestedFields, subReaderContext);
                 }
 
@@ -187,6 +191,7 @@ public class FetchPhase implements SearchPhase {
 
     private SearchHit createSearchHit(SearchContext context,
                                       FieldsVisitor fieldsVisitor,
+                                      SourceLoader sourceLoader,
                                       int docId,
                                       int subDocId,
                                       Map<String, Set<String>> storedToRequestedFields,
@@ -194,8 +199,8 @@ public class FetchPhase implements SearchPhase {
         if (fieldsVisitor == null) {
             return new SearchHit(docId);
         }
-        loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
 
+        loadStoredFields(context, subReaderContext, subDocId, fieldsVisitor, sourceLoader);
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
 
@@ -210,8 +215,9 @@ public class FetchPhase implements SearchPhase {
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
-        if (fieldsVisitor.source() != null) {
-            sourceLookup.setSource(fieldsVisitor.source());
+        BytesReference source = sourceLoader.source();
+        if (source != null) {
+            sourceLookup.setSource(source);
         }
         return searchHit;
     }
@@ -221,8 +227,6 @@ public class FetchPhase implements SearchPhase {
                                                        int subDocId,
                                                        Map<String, Set<String>> storedToRequestedFields,
                                                        LeafReaderContext subReaderContext) {
-        loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
-
         if (fieldsVisitor.fields().isEmpty()) {
             return null;
         }
@@ -256,10 +260,11 @@ public class FetchPhase implements SearchPhase {
         final BytesReference source;
         final boolean needSource = context.sourceRequested() || context.highlight() != null;
         if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
-            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
-            loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
+            SourceLoader sourceLoader = needSource ? createSourceLoader(context) : null;
+            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(sourceLoader);
+            loadStoredFields(context, subReaderContext, rootSubDocId, rootFieldsVisitor, sourceLoader);
             uid = rootFieldsVisitor.uid();
-            source = rootFieldsVisitor.source();
+            source = sourceLoader.source();
         } else {
             // In case of nested inner hits we already know the uid, so no need to fetch it from stored fields again!
             uid = ((InnerHitsContext.InnerHitSubContext) context).getUid();
@@ -268,7 +273,8 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
-            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
+            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), null);
+            loadStoredFields(context, subReaderContext, nestedSubDocId, nestedFieldsVisitor, null);
             searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId,
                 storedToRequestedFields, subReaderContext);
         }
@@ -387,11 +393,19 @@ public class FetchPhase implements SearchPhase {
         return nestedIdentity;
     }
 
-    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, FieldsVisitor fieldVisitor, int docId) {
+    private SourceLoader createSourceLoader(SearchContext searchContext) {
+        return new SourceLoader(searchContext.mapperService().documentMapper().sourceRelocationHandlers(), searchContext::getForField);
+    }
+
+    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, int docId,
+            FieldsVisitor fieldVisitor, SourceLoader sourceLoader) {
         fieldVisitor.reset();
         try {
             readerContext.reader().document(docId, fieldVisitor);
-            fieldVisitor.postProcess(searchContext.mapperService(), readerContext, docId, searchContext::getForField);
+            fieldVisitor.postProcess(searchContext.mapperService());
+            if (sourceLoader != null) {
+                sourceLoader.load(readerContext, docId);
+            }
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(searchContext, "Failed to fetch doc id [" + docId + "]", e);
         }

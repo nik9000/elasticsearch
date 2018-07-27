@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.Set;
@@ -33,8 +34,8 @@ public class CustomFieldsVisitor extends FieldsVisitor {
 
     private final Set<String> fields;
 
-    public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
-        super(loadSource);
+    public CustomFieldsVisitor(Set<String> fields, @Nullable SourceLoader sourceLoader) {
+        super(sourceLoader);
         this.fields = fields;
     }
 

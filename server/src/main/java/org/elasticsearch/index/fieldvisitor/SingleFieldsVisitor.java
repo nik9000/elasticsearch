@@ -31,11 +31,11 @@ import java.io.IOException;
 import java.util.function.Function;
 
 public class SingleFieldsVisitor extends FieldsVisitor {
-    // TODO it'd be nice not to extend our (very big) FieldsVisitor and maybe make a common superclass?
+    // TODO it'd be nice not to extend our (very big) FieldsVisitor
     private String field;
 
     public SingleFieldsVisitor(String field) {
-        super(false);
+        super(null);
         this.field = field;
     }
 
@@ -53,14 +53,8 @@ public class SingleFieldsVisitor extends FieldsVisitor {
     }
 
     @Override
-    public void postProcess(MapperService mapperService, LeafReaderContext context, int docId,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
-        try {
-            super.postProcess(mapperService, null, -1, null);
-        } catch (IOException e) {
-            // TODO a common superclass for field visiting would really help here
-            throw new ElasticsearchException("Shouldn't be possible", e);
-        }
+    public void postProcess(MapperService mapperService) {
+        super.postProcess(mapperService);
         if (id != null) {
             addValue(IdFieldMapper.NAME, id);
         }

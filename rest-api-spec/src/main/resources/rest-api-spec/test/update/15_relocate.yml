@@ -45,7 +45,7 @@ setup:
           id:     1
   - match: { _source.foo: bar }
   - match: { _source.i:   1 }
-  - match: { _source.f:   1.2000000476837158 }
+  - match: { _source.f:   1.2 }
   - match: { _source.d:   "2018-01-01T12:33:55.000Z" }
 
   - do:
@@ -70,7 +70,7 @@ setup:
           id:     1
   - match: { _source.foo: baz }
   - match: { _source.i:   2 }
-  - match: { _source.f:   1.2000000476837158 }
+  - match: { _source.f:   1.2 }
   - match: { _source.d:   "2018-01-01T12:33:55.000Z" }
 
   - do:

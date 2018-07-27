@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
-import org.elasticsearch.common.CheckedBiConsumer;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -39,8 +39,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.FieldMapper.SourceRelocationHandler;
 
-public class SourceSynthesizerTests extends ESTestCase {
+public class SourceLoaderTests extends ESTestCase {
     private BytesReference original;
     private XContent expectedXContent;
 
@@ -111,13 +114,22 @@ public class SourceSynthesizerTests extends ESTestCase {
     }
 
     private XContentParser synthesizeSource(
-                Map<String, CheckedConsumer<XContentBuilder, IOException>> testValueWriters) throws IOException {
-        Map<String, CheckedBiConsumer<Void, XContentBuilder, IOException>> contextValueWriters = new HashMap<>(testValueWriters.size());
-        for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> w : testValueWriters.entrySet()) {
-            contextValueWriters.put(w.getKey(), (v, b) -> w.getValue().accept(b));
+                Map<String, CheckedConsumer<XContentBuilder, IOException>> simpleRelocationHandlers) throws IOException {
+        final LeafReaderContext mockContext = mock(LeafReaderContext.class);
+        final int mockDocId = randomInt();
+        final Function<MappedFieldType, IndexFieldData<?>> mockFieldDataLookup = m -> null;
+        Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>(simpleRelocationHandlers.size());
+        for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> e : simpleRelocationHandlers.entrySet()) {
+            relocationHandlers.put(e.getKey(), (context, docId, fieldDataLookup, builder) -> {
+                assertSame(mockContext, context);
+                assertEquals(mockDocId, docId);
+                assertSame(mockFieldDataLookup, fieldDataLookup);
+                e.getValue().accept(builder);
+            });
         }
-        BytesReference synthesized = SourceSynthesizer.synthesizeSource(original, null, unmodifiableMap(contextValueWriters));
+        SourceLoader loader = new SourceLoader(unmodifiableMap(relocationHandlers), mockContext, mockDocId, mockFieldDataLookup);
+        loader.setLoadedSource(original);
         return expectedXContent.createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, synthesized.streamInput());
+            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loader.source().streamInput());
     }
 }

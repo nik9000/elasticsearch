@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.SourceLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -75,16 +76,17 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            SourceLoader sourceLoader = new SourceLoader(mapperService.documentMapper().sourceRelocationHandlers(), fieldDataLookup);
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(sourceLoader);
             context.reader().document(docId, sourceFieldVisitor);
-            sourceFieldVisitor.postProcess(mapperService, context, docId, fieldDataLookup);
-            BytesReference source = sourceFieldVisitor.source();
+            sourceFieldVisitor.postProcess(mapperService);
+            sourceLoader.load(context, docId);
 
-            if (source == null) {
+            if (sourceLoader.source() == null) {
                 this.source = emptyMap();
                 this.sourceContentType = null;
             } else {
-                Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(source);
+                Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(sourceLoader.source());
                 this.sourceContentType = tuple.v1();
                 this.source = tuple.v2();
             }
