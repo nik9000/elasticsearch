@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
-import static org.mockito.Mockito.mock;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -52,11 +51,11 @@ public class SourceLoaderTests extends ESTestCase {
 
     public void testNullSource() throws IOException {
         original = null;
-        expectedXContent = JsonXContent.jsonXContent;
-        try (XContentParser parser = synthesizeSource(emptyMap())) {
-            assertEquals(emptyMap(), parser.map());
-        }
+        // Null original and no fields to add means the result should be null
+        assertNull(synthesizeSource(emptyMap()));
 
+        // But if there are fields to write then we will write them
+        expectedXContent = JsonXContent.jsonXContent;
         try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
             assertEquals(singletonMap("foo", "bar"), parser.map());
         }
@@ -118,13 +117,12 @@ public class SourceLoaderTests extends ESTestCase {
 
     private XContentParser synthesizeSource(
                 Map<String, CheckedConsumer<XContentBuilder, IOException>> simpleRelocationHandlers) throws IOException {
-        final LeafReaderContext mockContext = mock(LeafReaderContext.class);
         final int mockDocId = randomInt();
         final Function<MappedFieldType, IndexFieldData<?>> mockFieldDataLookup = m -> null;
         Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>(simpleRelocationHandlers.size());
         for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> e : simpleRelocationHandlers.entrySet()) {
             relocationHandlers.put(e.getKey(), (context, docId, fieldDataLookup, builder) -> {
-                assertSame(mockContext, context);
+                assertNull(context);
                 assertEquals(mockDocId, docId);
                 assertSame(mockFieldDataLookup, fieldDataLookup);
                 e.getValue().accept(builder);
@@ -132,7 +130,10 @@ public class SourceLoaderTests extends ESTestCase {
         }
         SourceLoader loader = new SourceLoader(unmodifiableMap(relocationHandlers), mockFieldDataLookup);
         loader.setLoadedSource(original);
-        loader.load(mockContext, mockDocId);
+        loader.load(null, mockDocId);
+        if (loader.source() == null) {
+            return null;
+        }
         return expectedXContent.createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loader.source().streamInput());
     }
