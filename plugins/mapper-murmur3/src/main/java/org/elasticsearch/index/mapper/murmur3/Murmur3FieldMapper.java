@@ -27,6 +27,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -68,7 +69,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         public Murmur3FieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new Murmur3FieldMapper(name, fieldType, defaultFieldType,
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, relocateTo());
         }
 
         @Override
@@ -141,8 +142,8 @@ public class Murmur3FieldMapper extends FieldMapper {
     }
 
     protected Murmur3FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, RelocateTo.DEFAULT);
+            Settings indexSettings, MultiFields multiFields, CopyTo copyTo, Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
     }
 
     @Override

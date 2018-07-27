@@ -36,6 +36,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -475,7 +476,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             fieldType().setCollator(collator);
             setupFieldType(context);
             return new ICUCollationKeywordFieldMapper(name, fieldType, defaultFieldType, context.indexSettings(),
-                multiFieldsBuilder.build(this, context), copyTo, rules, language, country, variant, strength, decomposition,
+                multiFieldsBuilder.build(this, context), copyTo, relocateTo(), rules, language, country, variant, strength, decomposition,
                 alternate, caseLevel, caseFirst, numeric, variableTop, hiraganaQuaternaryMode, collator);
         }
     }
@@ -576,10 +577,10 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     protected ICUCollationKeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
-                                             String rules, String language, String country, String variant,
-                                             String strength, String decomposition, String alternate, boolean caseLevel, String caseFirst,
-                                             boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
-        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, RelocateTo.DEFAULT);
+                                             Explicit<RelocateTo> relocateTo, String rules, String language, String country,
+                                             String variant, String strength, String decomposition, String alternate, boolean caseLevel,
+                                             String caseFirst, boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         assert collator.isFrozen();
         this.rules = rules;
         this.language = language;

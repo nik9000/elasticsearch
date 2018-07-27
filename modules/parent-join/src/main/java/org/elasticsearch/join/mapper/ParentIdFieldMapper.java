@@ -31,6 +31,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -90,7 +91,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         @Override
         public ParentIdFieldMapper build(BuilderContext context) {
             fieldType.setName(name);
-            return new ParentIdFieldMapper(name, parent, children, fieldType, context.indexSettings());
+            return new ParentIdFieldMapper(name, parent, children, fieldType, context.indexSettings(), relocateTo());
         }
     }
 
@@ -141,8 +142,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
                                   String parentName,
                                   Set<String> children,
                                   MappedFieldType fieldType,
-                                  Settings indexSettings) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty(), RelocateTo.DEFAULT);
+                                  Settings indexSettings,
+                                  Explicit<RelocateTo> relocateTo) {
+        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), CopyTo.empty(), relocateTo);
         this.parentName = parentName;
         this.children = children;
     }

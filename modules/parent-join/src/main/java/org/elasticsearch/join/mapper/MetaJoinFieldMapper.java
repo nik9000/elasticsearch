@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -67,7 +68,7 @@ public class MetaJoinFieldMapper extends FieldMapper {
         @Override
         public MetaJoinFieldMapper build(BuilderContext context) {
             fieldType.setName(NAME);
-            return new MetaJoinFieldMapper(name, fieldType, context.indexSettings());
+            return new MetaJoinFieldMapper(name, fieldType, context.indexSettings(), relocateTo());
         }
     }
 
@@ -115,9 +116,9 @@ public class MetaJoinFieldMapper extends FieldMapper {
         }
     }
 
-    MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings) {
+    MetaJoinFieldMapper(String name, MappedFieldType fieldType, Settings indexSettings, Explicit<RelocateTo> relocateTo) {
         super(name, fieldType, ParentIdFieldMapper.Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(),
-                CopyTo.empty(), RelocateTo.DEFAULT);
+                CopyTo.empty(), relocateTo);
     }
 
     void setFieldMapper(ParentJoinFieldMapper mapper) {
