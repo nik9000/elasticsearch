@@ -294,7 +294,9 @@ public class FetchPhase implements SearchPhase {
 
         if (source != null) {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
+            XContentType contentType = tuple.v1();
             Map<String, Object> sourceAsMap = tuple.v2();
+            System.err.println("full source " + sourceAsMap);
 
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
@@ -336,9 +338,9 @@ public class FetchPhase implements SearchPhase {
                     current = next;
                 }
             }
-            context.lookup().source().setSource(nestedSourceAsMap);
-            XContentType contentType = tuple.v1();
-            context.lookup().source().setSourceContentType(contentType);
+            System.err.println("nested source " + nestedSourceAsMap);
+            sourceLookup.setSource(nestedSourceAsMap);
+            sourceLookup.setSourceContentType(contentType);
         }
         return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
     }
