@@ -203,7 +203,7 @@ public class FetchPhase implements SearchPhase {
             return new SearchHit(docId);
         }
 
-        loadStoredFields(context, subReaderContext, subDocId, fieldsVisitor, sourceLoader);
+        loadStoredFieldsAndSource(context, subReaderContext, subDocId, fieldsVisitor, sourceLoader);
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
 
@@ -219,9 +219,8 @@ public class FetchPhase implements SearchPhase {
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
         if (sourceLoader != null) {
-            BytesReference source = sourceLoader.source();
-            if (source != null) {
-                sourceLookup.setSource(source);
+            if (sourceLoader.source() != null) {
+                sourceLookup.setSource(sourceLoader.source());
             }
         }
         return searchHit;
@@ -267,7 +266,7 @@ public class FetchPhase implements SearchPhase {
         if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
             SourceLoader sourceLoader = needSource ? createSourceLoader(context) : null;
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(sourceLoader);
-            loadStoredFields(context, subReaderContext, rootSubDocId, rootFieldsVisitor, sourceLoader);
+            loadStoredFieldsAndSource(context, subReaderContext, rootSubDocId, rootFieldsVisitor, sourceLoader);
             uid = rootFieldsVisitor.uid();
             source = sourceLoader.source();
         } else {
@@ -279,7 +278,7 @@ public class FetchPhase implements SearchPhase {
         Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), null);
-            loadStoredFields(context, subReaderContext, nestedSubDocId, nestedFieldsVisitor, null);
+            loadStoredFieldsAndSource(context, subReaderContext, nestedSubDocId, nestedFieldsVisitor, null);
             searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId,
                 storedToRequestedFields, subReaderContext);
         }
@@ -405,7 +404,7 @@ public class FetchPhase implements SearchPhase {
         return new SourceLoader(relocationHanlders, searchContext::getForField);
     }
 
-    private void loadStoredFields(SearchContext searchContext, LeafReaderContext readerContext, int docId,
+    private void loadStoredFieldsAndSource(SearchContext searchContext, LeafReaderContext readerContext, int docId,
             FieldsVisitor fieldVisitor, SourceLoader sourceLoader) {
         fieldVisitor.reset();
         try {

@@ -78,6 +78,7 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
+            System.err.println("loading source from lookup");
             DocumentMapper docMapper = mapperService.documentMapper();
             Map<String, FieldMapper.SourceRelocationHandler> relocationHandlers =
                     docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
@@ -95,6 +96,7 @@ public class SourceLookup implements Map {
                 this.sourceContentType = tuple.v1();
                 this.source = tuple.v2();
             }
+            System.err.println("source! " + source);
         } catch (Exception e) {
             throw new ElasticsearchParseException("failed to parse / load source", e);
         }

@@ -39,6 +39,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -216,5 +219,41 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
             String message = e.getRootCause().getMessage();
             assertTrue(message, message.contains("Unexpected close marker '}'"));
         }
+    }
+
+    public void testRelocatedFields() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("moved")
+                            .field("type", "integer")
+                            .field("relocate_to", "doc_values")
+                        .endObject()
+                        .startObject("kept")
+                            .field("type", "integer")
+                            .field("relocate_to", "none")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+
+        DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser()
+                .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .field("moved", 1)
+                .field("kept", 2)
+            .endObject()), XContentType.JSON));
+
+        IndexableField sourceField = doc.rootDoc().getField("_source");
+        Map<String, Object> sourceAsMap;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            sourceAsMap = parser.map();
+        }
+        assertThat(sourceAsMap, not(hasKey("moved")));
+        assertThat(sourceAsMap, hasEntry("kept", 2));
+
     }
 }
