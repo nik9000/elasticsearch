@@ -858,7 +858,6 @@ public class TopHitsIT extends ESIntegTestCase {
                 .highlightQuery(matchQuery("comments.message", "comment"))
                 .forceSource(randomBoolean()) // randomly from stored field or _source
                 .highlighterType(hlType);
-        System.err.println("ADSFAFD " + hlField);
 
         SearchResponse searchResponse = client()
                 .prepareSearch("articles")
