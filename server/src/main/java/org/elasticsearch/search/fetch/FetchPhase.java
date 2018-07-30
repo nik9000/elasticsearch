@@ -296,7 +296,6 @@ public class FetchPhase implements SearchPhase {
             Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, true);
             XContentType contentType = tuple.v1();
             Map<String, Object> sourceAsMap = tuple.v2();
-            System.err.println("full source " + sourceAsMap);
 
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
