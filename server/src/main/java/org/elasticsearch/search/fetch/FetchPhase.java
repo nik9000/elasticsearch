@@ -338,7 +338,6 @@ public class FetchPhase implements SearchPhase {
                     current = next;
                 }
             }
-            System.err.println("nested source " + nestedSourceAsMap);
             sourceLookup.setSource(nestedSourceAsMap);
             sourceLookup.setSourceContentType(contentType);
         }
