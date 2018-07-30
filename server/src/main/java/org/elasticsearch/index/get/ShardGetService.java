@@ -228,10 +228,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        if (!fetchSourceContext.fetchSource()) {
-            // NOCOMMIT I don't think we need this branch at all
-            source = null;
-        } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+        if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
             Map<String, Object> sourceAsMap;
             XContentType sourceContentType = null;
             // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
