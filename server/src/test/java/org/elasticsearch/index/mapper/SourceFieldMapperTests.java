@@ -254,6 +254,5 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         }
         assertThat(sourceAsMap, not(hasKey("moved")));
         assertThat(sourceAsMap, hasEntry("kept", 2));
-
     }
 }

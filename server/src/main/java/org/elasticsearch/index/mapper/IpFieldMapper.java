@@ -431,20 +431,17 @@ public class IpFieldMapper extends FieldMapper {
                     XContentBuilder builder) throws IOException {
                 IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
                 AtomicFieldData ifd = fieldData.load(context);
-                SortedBinaryDocValues dv = ifd.getBytesValues();
-                dv.advanceExact(docId);
-                switch (dv.docValueCount()) {
-                case 0:
-                    return;
-                case 1:
-                    BytesRef val = dv.nextValue();
-                    builder.field(name(), InetAddresses.toAddrString(InetAddressPoint.decode(
-                        Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length))));
-                    return;
-                default:
-                    throw new IllegalStateException("only single valued fields supported");
-                }
+                relocateFromDocValues(name(), ifd.getBytesValues(), docId, builder);
             }
         };
+    }
+
+    static void relocateFromDocValues(String name, SortedBinaryDocValues dv,
+            int docId, XContentBuilder builder) throws IOException {
+        if (false == dv.advanceExact(docId)) return;
+        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
+        BytesRef val = dv.nextValue();
+        builder.field(name, InetAddresses.toAddrString(InetAddressPoint.decode(
+                Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length))));
     }
 }

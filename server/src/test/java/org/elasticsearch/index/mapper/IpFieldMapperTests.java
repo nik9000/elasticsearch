@@ -30,8 +30,10 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -41,7 +43,12 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -276,5 +283,41 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testRelocateFromDocValuesNoValues() throws IOException {
+        int docId = randomInt();
+        SortedBinaryDocValues dv = mock(SortedBinaryDocValues.class);
+        when(dv.advanceExact(docId)).thenReturn(false);
+        IpFieldMapper.relocateFromDocValues("ip", dv, docId, null);
+        verify(dv).advanceExact(docId);
+        verifyNoMoreInteractions(dv); // We never called docValueCount or nextValue or anything
+    }
+
+    public void testRelocateFromDocValuesSingleValue() throws IOException {
+        int docId = randomInt();
+        InetAddress expectedValue = InetAddresses.forString("::1");
+        SortedBinaryDocValues dv = mock(SortedBinaryDocValues.class);
+        when(dv.advanceExact(docId)).thenReturn(true);
+        when(dv.docValueCount()).thenReturn(1);
+        when(dv.nextValue()).thenReturn(new BytesRef(InetAddressPoint.encode(expectedValue)));
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            IpFieldMapper.relocateFromDocValues("ip", dv, docId, builder);
+            builder.endObject();
+            try (XContentParser parser = createParser(builder)) {
+                assertEquals(singletonMap("ip", InetAddresses.toAddrString(expectedValue)),
+                        parser.map());
+            }
+        }
+    }
+
+    public void testRelocateFromDocValuesMultipleValues() throws IOException {
+        int docId = randomInt();
+        SortedBinaryDocValues dv = mock(SortedBinaryDocValues.class);
+        when(dv.advanceExact(docId)).thenReturn(true);
+        when(dv.docValueCount()).thenReturn(between(2, 1000));
+        expectThrows(IllegalStateException.class, () ->
+                IpFieldMapper.relocateFromDocValues("ip", dv, docId, null));
     }
 }

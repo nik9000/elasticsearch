@@ -53,6 +53,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -505,25 +506,17 @@ public class DateFieldMapper extends FieldMapper {
     @Override
     public SourceRelocationHandler relocateToDocValuesHandler() {
         assert fieldType().hasDocValues();
-        return new SourceRelocationHandler() {
-            @Override
-            public void resynthesize(LeafReaderContext context, int docId,
-                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                    XContentBuilder builder) throws IOException {
+        return (context, docId, fieldDataLookup, builder) -> {
                 IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
                 AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
-                SortedNumericDocValues dv = ifd.getLongValues();
-                dv.advanceExact(docId);
-                switch (dv.docValueCount()) {
-                case 0:
-                    return;
-                case 1:
-                    builder.field(name(), fieldType().dateTimeFormatter().printer().print(dv.nextValue()));
-                    return;
-                default:
-                    throw new IllegalStateException("only single valued fields supported");
-                }
-            }
-        };
+                relocateFromDocValues(name(), fieldType().dateTimeFormatter().printer(), ifd.getLongValues(), docId, builder);
+            };
+    }
+
+    static void relocateFromDocValues(String name, DateTimeFormatter printer, SortedNumericDocValues dv,
+            int docId, XContentBuilder builder) throws IOException {
+        if (false == dv.advanceExact(docId)) return;
+        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
+        builder.field(name, printer.print(dv.nextValue()));
     }
 }

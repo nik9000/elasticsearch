@@ -1079,32 +1079,25 @@ public class NumberFieldMapper extends FieldMapper {
                 IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldDataLookup.apply(fieldType);
                 AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
                 if (fieldData.getNumericType().isFloatingPoint()) {
-                    SortedNumericDoubleValues dv = ifd.getDoubleValues();
-                    dv.advanceExact(docId);
-                    switch (dv.docValueCount()) {
-                    case 0:
-                        return;
-                    case 1:
-
-                        builder.field(name(), dv.nextValue());
-                        return;
-                    default:
-                        throw new IllegalStateException("only single valued fields supported");
-                    }
+                    relocateFromDocValues(name(), ifd.getDoubleValues(), docId, builder);
                 } else {
-                    SortedNumericDocValues dv = ifd.getLongValues();
-                    dv.advanceExact(docId);
-                    switch (dv.docValueCount()) {
-                    case 0:
-                        return;
-                    case 1:
-                        builder.field(name(), dv.nextValue());
-                        return;
-                    default:
-                        throw new IllegalStateException("only single valued fields supported");
-                    }
+                    relocateFromDocValues(name(), ifd.getLongValues(), docId, builder);
                 }
             }
         };
+    }
+
+    static void relocateFromDocValues(String name, SortedNumericDoubleValues dv,
+            int docId, XContentBuilder builder) throws IOException {
+        if (false == dv.advanceExact(docId)) return;
+        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
+        builder.field(name, dv.nextValue());
+    }
+
+    static void relocateFromDocValues(String name, SortedNumericDocValues dv,
+            int docId, XContentBuilder builder) throws IOException {
+        if (false == dv.advanceExact(docId)) return;
+        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
+        builder.field(name, dv.nextValue());
     }
 }

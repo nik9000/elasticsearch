@@ -19,11 +19,7 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 

@@ -21,10 +21,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
@@ -32,7 +35,10 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.Instant;
 import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,8 +46,13 @@ import java.util.Collection;
 import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -458,10 +469,46 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject());
 
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
-                    MapperService.MergeReason.MAPPING_UPDATE));
-            assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to "
-                    + "[doc_values] which requires doc_values to be enabled", e.getMessage());
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to "
+                + "[doc_values] which requires doc_values to be enabled", e.getMessage());
+    }
+
+    public void testRelocateFromDocValuesNoValues() throws IOException {
+        int docId = randomInt();
+        SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
+        when(dv.advanceExact(docId)).thenReturn(false);
+        DateFieldMapper.relocateFromDocValues("date", null, dv, docId, null);
+        verify(dv).advanceExact(docId);
+        verifyNoMoreInteractions(dv); // We never called docValueCount or nextValue or anything
+    }
+
+    public void testRelocateFromDocValuesSingleValue() throws IOException {
+        DateTimeFormatter format = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+        Instant expectedValue = new Instant(randomLong());
+        int docId = randomInt();
+        SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
+        when(dv.advanceExact(docId)).thenReturn(true);
+        when(dv.docValueCount()).thenReturn(1);
+        when(dv.nextValue()).thenReturn(expectedValue.getMillis());
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            DateFieldMapper.relocateFromDocValues("date", format, dv, docId, builder);
+            builder.endObject();
+            try (XContentParser parser = createParser(builder)) {
+                assertEquals(singletonMap("date", format.print(expectedValue)), parser.map());
+            }
+        }
+    }
+
+    public void testRelocateFromDocValuesMultipleValues() throws IOException {
+        int docId = randomInt();
+        SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
+        when(dv.advanceExact(docId)).thenReturn(true);
+        when(dv.docValueCount()).thenReturn(between(2, 1000));
+        expectThrows(IllegalStateException.class, () ->
+                DateFieldMapper.relocateFromDocValues("date", null, dv, docId, null));
     }
 }
