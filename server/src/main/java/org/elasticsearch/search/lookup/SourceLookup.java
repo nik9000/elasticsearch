@@ -110,7 +110,7 @@ public class SourceLookup implements Map {
     }
 
     public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-        if (this.context == null || this.context.reader() == context.reader() && this.docId == docId) {
+        if (this.context != null && this.context.reader() == context.reader() && this.docId == docId) {
             // if we are called with the same document, don't invalidate source
             return;
         }
