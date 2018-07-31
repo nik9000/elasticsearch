@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;

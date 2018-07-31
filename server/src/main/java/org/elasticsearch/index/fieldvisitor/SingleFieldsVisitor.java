@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 public class SingleFieldsVisitor extends FieldsVisitor {
     // TODO it'd be nice not to extend our (very big) FieldsVisitor

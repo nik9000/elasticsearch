@@ -579,7 +579,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo,
                                              Explicit<RelocateTo> relocateTo, String rules, String language, String country,
                                              String variant, String strength, String decomposition, String alternate, boolean caseLevel,
-                                             String caseFirst, boolean numeric, String variableTop, boolean hiraganaQuaternaryMode, Collator collator) {
+                                             String caseFirst, boolean numeric, String variableTop,
+                                             boolean hiraganaQuaternaryMode, Collator collator) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo, relocateTo);
         assert collator.isFrozen();
         this.rules = rules;
