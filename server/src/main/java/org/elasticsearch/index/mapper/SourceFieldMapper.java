@@ -243,8 +243,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 filteredSource = relocatedFilter == null ? filteredSource : relocatedFilter.apply(filteredSource);
                 filteredSource = filter == null ? filteredSource : filter.apply(filteredSource);
 
-                // TODO investigate not writing anything when the result is empty
                 // TODO it feels like it'd be more efficient to filter XContent then objects....
+
+                if (filteredSource.isEmpty()) {
+                    return;
+                }
 
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 XContentType contentType = mapTuple.v1();

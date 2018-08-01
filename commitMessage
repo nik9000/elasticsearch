@@ -1,0 +1,56 @@
+Add mapping option to remove fields from source
+
+This adds the `relocate_to` mapping option which will cause elasticsearch to
+remove the field from the `_source` before it is saved and add it back to
+`_source` when it is loaded. This saves disk space by shrinking or removing
+entirely the `_source` that is saved to stored fields. On a fairly simple
+http access log style index that I stole from rally's test data this cut
+the index size by about 20%. I've run some experiments that make me think I
+can build on this PR to cut the size of the index for these particular
+document by another 20%. I expect the 40% index size reduction that I'm
+seeing is only possible with fairly simple indices with simple analysis
+configurations. But it is still exciting!
+
+At this point the only valid values for `relocate_to` are `none` which
+represents the behavior of Elasticsearch before this commit and `doc_values`
+which causes Elasticsearch to remove the field from `_source` before it is
+saved. When the document is loaded Elasticsearch will load the field's value
+from doc values and add it back to the `_source`.
+
+There are whole bunch of times when you can't use this feature, all of which
+will result in an error sent back to the user:
+* Fields inside of objects can't be rebuilt correctly so they can't declare
+`relocate_to` at all. If they do then the mapping update will return an error.
+* Fields without `doc_values` enabled can't be relocated to doc values so
+any mapping update that would create a field like that will fail.
+* `relocate_to` can't be changed from `doc_values` to `none` because
+Elasticsearch wouldn't be able to rebuild the `_source` field documents
+indexed when `relocate_to` was `doc_values`. Any mapping update that makes
+this change will fail.
+* Not all field types support relocation. In some case this is because we just
+haven't written the code for them yet. In other cases this is because no such
+code is possible. Either way, attempting to configure relocation on these
+fields will fail to update the mapping.
+* If a field is configured to be relocated but is sent to Elasticsearch as a
+list then Elasticsearch will reject the document. This is because doc values
+just stores all of the values so, when Elasticsearch is reconstructing the
+`_source, it can't tell if the value was a bare single element or a single
+element list. Additionally, most doc values implementations sort the values
+so we'd lose the original order of the list. So, for simplicity, we only
+support `relocate_to` for single valued fields.
+
+
+There are some caveats to this feature as well:
+* Dates will always come back in their configured format regardless of what
+format they had in the original `_source`.
+* IP address will always come back normalized regardless of how they were
+originally sent.
+* Numbers will always come back as numbers, even if they were strings in the
+original source.
+* Numbers may lose precision if we lost precision storing them in doc values.
+
+None of the caveats above happen when the `_update` API reads from the
+translog which it only does when updating a document that hasn't been
+refreshed. In this case you would get back the original source. That means
+that folks will have to be *very* careful with these fields in the `_update`
+API.

@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,7 +42,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 
 public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -221,38 +225,58 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testRelocatedFields() throws IOException {
+    public void testRelocatedFieldsBasic() throws IOException {
+        Map<String, Object> source = relocatedFieldTestCase(
+                XContentFactory.jsonBuilder().startObject()
+                    .field("moved_int", 1)
+                    .field("kept_int", 2)
+                .endObject());
+        assertEquals(singletonMap("kept_int", 2), source);
+    }
+
+    public void testRelocatedFieldsAllRemoved() throws IOException {
+        Map<String, Object> source = relocatedFieldTestCase(
+                XContentFactory.jsonBuilder().startObject()
+                    .field("moved_int", 1)
+                .endObject());
+        assertNull(source);
+    }
+
+    /**
+     * Build a mapping with relocated fields, build the stored field for the
+     * provided {@code _source} with that mapping, and return a {@link Map}
+     * parsed from the contents of the stored field or {@code null} if the
+     * {@code _source} wasn't stored.
+     */
+    private Map<String, Object> relocatedFieldTestCase(XContentBuilder source) throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
-                .startObject("type")
-                    .startObject("properties")
-                        .startObject("moved")
-                            .field("type", "integer")
-                            .field("relocate_to", "doc_values")
-                        .endObject()
-                        .startObject("kept")
-                            .field("type", "integer")
-                            .field("relocate_to", "none")
+                .startObject()
+                    .startObject("type")
+                        .startObject("properties")
+                            .startObject("moved_int")
+                                .field("type", "integer")
+                                .field("relocate_to", "doc_values")
+                            .endObject()
+                            .startObject("kept_int")
+                                .field("type", "integer")
+                                .field("relocate_to", "none")
+                            .endObject()
                         .endObject()
                     .endObject()
-                .endObject()
-            .endObject());
+                .endObject());
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser()
                 .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-            .startObject()
-                .field("moved", 1)
-                .field("kept", 2)
-            .endObject()), XContentType.JSON));
+        ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1",
+                BytesReference.bytes(source), source.contentType()));
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
-        Map<String, Object> sourceAsMap;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
-            sourceAsMap = parser.map();
+        if (sourceField == null) {
+            return null;
         }
-        assertThat(sourceAsMap, not(hasKey("moved")));
-        assertThat(sourceAsMap, hasEntry("kept", 2));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+            return parser.map();
+        }
     }
 }

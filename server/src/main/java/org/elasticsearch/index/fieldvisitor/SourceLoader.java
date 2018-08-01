@@ -93,7 +93,7 @@ public class SourceLoader {
     }
 
     /**
-     * The actual source.
+     * The synthesized source.
      */
     public BytesReference source() {
         return source;
