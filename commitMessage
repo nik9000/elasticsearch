@@ -38,6 +38,9 @@ just stores all of the values so, when Elasticsearch is reconstructing the
 element list. Additionally, most doc values implementations sort the values
 so we'd lose the original order of the list. So, for simplicity, we only
 support `relocate_to` for single valued fields.
+* Numeric fields cannot set both `relocate_to` to `doc_values` and
+`ignore_malformed` to `true` because malformed numbers wouldn't be saved in
+doc values and would vanish.
 
 
 There are some caveats to this feature as well:

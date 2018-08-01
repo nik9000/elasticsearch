@@ -1071,6 +1071,11 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public SourceRelocationHandler relocateToDocValuesHandler() {
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException("[" + name() + "] sets [relocate_to] to [doc_values] "
+                    + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
+                    + "malformed numbers to vanish");
+        }
         return new SourceRelocationHandler() {
             @Override
             public void resynthesize(LeafReaderContext context, int docId,

@@ -461,6 +461,87 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         }
     }
 
+
+    public void testInvalidRelocateTo() throws IOException {
+        String invalidRelocateTo = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+                .startObject("some_number")
+                    .field("type", randomFrom("integer", "long", "float", "double"))
+                    .field("relocate_to", "cats!")
+                .endObject()
+            .endObject().endObject().endObject());
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(invalidRelocateTo),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals(
+            "[relocate_to] must be one of [doc_values, none]",
+            e.getCause().getMessage());
+    }
+
+    public void testRelocateToInsideMultifield() throws IOException {
+        String nestedRelocateTo = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+                .startObject("something")
+                    .field("type", "text")
+                    .startObject("fields")
+                        .startObject("number")
+                            .field("type", randomFrom("integer", "long", "float", "double"))
+                            .field("relocate_to", "doc_values")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().endObject().endObject());
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(nestedRelocateTo),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals(
+            "[something.number] sets [relocate_to] but that is not supported inside multifields",
+            e.getCause().getMessage());
+    }
+
+    public void testRelocateToDocValuesWithoutDocValues() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("_doc")
+                        .startObject("properties")
+                           .startObject("number")
+                                .field("type", randomFrom("integer", "long", "float", "double"))
+                                .field("relocate_to", "doc_values")
+                                .field("doc_values", false)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject());
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping [_doc]: [number] sets [relocate_to] to "
+                + "[doc_values] which requires doc_values to be enabled", e.getMessage());
+    }
+
+    public void testRelocateToDocValuesWithIgnoreMalformed() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("_doc")
+                        .startObject("properties")
+                           .startObject("number")
+                                .field("type", randomFrom("integer", "long", "float", "double"))
+                                .field("relocate_to", "doc_values")
+                                .field("ignore_malformed", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject());
+
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping [_doc]: [number] sets [relocate_to] to [doc_values] "
+                + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
+                + "malformed numbers to vanish", e.getMessage());
+    }
+
     public void testRelocateFromDocValuesNoDoubleValues() throws IOException {
         int docId = randomInt();
         SortedNumericDoubleValues dv = mock(SortedNumericDoubleValues.class);
