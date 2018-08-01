@@ -455,6 +455,45 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("mapper [date] of different type, current_type [date], merged_type [text]", e.getMessage());
     }
 
+    public void testInvalidRelocateTo() throws IOException {
+        String invalidRelocateTo = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+                .startObject("release_date")
+                    .field("type", "date")
+                    .field("format", "yyyy/MM/dd")
+                    .field("relocate_to", "cats!")
+                .endObject()
+            .endObject().endObject().endObject());
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(invalidRelocateTo),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals(
+            "[relocate_to] must be one of [doc_values, none]",
+            e.getCause().getMessage());
+    }
+
+    public void testRelocateToInsideMultifield() throws IOException {
+        String nestedRelocateTo = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+                .startObject("release_date")
+                    .field("type", "text")
+                    .startObject("fields")
+                        .startObject("date")
+                            .field("type", "date")
+                            .field("format", "yyyy/MM/dd")
+                            .field("relocate_to", "doc_values")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().endObject().endObject());
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(nestedRelocateTo),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals(
+            "[release_date.date] sets [relocate_to] but that is not supported inside multifields",
+            e.getCause().getMessage());
+    }
+
     public void testRelocateToDocValuesWithoutDocValues() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()

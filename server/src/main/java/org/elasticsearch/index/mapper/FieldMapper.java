@@ -700,16 +700,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Behavior to resynthesize the field into source if that is supported
-     * by this field or {@code null} if it is not.
+     * Returns an object capable of rebuilding the {@code _source} for this
+     * field if relocation has been requested, {@code null} if relocation
+     * hasn't been requested, or throws throws an exception if source
+     * relocation has been requested for this field but it isn't supported.
      */
     public final SourceRelocationHandler sourceRelocationHandler(int depth) {
+        // We don't support relocate_to in multi fields. yet.
+        for (Mapper multiField : this) {
+            if (false == multiField instanceof FieldMapper) continue;
+            FieldMapper mfm = (FieldMapper) multiField;
+            if (mfm.relocateTo.value() != RelocateTo.NONE) {
+                throw new IllegalArgumentException("[" + mfm.name() + "] sets [relocate_to] but that is not supported inside multifields");
+            }
+        }
+
         RelocateTo val = relocateTo.value();
         if (RelocateTo.NONE == val) {
             return null;
         }
         if (depth > 0) {
-            throw new IllegalArgumentException("[" + name() + "] sets [relocate_to] but it is only supported for top level objects");
+            throw new IllegalArgumentException("[" + name() + "] sets [relocate_to] but that is only supported for top level objects");
         }
         switch (val) {
         case DOC_VALUES:

@@ -56,9 +56,10 @@ public enum RelocateTo {
     }
 
     static RelocateTo fromString(String s) {
+        System.err.println("relocate to from " + s);
         RelocateTo value = STRING_TO_VALUE.get(s);
-        if (s == null) {
-            throw new MapperParsingException("[relocate_to] must be one of " + STRING_TO_VALUE.keySet());
+        if (value == null) {
+            throw new IllegalArgumentException("[relocate_to] must be one of " + STRING_TO_VALUE.keySet());
         }
         return value;
     }
