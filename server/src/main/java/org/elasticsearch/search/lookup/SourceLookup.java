@@ -46,7 +46,7 @@ public class SourceLookup implements Map {
     private final MapperService mapperService;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
 
-    private LeafReaderContext context;  // NOCOMMIT revert to reader
+    private LeafReaderContext context;
 
     private int docId = -1;
 
