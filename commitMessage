@@ -8,8 +8,8 @@ http access log style index that I stole from rally's test data this cut
 the index size by about 20%. I've run some experiments that make me think I
 can build on this PR to cut the size of the index for these particular
 document by another 20%. I expect the 40% index size reduction that I'm
-seeing is only possible with fairly simple indices with simple analysis
-configurations. But it is still exciting!
+seeing is about the best case scenario for this change. But I'm excited
+by it anyway!
 
 At this point the only valid values for `relocate_to` are `none` which
 represents the behavior of Elasticsearch before this commit and `doc_values`
@@ -42,8 +42,10 @@ support `relocate_to` for single valued fields.
 `ignore_malformed` to `true` because malformed numbers wouldn't be saved in
 doc values and would vanish.
 
-
 There are some caveats to this feature as well:
+* Explicit `null` values of relocated fields will be removed from the
+`_source` entirely. Unless they use `null_value`. In that case they'll come
+back as the configured `null_value`.
 * Dates will always come back in their configured format regardless of what
 format they had in the original `_source`.
 * IP address will always come back normalized regardless of how they were
@@ -57,3 +59,36 @@ translog which it only does when updating a document that hasn't been
 refreshed. In this case you would get back the original source. That means
 that folks will have to be *very* careful with these fields in the `_update`
 API.
+
+This feature slows down indexing to about the same degree that configuring
+`includes` or `excludes` on the `_source` field does. I believe I can
+significantly improve this in a followup but I do want to for a followup
+because there is enough to this change already. I do think that this will
+be one of my first follow ups after this change because my understanding
+is that the folks who care about saving disk space also care a lot about
+indexing speed. But I'd really like to have some rally benchmarks that I
+I can point to to know for sure how much performance improbement I'm getting.
+
+This feature also slows down loading the `_source` during the fetch phase
+but I expect this is in most cases less important than the slow down at
+index time. The slow down is probably greater, but my understanding is that
+folks that care the most about saving disk space do mostly aggregations which
+should be unaffected by this change. Still, there is a fair bit that I can
+do to improve the fetch phase speed when this feature is enabled. I just
+want to wait on it until I can get the some benchmarks showing just *how*
+slow this is. Saving space on disk means that less data has to be loaded
+from disk which sounds great for performance but instead of all of the data
+to load being stored together it is scattered into doc values which in
+organized per field. My intuition is that the performance characteristics
+of this feature are complicated.
+
+I am 99% sure that this change has no performance impact if the feature isn't
+enabled.
+
+This change only adds this feature to numeric, date, and ip fields. I limited
+the number of fields to keep the PR from getting even bigger than it already
+is. I chose those particular fields because the test data that I was using
+was some http access logs from during the world cup. They had four sorts of
+fields: numberic, date, ip, and keyword. I've experimented with `keyword`
+fields and that is how I got the 40% disk size reduction, but the rules are
+fairly complicated so I want to save implementing them for a follow up change.

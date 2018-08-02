@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -227,18 +228,49 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testRelocatedFieldsBasic() throws IOException {
         Map<String, Object> source = relocatedFieldTestCase(
-                XContentFactory.jsonBuilder().startObject()
-                    .field("moved_int", 1)
-                    .field("kept_int", 2)
-                .endObject());
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                        .field("moved_int", 1)
+                        .field("kept_int", 2)
+                    .endObject(),
+                m -> m.startObject("moved_int")
+                        .field("type", "integer")
+                        .field("relocate_to", "doc_values")
+                    .endObject()
+                    .startObject("kept_int")
+                        .field("type", "integer")
+                        .field("relocate_to", "none")
+                    .endObject());
         assertEquals(singletonMap("kept_int", 2), source);
     }
 
     public void testRelocatedFieldsAllRemoved() throws IOException {
         Map<String, Object> source = relocatedFieldTestCase(
-                XContentFactory.jsonBuilder().startObject()
-                    .field("moved_int", 1)
-                .endObject());
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                        .field("moved_int", 1)
+                    .endObject(),
+                m -> m.startObject("moved_int")
+                        .field("type", "integer")
+                        .field("relocate_to", "doc_values")
+                    .endObject()
+                    .startObject("kept_int")
+                        .field("type", "integer")
+                        .field("relocate_to", "none")
+                    .endObject());
+        assertNull(source);
+    }
+
+    public void testRelocatedFieldsNullIsRemovedIfNoNullValueConfigured() throws IOException {
+        Map<String, Object> source = relocatedFieldTestCase(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                        .nullField("i")
+                    .endObject(),
+                m -> m.startObject("i")
+                        .field("type", "integer")
+                        .field("relocate_to", "doc_values")
+                    .endObject());
         assertNull(source);
     }
 
@@ -248,25 +280,23 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
      * parsed from the contents of the stored field or {@code null} if the
      * {@code _source} wasn't stored.
      */
-    private Map<String, Object> relocatedFieldTestCase(XContentBuilder source) throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("type")
-                        .startObject("properties")
-                            .startObject("moved_int")
-                                .field("type", "integer")
-                                .field("relocate_to", "doc_values")
-                            .endObject()
-                            .startObject("kept_int")
-                                .field("type", "integer")
-                                .field("relocate_to", "none")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
+    private Map<String, Object> relocatedFieldTestCase(XContentBuilder source,
+                CheckedConsumer<XContentBuilder, IOException> fieldMappings) throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("type");
+            {
+                mapping.startObject("properties");
+                fieldMappings.accept(mapping);
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
 
         DocumentMapper documentMapper = createIndex("test").mapperService().documentMapperParser()
-                .parse("type", new CompressedXContent(mapping));
+                .parse("type", new CompressedXContent(Strings.toString(mapping)));
 
         ParsedDocument doc = documentMapper.parse(SourceToParse.source("test", "type", "1",
                 BytesReference.bytes(source), source.contentType()));

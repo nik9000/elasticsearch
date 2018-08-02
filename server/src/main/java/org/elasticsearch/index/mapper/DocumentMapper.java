@@ -197,6 +197,7 @@ public class DocumentMapper implements ToXContentFragment {
              */
             Map<String, Object> filtered = new HashMap<>(map.size());
             for (Map.Entry<String, ?> e : map.entrySet()) {
+                System.err.println("k: " + e.getKey() + " v: " + e.getValue() + " " + (e.getValue() instanceof List));
                 if (false == sourceRelocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
                     filtered.put(e.getKey(), e.getValue());
                 }
