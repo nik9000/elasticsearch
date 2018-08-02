@@ -195,7 +195,7 @@ public class DocumentMapper implements ToXContentFragment {
              * We don't know how to relocate fields inside objects or
              * multi valued fields.
              */
-            Map<String, Object> filtered = new HashMap<>();
+            Map<String, Object> filtered = new HashMap<>(map.size());
             for (Map.Entry<String, ?> e : map.entrySet()) {
                 if (false == sourceRelocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
                     filtered.put(e.getKey(), e.getValue());

@@ -243,7 +243,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 filteredSource = relocatedFilter == null ? filteredSource : relocatedFilter.apply(filteredSource);
                 filteredSource = filter == null ? filteredSource : filter.apply(filteredSource);
 
-                // TODO it feels like it'd be more efficient to filter XContent then objects....
+                // TODO it feels like it'd be more efficient to filter XContent than objects....
 
                 if (filteredSource.isEmpty()) {
                     return;
