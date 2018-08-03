@@ -258,11 +258,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     private SourceLoader buildSourceLoader(Engine.GetResult get) {
+        DocumentMapper docMapper = mapperService.documentMapper();
         if (get.docIdAndVersion().context == null) {
             // TODO this is fairly lame to have to check
-            return SourceLoader.forReadingFromTranslog();
+            return SourceLoader.forReadingFromTranslog(docMapper.translogSourceNormalizingFilter());
         }
-        DocumentMapper docMapper = mapperService.documentMapper();
         Map<String, FieldMapper.SourceRelocationHandler> relocationHandlers =
                 docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
         return new SourceLoader(relocationHandlers, fieldDataLookup);

@@ -23,11 +23,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -49,8 +51,12 @@ import static java.util.Collections.emptyMap;
 public class SourceLoader {
     private static final Logger logger = LogManager.getLogger(SourceLoader.class);
 
-    public static SourceLoader forReadingFromTranslog() {
-        return new SourceLoader(emptyMap(), null);
+    public static SourceLoader forReadingFromTranslog(
+            Function<Map<String, ?>, Map<String, Object>> filter) {
+        if (filter == null) {
+            return new SourceLoader(emptyMap(), null);
+        }
+        return new TranslogNormalizingSourceLoader(filter);
     }
 
     private final Map<String, SourceRelocationHandler> relocationHandlers;
@@ -62,12 +68,13 @@ public class SourceLoader {
             Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         this.relocationHandlers = relocationHandlers;
         this.fieldDataLookup = fieldDataLookup;
+        // NOCOMMIT make class abstract with private and factory methods
     }
 
     /**
      * Called by {@link FieldsVisitor} when it moves to the next document.
      */
-    void reset() {
+    final void reset() {
         loadedSource = null;
         source = null;
     }
@@ -76,20 +83,23 @@ public class SourceLoader {
      * Called by {@link FieldsVisitor} when it loads the stored field portion
      * of the {@code _source}.
      */
-    void setLoadedSource(BytesReference loadedSource) {
+    final void setLoadedSource(BytesReference loadedSource) {
         this.loadedSource = loadedSource;
     }
 
     /**
      * Loads the remainder of the source from doc values.
      */
-    public void load(LeafReaderContext context, int docId) throws IOException {
+    public final void load(LeafReaderContext context, int docId) throws IOException {
+        source = innerLoad(loadedSource, context, docId);
+    }
+
+    protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
         if (relocationHandlers.isEmpty()) {
             // Loading source from doc values is disabled
-            source = loadedSource;
-        } else {
-            source = synthesizeSource(loadedSource, context, docId);
+            return loadedSource;
         }
+        return synthesizeSource(loadedSource, context, docId);
     }
 
     /**
@@ -138,4 +148,28 @@ public class SourceLoader {
         return BytesReference.bytes(recreationBuilder);
     }
 
+    /**
+     * {@linkplain SourceLoader} for loading the source from the translog and
+     * rebuilding relocated fields as though they were loaded from doc values.
+     */
+    private static class TranslogNormalizingSourceLoader extends SourceLoader {
+        private final Function<Map<String, ?>, Map<String, Object>> filter;
+
+        private TranslogNormalizingSourceLoader(Function<Map<String, ?>, Map<String, Object>> filter) {
+            super(emptyMap(), null);
+            this.filter = filter;
+        }
+
+        @Override
+        protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
+            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(loadedSource, false);
+            Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
+
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            XContentType contentType = mapTuple.v1();
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
+            builder.close();
+            return bStream.bytes();
+        }
+    }
 }

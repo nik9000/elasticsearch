@@ -693,10 +693,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    // NOCOMMIT javadoc
+    // NOCOMMIT rename to line up with the name shane comes up with
     public interface SourceRelocationHandler {
         void resynthesize(LeafReaderContext context, int docId,
                 Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                 XContentBuilder builder) throws IOException;
+        Object asThoughRelocated(Object sourceValue);
     }
 
     /**

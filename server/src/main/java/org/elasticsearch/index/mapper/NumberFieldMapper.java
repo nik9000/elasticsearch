@@ -1089,6 +1089,14 @@ public class NumberFieldMapper extends FieldMapper {
                     relocateFromDocValues(name(), ifd.getLongValues(), docId, builder);
                 }
             }
+
+            @Override
+            public Object asThoughRelocated(Object sourceValue) {
+                if (sourceValue == null) {
+                    return fieldType().nullValue();
+                }
+                return fieldType().type.parse(sourceValue, coerce.value());
+            }
         };
     }
 

@@ -25,6 +25,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
@@ -60,6 +61,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
@@ -504,11 +506,26 @@ public class DateFieldMapper extends FieldMapper {
     @Override
     public SourceRelocationHandler relocateToDocValuesHandler() {
         assert fieldType().hasDocValues();
-        return (context, docId, fieldDataLookup, builder) -> {
+        return new SourceRelocationHandler() {
+            @Override
+            public void resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                    XContentBuilder builder) throws IOException {
                 IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
                 AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
                 relocateFromDocValues(name(), fieldType().dateTimeFormatter().printer(), ifd.getLongValues(), docId, builder);
-            };
+            }
+
+            @Override
+            public Object asThoughRelocated(Object sourceValue) {
+                if (sourceValue == null) {
+                    return fieldType().nullValueAsString();
+                }
+                // Convert whatever the _source object is into a string with the appropriate format
+                long timestamp = fieldType().parse(sourceValue.toString());
+                return fieldType().dateTimeFormatter().printer().print(timestamp);
+            }
+        };
     }
 
     static void relocateFromDocValues(String name, DateTimeFormatter printer, SortedNumericDocValues dv,

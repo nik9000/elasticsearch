@@ -141,6 +141,8 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final Function<Map<String, ?>, Map<String, Object>> relocatedFilter;
 
+    private final Function<Map<String, ?>, Map<String, Object>> translogSourceNormalizingFilter;
+
     private final Map<String, SourceRelocationHandler> sourceRelocationHandlers;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
@@ -197,12 +199,28 @@ public class DocumentMapper implements ToXContentFragment {
              */
             Map<String, Object> filtered = new HashMap<>(map.size());
             for (Map.Entry<String, ?> e : map.entrySet()) {
-                System.err.println("k: " + e.getKey() + " v: " + e.getValue() + " " + (e.getValue() instanceof List));
                 if (false == sourceRelocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
                     filtered.put(e.getKey(), e.getValue());
                 }
             }
             return filtered;
+        };
+        translogSourceNormalizingFilter = sourceRelocationHandlers.isEmpty() ? null : map -> {
+            /*
+             * Replace fields that we know how to relocate with the values
+             * that we'd get from relocating them.
+             */
+            Map<String, Object> filtered = new HashMap<>(map.size());
+            for (Map.Entry<String, ?> e : map.entrySet()) {
+                SourceRelocationHandler handler = sourceRelocationHandlers.get(e.getKey());
+                if (null == handler || e.getValue() instanceof List) {
+                    filtered.put(e.getKey(), e.getValue());
+                } else {
+                    filtered.put(e.getKey(), handler.asThoughRelocated(e.getValue()));
+                }
+            }
+            return filtered;
+
         };
         this.sourceRelocationHandlers = unmodifiableMap(sourceRelocationHandlers);
 
@@ -368,6 +386,10 @@ public class DocumentMapper implements ToXContentFragment {
 
     public Function<Map<String, ?>, Map<String, Object>> relocatedFilter() {
         return relocatedFilter;
+    }
+
+    public Function<Map<String, ?>, Map<String, Object>> translogSourceNormalizingFilter() {
+        return translogSourceNormalizingFilter;
     }
 
     public Map<String, SourceRelocationHandler> sourceRelocationHandlers() {

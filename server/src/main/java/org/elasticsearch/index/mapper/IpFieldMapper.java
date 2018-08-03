@@ -433,6 +433,19 @@ public class IpFieldMapper extends FieldMapper {
                 AtomicFieldData ifd = fieldData.load(context);
                 relocateFromDocValues(name(), ifd.getBytesValues(), docId, builder);
             }
+
+            @Override
+            public Object asThoughRelocated(Object sourceValue) {
+                if (sourceValue == null) {
+                    return fieldType().nullValueAsString();
+                }
+                /*
+                 * To mimick loading from doc values we round trip the string.
+                 * We can be sure it is a string because xcontent only produces
+                 * Strings.
+                 */
+                return InetAddresses.toAddrString(InetAddresses.forString(sourceValue.toString()));
+            }
         };
     }
 
