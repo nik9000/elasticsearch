@@ -436,15 +436,22 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public Object asThoughRelocated(Object sourceValue) {
-                if (sourceValue == null) {
-                    return fieldType().nullValueAsString();
-                }
                 /*
                  * To mimick loading from doc values we round trip the string.
                  * We can be sure it is a string because xcontent only produces
-                 * Strings.
+                 * strings.
                  */
-                return InetAddresses.toAddrString(InetAddresses.forString(sourceValue.toString()));
+                InetAddress address;
+                if (sourceValue == null) {
+                    // fieldType().nullValueAsString() isn't properly formatted so we don't use it
+                    address = (InetAddress) fieldType().nullValue();
+                    if (address == null) {
+                        return null;
+                    }
+                } else {
+                    address = InetAddresses.forString(sourceValue.toString());
+                }
+                return InetAddresses.toAddrString(address);
             }
         };
     }

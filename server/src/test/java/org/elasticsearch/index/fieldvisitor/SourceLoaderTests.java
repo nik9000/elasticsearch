@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -120,11 +121,22 @@ public class SourceLoaderTests extends ESTestCase {
         final Function<MappedFieldType, IndexFieldData<?>> mockFieldDataLookup = m -> null;
         Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>(simpleRelocationHandlers.size());
         for (Map.Entry<String, CheckedConsumer<XContentBuilder, IOException>> e : simpleRelocationHandlers.entrySet()) {
-            relocationHandlers.put(e.getKey(), (context, docId, fieldDataLookup, builder) -> {
-                assertNull(context);
-                assertEquals(mockDocId, docId);
-                assertSame(mockFieldDataLookup, fieldDataLookup);
-                e.getValue().accept(builder);
+            relocationHandlers.put(e.getKey(), new SourceRelocationHandler() {
+                @Override
+                public void resynthesize(LeafReaderContext context, int docId,
+                        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                        XContentBuilder builder) throws IOException {
+                    assertNull(context);
+                    assertEquals(mockDocId, docId);
+                    assertSame(mockFieldDataLookup, fieldDataLookup);
+                    e.getValue().accept(builder);
+                }
+
+                @Override
+                public Object asThoughRelocated(Object sourceValue) {
+                    // NOCOMMIT abstract SourceRelocationHandler from SourceLoader.
+                    throw new UnsupportedOperationException();
+                }
             });
         }
         SourceLoader loader = new SourceLoader(unmodifiableMap(relocationHandlers), mockFieldDataLookup);

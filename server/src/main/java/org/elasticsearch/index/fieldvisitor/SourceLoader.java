@@ -68,7 +68,7 @@ public class SourceLoader {
             Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
         this.relocationHandlers = relocationHandlers;
         this.fieldDataLookup = fieldDataLookup;
-        // NOCOMMIT make class abstract with private and factory methods
+        // NOCOMMIT make class abstract with private ctor and factory methods
     }
 
     /**

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -40,6 +41,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -500,46 +502,93 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testRelocateToDocValuesWithoutDocValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("_doc")
-                        .startObject("properties")
-                           .startObject("number")
-                                .field("type", randomFrom("integer", "long", "float", "double"))
-                                .field("relocate_to", "doc_values")
-                                .field("doc_values", false)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-
         Exception e = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+            () -> indexService.mapperService().merge(
+                "_doc",
+                relocateToDocValueMapping(randomFrom("integer", "long", "float", "double"), b -> b.field("doc_values", false)),
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals("Failed to parse mapping [_doc]: [number] sets [relocate_to] to "
                 + "[doc_values] which requires doc_values to be enabled", e.getMessage());
     }
 
     public void testRelocateToDocValuesWithIgnoreMalformed() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("_doc")
-                        .startObject("properties")
-                           .startObject("number")
-                                .field("type", randomFrom("integer", "long", "float", "double"))
-                                .field("relocate_to", "doc_values")
-                                .field("ignore_malformed", true)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-
         Exception e = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+            () -> indexService.mapperService().merge(
+                "_doc",
+                relocateToDocValueMapping(randomFrom("integer", "long", "float", "double"), b -> b.field("ignore_malformed", true)),
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals("Failed to parse mapping [_doc]: [number] sets [relocate_to] to [doc_values] "
                 + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
                 + "malformed numbers to vanish", e.getMessage());
+    }
+
+    public void testAsThoughRelocatedLong() throws IOException {
+        long expected = randomLong();
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> {}));
+        assertEquals(singletonMap("number", expected),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", expected)));
+        assertEquals(emptyMap(),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", null)));
+    }
+
+    public void testAsThoughRelocatedLongRounding() throws IOException {
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> {}));
+        assertEquals(singletonMap("number", 0L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", .1)));
+        assertEquals(singletonMap("number", 0L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", -.1)));
+        assertEquals(singletonMap("number", 12L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", 12.1)));
+        assertEquals(singletonMap("number", 12L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", 12.9)));
+        assertEquals(singletonMap("number", -12L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", -12.1)));
+        assertEquals(singletonMap("number", -12L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", -12.9)));
+    }
+
+    public void testAsThoughRelocatedDouble() throws IOException {
+        double expected = randomDouble();
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("double", b -> {}));
+        assertEquals(singletonMap("number", expected),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", expected)));
+        assertEquals(emptyMap(),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", null)));
+    }
+
+    public void testAsThoughRelocatedNullValue() throws IOException {
+        long expected = randomLong();
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b ->
+                b.field("null_value", 123)));
+        assertEquals(singletonMap("number", expected),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", expected)));
+        assertEquals(singletonMap("number", 123L),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", null)));
+    }
+
+    private CompressedXContent relocateToDocValueMapping(String type,
+            CheckedConsumer<XContentBuilder, IOException> extraFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("_doc");
+            {
+                builder.startObject("properties");
+                {
+                    builder.startObject("number");
+                    {
+                        builder.field("type", type);
+                        builder.field("relocate_to", "doc_values");
+                        extraFields.accept(builder);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     public void testRelocateFromDocValuesNoDoubleValues() throws IOException {

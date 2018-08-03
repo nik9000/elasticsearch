@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -495,24 +496,69 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testRelocateToDocValuesWithoutDocValues() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                    .startObject("_doc")
-                        .startObject("properties")
-                           .startObject("date")
-                                .field("type", "date")
-                                .field("relocate_to", "doc_values")
-                                .field("doc_values", false)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject());
-
         Exception e = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("_doc", new CompressedXContent(mapping),
+            () -> indexService.mapperService().merge("_doc", relocateToDocValueMapping(b -> b.field("doc_values", false)),
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to "
                 + "[doc_values] which requires doc_values to be enabled", e.getMessage());
+    }
+
+    public void testAsThoughRelocated() throws IOException {
+        DateTimeFormatter format = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> {}));
+        Instant instant = new Instant(randomInt());
+        assertEquals(singletonMap("date", format.print(instant)),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", instant.getMillis())));
+        assertEquals(singletonMap("date", format.print(instant)),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
+        assertEquals(emptyMap(),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", null)));
+    }
+
+    public void testAsThoughRelocatedNullValue() throws IOException {
+        DateTimeFormatter format = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> b.field("null_value", 0)));
+        Instant instant = new Instant(randomInt());
+        assertEquals(singletonMap("date", format.print(instant)),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", instant.getMillis())));
+        assertEquals(singletonMap("date", format.print(instant)),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
+        assertEquals(singletonMap("date", "1970-01-01T00:00:00.000Z"),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", null)));
+    }
+
+    public void testAsThoughRelocatedWithFormat() throws IOException {
+        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy/MM/dd");
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> b.field("format", "yyyy/MM/dd")));
+        Instant instant = new Instant(randomInt());
+        assertEquals(singletonMap("date", format.print(instant)),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
+        assertEquals(emptyMap(),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", null)));
+    }
+
+    private CompressedXContent relocateToDocValueMapping(CheckedConsumer<XContentBuilder, IOException> extraFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("_doc");
+            {
+                builder.startObject("properties");
+                {
+                    builder.startObject("date");
+                    {
+                        builder.field("type", "date");
+                        builder.field("relocate_to", "doc_values");
+                        extraFields.accept(builder);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     public void testRelocateFromDocValuesNoValues() throws IOException {
@@ -526,18 +572,18 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testRelocateFromDocValuesSingleValue() throws IOException {
         DateTimeFormatter format = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
-        Instant expectedValue = new Instant(randomLong());
+        Instant instant = new Instant(randomLong());
         int docId = randomInt();
         SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
         when(dv.advanceExact(docId)).thenReturn(true);
         when(dv.docValueCount()).thenReturn(1);
-        when(dv.nextValue()).thenReturn(expectedValue.getMillis());
+        when(dv.nextValue()).thenReturn(instant.getMillis());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             DateFieldMapper.relocateFromDocValues("date", format, dv, docId, builder);
             builder.endObject();
             try (XContentParser parser = createParser(builder)) {
-                assertEquals(singletonMap("date", format.print(expectedValue)), parser.map());
+                assertEquals(singletonMap("date", format.print(instant)), parser.map());
             }
         }
     }

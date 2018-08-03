@@ -518,12 +518,17 @@ public class DateFieldMapper extends FieldMapper {
 
             @Override
             public Object asThoughRelocated(Object sourceValue) {
-                if (sourceValue == null) {
-                    return fieldType().nullValueAsString();
-                }
                 // Convert whatever the _source object is into a string with the appropriate format
-                long timestamp = fieldType().parse(sourceValue.toString());
-                return fieldType().dateTimeFormatter().printer().print(timestamp);
+                String str;
+                if (sourceValue == null) {
+                    str = fieldType().nullValueAsString();
+                    if (str == null) {
+                        return null;
+                    }
+                } else {
+                    str = sourceValue.toString();
+                }
+                return fieldType().dateTimeFormatter().printer().print(fieldType().parse(str));
             }
         };
     }

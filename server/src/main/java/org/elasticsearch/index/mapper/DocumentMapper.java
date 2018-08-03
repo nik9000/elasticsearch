@@ -216,7 +216,10 @@ public class DocumentMapper implements ToXContentFragment {
                 if (null == handler || e.getValue() instanceof List) {
                     filtered.put(e.getKey(), e.getValue());
                 } else {
-                    filtered.put(e.getKey(), handler.asThoughRelocated(e.getValue()));
+                    Object asThoughRelocated = handler.asThoughRelocated(e.getValue());
+                    if (asThoughRelocated != null) {
+                        filtered.put(e.getKey(), asThoughRelocated);
+                    }
                 }
             }
             return filtered;

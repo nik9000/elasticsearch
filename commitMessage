@@ -1,6 +1,7 @@
 TODO
 
-Round trip on load from doc values
+
+Half float?
 Abstract per mapper test superclass for round tripping
 Lists still bad?
 Talk to Zack, Clint, and Shane again

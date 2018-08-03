@@ -23,6 +23,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -283,6 +285,49 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testAsThoughRelocated() throws IOException {
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> {}));
+        assertEquals(singletonMap("ip", "192.168.0.1"),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", "192.168.0.1")));
+        assertEquals(singletonMap("ip", "::1"),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", "::1")));
+        assertEquals(emptyMap(),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", null)));
+    }
+
+    public void testAsThoughRelocatedNullValue() throws IOException {
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b ->
+                b.field("null_value", "0000:0000:0000:0000:0000:0000:0000:0001")));
+        assertEquals(singletonMap("ip", "192.168.0.1"),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", "192.168.0.1")));
+        assertEquals(singletonMap("ip", "::1"),
+                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", null)));
+    }
+
+    private CompressedXContent relocateToDocValueMapping(CheckedConsumer<XContentBuilder, IOException> extraFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("_doc");
+            {
+                builder.startObject("properties");
+                {
+                    builder.startObject("ip");
+                    {
+                        builder.field("type", "ip");
+                        builder.field("relocate_to", "doc_values");
+                        extraFields.accept(builder);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return new CompressedXContent(Strings.toString(builder));
     }
 
     public void testRelocateFromDocValuesNoValues() throws IOException {
