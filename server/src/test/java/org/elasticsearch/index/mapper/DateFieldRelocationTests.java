@@ -39,7 +39,7 @@ public class DateFieldRelocationTests extends AbstractFieldRelocationTestCase {
         if (randomBoolean()) {
             return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
         } else {
-            return Joda.forPattern("YYYY.MM.dd'T'HH:mm:ss:SSSZ||epoch_millis", Locale.ROOT);
+            return Joda.forPattern("yyyy.MM.dd'T'HH:mm:ss:SSSZ||epoch_millis", Locale.ROOT);
         }
     }
 
