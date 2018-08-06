@@ -132,7 +132,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     }
 
     private BytesReference fromIndex(DocumentMapper docMapper, IndexReader reader) throws IOException {
-        SourceLoader sourceLoader = new SourceLoader(docMapper.sourceRelocationHandlers(), indexService.fieldDataLookup());
+        SourceLoader sourceLoader = SourceLoader.forReadingFromIndex(docMapper.sourceRelocationHandlers(), indexService.fieldDataLookup());
         FieldsVisitor fieldVisitor = new FieldsVisitor(sourceLoader);
         reader.document(0, fieldVisitor);
         fieldVisitor.postProcess(indexService.mapperService());

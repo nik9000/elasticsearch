@@ -401,7 +401,7 @@ public class FetchPhase implements SearchPhase {
         DocumentMapper docMapper = searchContext.mapperService().documentMapper();
         Map<String, FieldMapper.SourceRelocationHandler> relocationHanlders =
                 docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
-        return new SourceLoader(relocationHanlders, searchContext::getForField);
+        return SourceLoader.forReadingFromIndex(relocationHanlders, searchContext::getForField);
     }
 
     private void loadStoredFieldsAndSource(SearchContext searchContext, LeafReaderContext readerContext, int docId,

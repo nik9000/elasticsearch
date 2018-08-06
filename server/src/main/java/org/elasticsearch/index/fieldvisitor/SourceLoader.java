@@ -48,33 +48,44 @@ import static java.util.Collections.emptyMap;
 /**
  * Loads {@code _source} from a Lucene index.
  */
-public class SourceLoader {
+public abstract class SourceLoader {
     private static final Logger logger = LogManager.getLogger(SourceLoader.class);
 
     public static SourceLoader forReadingFromTranslog(
             Function<Map<String, ?>, Map<String, Object>> filter) {
         if (filter == null) {
-            return new SourceLoader(emptyMap(), null);
+            return new PlainSourceLoader();
         }
         return new TranslogNormalizingSourceLoader(filter);
     }
 
-    private final Map<String, SourceRelocationHandler> relocationHandlers;
-    private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
+    public static SourceLoader forReadingFromIndex(
+            Map<String, SourceRelocationHandler> relocationHandlers,
+            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        if (relocationHandlers.isEmpty()) {
+            return new PlainSourceLoader();
+        }
+        return new IndexSourceLoader(relocationHandlers, fieldDataLookup);
+    }
+
     private BytesReference loadedSource;
     private BytesReference source;
 
-    public SourceLoader(Map<String, SourceRelocationHandler> relocationHandlers,
-            Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
-        this.relocationHandlers = relocationHandlers;
-        this.fieldDataLookup = fieldDataLookup;
-        // NOCOMMIT make class abstract with private ctor and factory methods
+    private SourceLoader() {
+        // The only allowed subclasses are declared in this file
     }
 
     /**
      * Called by {@link FieldsVisitor} when it moves to the next document.
      */
     final void reset() {
+        // TODO this should really be for a single document, not many.
+        /*
+         * We *do* want to load many documents, but the timing is different.
+         * Right now this only works if we do doc values at the same time
+         * as we do stored fields and it is *really* confusing when loading
+         * from the translog.
+         */
         loadedSource = null;
         source = null;
     }
@@ -94,13 +105,7 @@ public class SourceLoader {
         source = innerLoad(loadedSource, context, docId);
     }
 
-    protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
-        if (relocationHandlers.isEmpty()) {
-            // Loading source from doc values is disabled
-            return loadedSource;
-        }
-        return synthesizeSource(loadedSource, context, docId);
-    }
+    protected abstract BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException;
 
     /**
      * The synthesized source.
@@ -109,43 +114,14 @@ public class SourceLoader {
         return source;
     }
 
-    private BytesReference synthesizeSource(BytesReference original, LeafReaderContext context, int docId) throws IOException {
-        XContentBuilder recreationBuilder;
-        Map<String, SourceRelocationHandler> relocationHandlersToInvoke;
-        if (original == null) {
-            // TODO is json right here? probably not too wrong at least.
-            recreationBuilder = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput());
-            recreationBuilder.startObject();
-            relocationHandlersToInvoke = relocationHandlers;
-        } else {
-            relocationHandlersToInvoke = new HashMap<>(relocationHandlers);
-            try (XContentParser originalParser = XContentHelper.createParser(
-                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, original)) {
-                if (logger.isWarnEnabled()) {
-                    // TODO switch to trace
-                    if (originalParser.contentType() == XContentType.JSON) {
-                        logger.warn("enhancing loaded source [{}]", original.utf8ToString());
-                    }
-                }
-                recreationBuilder = new XContentBuilder(originalParser.contentType().xContent(), new BytesStreamOutput());
-                if (originalParser.nextToken() != Token.START_OBJECT) {
-                    throw new IllegalStateException("unexpected xcontent layout [" + originalParser.currentToken() + "]");
-                }
-                recreationBuilder.startObject();
-                Token token;
-                while ((token = originalParser.nextToken()) != Token.END_OBJECT) {
-                    assert token == Token.FIELD_NAME;
-                    relocationHandlersToInvoke.remove(originalParser.currentName());
-                    recreationBuilder.copyCurrentStructure(originalParser);
-                }
-            }
+    /**
+     * {@linkplain SourceLoader} for loading the without changing it at all.
+     */
+    private static class PlainSourceLoader extends SourceLoader {
+        @Override
+        protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
+            return loadedSource;
         }
-
-        for (SourceRelocationHandler handler : relocationHandlersToInvoke.values()) {
-            handler.resynthesize(context, docId, fieldDataLookup, recreationBuilder);
-        }
-        recreationBuilder.endObject();
-        return BytesReference.bytes(recreationBuilder);
     }
 
     /**
@@ -156,7 +132,6 @@ public class SourceLoader {
         private final Function<Map<String, ?>, Map<String, Object>> filter;
 
         private TranslogNormalizingSourceLoader(Function<Map<String, ?>, Map<String, Object>> filter) {
-            super(emptyMap(), null);
             this.filter = filter;
         }
 
@@ -173,6 +148,62 @@ public class SourceLoader {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
             builder.close();
             return bStream.bytes();
+        }
+    }
+
+    /**
+     * {@linkplain SourceLoader} for loading the source from the Lucene index
+     * and rebuilding relocated fields.
+     */
+    private static class IndexSourceLoader extends SourceLoader {
+        private final Map<String, SourceRelocationHandler> relocationHandlers;
+        private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
+
+        private IndexSourceLoader(
+                Map<String, SourceRelocationHandler> relocationHandlers,
+                Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+            this.relocationHandlers = relocationHandlers;
+            this.fieldDataLookup = fieldDataLookup;
+        }
+
+        @Override
+        protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
+            XContentBuilder recreationBuilder;
+            Map<String, SourceRelocationHandler> relocationHandlersToInvoke;
+            if (loadedSource == null) {
+                // NOCOMMIT is json right here? probably not too wrong at least.
+                recreationBuilder = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput());
+                recreationBuilder.startObject();
+                relocationHandlersToInvoke = relocationHandlers;
+            } else {
+                relocationHandlersToInvoke = new HashMap<>(relocationHandlers);
+                try (XContentParser loadedSourceParser = XContentHelper.createParser(
+                            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loadedSource)) {
+                    if (logger.isWarnEnabled()) {
+                        // NOCOMMIT remove me when we make source relocation required if configured
+                        if (loadedSourceParser.contentType() == XContentType.JSON) {
+                            logger.warn("enhancing loaded source [{}]", loadedSource.utf8ToString());
+                        }
+                    }
+                    recreationBuilder = new XContentBuilder(loadedSourceParser.contentType().xContent(), new BytesStreamOutput());
+                    if (loadedSourceParser.nextToken() != Token.START_OBJECT) {
+                        throw new IllegalStateException("unexpected xcontent layout [" + loadedSourceParser.currentToken() + "]");
+                    }
+                    recreationBuilder.startObject();
+                    Token token;
+                    while ((token = loadedSourceParser.nextToken()) != Token.END_OBJECT) {
+                        assert token == Token.FIELD_NAME;
+                        relocationHandlersToInvoke.remove(loadedSourceParser.currentName());
+                        recreationBuilder.copyCurrentStructure(loadedSourceParser);
+                    }
+                }
+            }
+
+            for (SourceRelocationHandler handler : relocationHandlersToInvoke.values()) {
+                handler.resynthesize(context, docId, fieldDataLookup, recreationBuilder);
+            }
+            recreationBuilder.endObject();
+            return BytesReference.bytes(recreationBuilder);
         }
     }
 }

@@ -49,6 +49,7 @@ public class SourceLoaderTests extends ESTestCase {
     private BytesReference original;
     private XContent expectedXContent;
 
+    // NOCOMMIT this just test from index, need from translog
     public void testNullSource() throws IOException {
         original = null;
         // Null original and no fields to add means the result should be null
@@ -139,7 +140,7 @@ public class SourceLoaderTests extends ESTestCase {
                 }
             });
         }
-        SourceLoader loader = new SourceLoader(unmodifiableMap(relocationHandlers), mockFieldDataLookup);
+        SourceLoader loader = SourceLoader.forReadingFromIndex(unmodifiableMap(relocationHandlers), mockFieldDataLookup);
         loader.setLoadedSource(original);
         loader.load(null, mockDocId);
         if (loader.source() == null) {

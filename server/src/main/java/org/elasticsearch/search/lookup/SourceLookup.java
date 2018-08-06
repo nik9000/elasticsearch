@@ -81,7 +81,7 @@ public class SourceLookup implements Map {
             DocumentMapper docMapper = mapperService.documentMapper();
             Map<String, FieldMapper.SourceRelocationHandler> relocationHandlers =
                     docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
-            SourceLoader sourceLoader = new SourceLoader(relocationHandlers, fieldDataLookup);
+            SourceLoader sourceLoader = SourceLoader.forReadingFromIndex(relocationHandlers, fieldDataLookup);
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(sourceLoader);
             context.reader().document(docId, sourceFieldVisitor);
             sourceFieldVisitor.postProcess(mapperService);

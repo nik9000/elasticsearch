@@ -263,8 +263,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             // TODO this is fairly lame to have to check
             return SourceLoader.forReadingFromTranslog(docMapper.translogSourceNormalizingFilter());
         }
-        Map<String, FieldMapper.SourceRelocationHandler> relocationHandlers =
-                docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers();
-        return new SourceLoader(relocationHandlers, fieldDataLookup);
+        return SourceLoader.forReadingFromIndex(
+                docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers(),
+                fieldDataLookup);
     }
 }

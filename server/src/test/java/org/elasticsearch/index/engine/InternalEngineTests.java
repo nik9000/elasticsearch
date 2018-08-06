@@ -4747,7 +4747,7 @@ public class InternalEngineTests extends EngineTestCase {
      * fetch simpler.
      */
     private String loadSource(Engine.GetResult get) throws IOException {
-        SourceLoader sourceLoader = new SourceLoader(emptyMap(), mft -> null);
+        SourceLoader sourceLoader = SourceLoader.forReadingFromIndex(emptyMap(), mft -> null);
         FieldsVisitor visitor = new FieldsVisitor(sourceLoader);
         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
         sourceLoader.load(get.docIdAndVersion().context, get.docIdAndVersion().docId);
