@@ -189,7 +189,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     }
 
     private void assertEquals(IndexableField expected, IndexableField actual) {
-        // NOCOMMIT is this good enough?
+        // NOCOMMIT jpountz review: is this good enough?
         logger.info("comparing {} and {}", expected, actual);
         assertEquals(expected.name(), actual.name());
         assertEquals(expected.fieldType(), actual.fieldType());

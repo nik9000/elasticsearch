@@ -52,10 +52,12 @@ import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
+import static java.util.Collections.unmodifiableList;
 
 /** A {@link FieldMapper} for dates. */
 public class DateFieldMapper extends FieldMapper {
@@ -505,8 +508,8 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     public SourceRelocationHandler relocateToDocValuesHandler() {
-        // NOCOMMIT This is interresting! Some date formats will not work for this!
         assert fieldType().hasDocValues();
+        validateFormatForRelocationToDocValues(name(), fieldType().dateTimeFormatter());
         return new SourceRelocationHandler() {
             @Override
             public void resynthesize(LeafReaderContext context, int docId,
@@ -539,5 +542,75 @@ public class DateFieldMapper extends FieldMapper {
         if (false == dv.advanceExact(docId)) return;
         if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
         builder.field(name, printer.print(dv.nextValue()));
+    }
+
+    /**
+     * Dates to round trip through the format
+     */
+    private static final List<DateTime> DATES_TO_CHECK = unmodifiableList(Arrays.asList(
+            new DateTime( 1970,  2,  3,  4,  5,  6,   7, DateTimeZone.UTC),
+            new DateTime( 2000,  4,  5, 13,  8,  9,  10, DateTimeZone.UTC),
+            new DateTime(-1000,  8,  9, 10, 11, 12, 865, DateTimeZone.UTC),
+            new DateTime( 3000,  3,  4,  5,  6,  7,   8, DateTimeZone.UTC)));
+    /**
+     * Validates that the provided date format is valid when relocating dates
+     * to doc values. Formats that can't perfectly round trip a instant in time
+     * will lose data when the generated {@code _source} is used for the
+     * {@code _update} API.
+     * <p>
+     * This doesn't check that the format is <strong>sane</strong> so you can
+     * swap the position of "minutes" and "months" and have a super confusing
+     * format but it'll still work for round tripping so it'll pass these
+     * tests.
+     */
+    static void validateFormatForRelocationToDocValues(String name, FormatDateTimeFormatter format) {
+        for (DateTime expected : DATES_TO_CHECK) {
+            DateTime parsed = format.parser().parseDateTime(format.printer().print(expected));
+            /*
+             * Shift the date into UTC regardless of which zone it started with
+             * since we're really just looking to compare the time that it
+             * represents.
+             */
+            parsed = parsed.withZone(DateTimeZone.UTC);
+            /*
+             * Compare all of the fields in the DateTime. It'd probably be a bit
+             * more efficient to shift the DateTime into an Instant and compare
+             * that but then we wouldn't be able to point the user to exactly
+             * which field is incorrect.
+             */
+            if (expected.getYear() != parsed.getYear()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "year", expected, parsed));
+            }
+            if (expected.getMonthOfYear() != parsed.getMonthOfYear()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "month", expected, parsed));
+            }
+            if (expected.getDayOfMonth() != parsed.getDayOfMonth()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "day", expected, parsed));
+            }
+            if (expected.getHourOfDay() != parsed.getHourOfDay()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "hour", expected, parsed));
+            }
+            if (expected.getMinuteOfHour() != parsed.getMinuteOfHour()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "minute", expected, parsed));
+            }
+            if (expected.getSecondOfMinute() != parsed.getSecondOfMinute()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "second", expected, parsed));
+            }
+            if (expected.getMillisOfSecond() != parsed.getMillisOfSecond()) {
+                throw new IllegalArgumentException(invalidDateFormatMessage(name, format, "milli", expected, parsed));
+            }
+        }
+    }
+
+    private static String invalidDateFormatMessage(String name, FormatDateTimeFormatter format,
+            String badField, DateTime expected, DateTime actual) {
+        String formatString = format.format();
+        if (format.locale() != Locale.ROOT) {
+            formatString += "/" + format.locale();
+        }
+        return "[" + name + "] sets [relocate_to] to [doc_values] but [format] to ["
+                + formatString + "] which is invalid because it doesn't preserve the ["
+                + badField + "] of the date. Expected [" + expected + "] but was ["
+                + actual + "]";
     }
 }

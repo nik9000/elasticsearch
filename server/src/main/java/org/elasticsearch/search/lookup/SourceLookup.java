@@ -114,7 +114,7 @@ public class SourceLookup implements Map {
             // if we are called with the same document, don't invalidate source
             return;
         }
-        // NOCOMMIT we should probably check more things for equality here. there is more than reader
+        // NOCOMMIT jpountz review: we should probably check more things for equality here. there is more than reader
         this.context = context;
         this.source = null;
         this.sourceAsBytes = null;

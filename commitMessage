@@ -1,12 +1,8 @@
 TODO
 
-
-Half float?
-Abstract per mapper test superclass for round tripping
 Lists still bad?
-Talk to Zack, Clint, and Shane again
 Reject when DateFieldMapper.ignore_malformed
-Dates should use doc value format?
+Reject when IpFieldMapper.ignore_malformed
 Engine.Get should build the source loader
 
 Add mapping option to remove fields from source

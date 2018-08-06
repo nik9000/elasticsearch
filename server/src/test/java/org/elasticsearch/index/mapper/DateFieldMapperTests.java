@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -50,6 +52,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -393,37 +396,56 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testMergeDate() throws IOException {
-        String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
-            .endObject().endObject().endObject());
+        String initMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("movie")
+                    .startObject("properties")
+                        .startObject("release_date")
+                            .field("type", "date")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
         indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
             MapperService.MergeReason.MAPPING_UPDATE);
 
         assertThat(indexService.mapperService().fullName("release_date"), notNullValue());
         assertFalse(indexService.mapperService().fullName("release_date").stored());
 
-        String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-            .startObject("release_date").field("type", "date").field("format", "epoch_millis").endObject()
-            .endObject().endObject().endObject());
+        String updateFormatMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("movie")
+                    .startObject("properties")
+                        .startObject("release_date")
+                            .field("type", "date")
+                            .field("format", "yyyy/MM/dd")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
 
         Exception formatException = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(formatException.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
 
-        String relocateToDocValues = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").field("relocate_to", "doc_values").endObject()
-            .endObject().endObject().endObject());
+        String relocateToDocValues = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("movie")
+                    .startObject("properties")
+                        .startObject("release_date")
+                            .field("type", "date")
+                            .field("relocate_to", "doc_values")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
         indexService.mapperService().merge("movie", new CompressedXContent(relocateToDocValues),
             MapperService.MergeReason.MAPPING_UPDATE);
 
-        String stopRelocating = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").field("relocate_to", "none").endObject()
-            .endObject().endObject().endObject());
+        String stopRelocating = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("movie")
+                    .startObject("properties")
+                        .startObject("release_date")
+                            .field("type", "date")
+                            .field("relocate_to", "none")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
         Exception relocateToException = expectThrows(IllegalArgumentException.class,
             () -> indexService.mapperService().merge("movie", new CompressedXContent(stopRelocating),
                 MapperService.MergeReason.MAPPING_UPDATE));
@@ -432,23 +454,37 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
                     + "cannot be changed unless it is [NONE]",
                 relocateToException.getMessage());
 
-        String unspecifiedRelocation = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
-            .endObject().endObject().endObject());
+        String unspecifiedRelocation = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("movie")
+                    .startObject("properties")
+                        .startObject("release_date")
+                            .field("type", "date")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
         indexService.mapperService().merge("movie", new CompressedXContent(relocateToDocValues),
             MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     public void testMergeText() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("date").field("type", "date").endObject()
-                .endObject().endObject().endObject());
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("date")
+                            .field("type", "date")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
         DocumentMapper mapper = indexService.mapperService().parse("_doc", new CompressedXContent(mapping), false);
 
-        String mappingUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties").startObject("date").field("type", "text").endObject()
-                .endObject().endObject().endObject());
+        String mappingUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("date")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject());
         DocumentMapper update = indexService.mapperService().parse("_doc", new CompressedXContent(mappingUpdate), false);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -458,47 +494,90 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testInvalidRelocateTo() throws IOException {
         String invalidRelocateTo = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-                .startObject("release_date")
-                    .field("type", "date")
-                    .field("format", "yyyy/MM/dd")
-                    .field("relocate_to", "cats!")
-                .endObject()
-            .endObject().endObject().endObject());
+                .startObject("properties")
+                    .startObject("release_date")
+                        .field("type", "date")
+                        .field("format", "yyyy/MM/dd")
+                        .field("relocate_to", "cats!")
+                    .endObject()
+                .endObject().endObject().endObject());
         Exception e = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("movie", new CompressedXContent(invalidRelocateTo),
-                MapperService.MergeReason.MAPPING_UPDATE));
+                () -> indexService.mapperService().merge("movie", new CompressedXContent(invalidRelocateTo),
+                    MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals(
-            "[relocate_to] must be one of [doc_values, none]",
-            e.getCause().getMessage());
+                "[relocate_to] must be one of [doc_values, none]",
+                e.getCause().getMessage());
     }
 
     public void testRelocateToInsideMultifield() throws IOException {
         String nestedRelocateTo = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("movie")
-            .startObject("properties")
-                .startObject("release_date")
-                    .field("type", "text")
-                    .startObject("fields")
-                        .startObject("date")
-                            .field("type", "date")
-                            .field("format", "yyyy/MM/dd")
-                            .field("relocate_to", "doc_values")
+                .startObject("properties")
+                    .startObject("release_date")
+                        .field("type", "text")
+                        .startObject("fields")
+                            .startObject("date")
+                                .field("type", "date")
+                                .field("format", "yyyy/MM/dd")
+                                .field("relocate_to", "doc_values")
+                            .endObject()
                         .endObject()
                     .endObject()
-                .endObject()
-            .endObject().endObject().endObject());
+                .endObject().endObject().endObject());
         Exception e = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("movie", new CompressedXContent(nestedRelocateTo),
-                MapperService.MergeReason.MAPPING_UPDATE));
+                () -> indexService.mapperService().merge("movie", new CompressedXContent(nestedRelocateTo),
+                    MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals(
-            "[release_date.date] sets [relocate_to] but that is not supported inside multifields",
-            e.getCause().getMessage());
+                "[release_date.date] sets [relocate_to] but that is not supported inside multifields",
+                e.getCause().getMessage());
+    }
+
+    public void testRelocateToDocValuesWithDateFormats() throws IOException {
+        relocateToDocValuesDateFormatGood(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
+        relocateToDocValuesDateFormatGood("strict_date_optional_time");
+        relocateToDocValuesDateFormatGood("epoch_millis");
+        relocateToDocValuesDateFormatGood("yyyy.MM.dd'T'HH:mm:ss:SSSZ");
+        relocateToDocValuesDateFormatGood("yyyy.MM.dd'T'hh:mm:ss:SSSZaa"); // hour of half day with AM/PM
+        relocateToDocValuesDateFormatGood("YYYYG.MM.dd'T'HH:mm:ss:SSSZ");  // year of era with era
+        relocateToDocValuesDateFormatGood("yyyy.DD'T'HH:mm:ss:SSSZ");      // day of year without month
+
+        // Formats that omit some fields all fail
+        relocateToDocValuesDateFormatBad("MM.dd'T'HH:mm:ss:SSSZ",   "year",   "2000-04-05T13:08:09.010Z", "1970-04-05T13:08:09.010Z");
+        relocateToDocValuesDateFormatBad("yyyy.dd'T'HH:mm:ss:SSSZ", "month",  "1970-02-03T04:05:06.007Z", "1970-01-03T04:05:06.007Z");
+        relocateToDocValuesDateFormatBad("yyyy.MM'T'HH:mm:ss:SSSZ", "day",    "1970-02-03T04:05:06.007Z", "1970-02-01T04:05:06.007Z");
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'mm:ss:SSSZ", "hour",   "1970-02-03T04:05:06.007Z", "1970-02-03T00:05:06.007Z");
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'HH:ss:SSSZ", "minute", "1970-02-03T04:05:06.007Z", "1970-02-03T04:00:06.007Z");
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'HH:mm:SSSZ", "second", "1970-02-03T04:05:06.007Z", "1970-02-03T04:05:00.007Z");
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'HH:mm:ssZ",  "milli",  "1970-02-03T04:05:06.007Z", "1970-02-03T04:05:06.000Z");
+
+        // Some more "fun" formatting mistakes
+        // year of era instead of regular year
+        relocateToDocValuesDateFormatBad("YYYY.MM.dd'T'HH:mm:ss:SSSZ", "year", "-1000-08-09T10:11:12.865Z", "1001-08-09T10:11:12.865Z");
+        // minutes instead of months
+        relocateToDocValuesDateFormatBad("yyyy.mm.dd'T'HH:mm:ss:SSSZ", "month", "1970-02-03T04:05:06.007Z", "1970-01-03T04:05:06.007Z");
+        // hour of half day without AM/PM
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'KK:mm:ss:SSSZ", "hour", "2000-04-05T13:08:09.010Z", "2000-04-05T01:08:09.010Z");
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'hh:mm:ss:SSSZ", "hour", "2000-04-05T13:08:09.010Z", "2000-04-05T01:08:09.010Z");
+        // month instead of minute
+        relocateToDocValuesDateFormatBad("yyyy.MM.dd'T'KK:MM:ss:SSSZ", "minute", "1970-02-03T04:05:06.007Z", "1970-02-03T04:00:06.007Z");
+    }
+
+    private void relocateToDocValuesDateFormatGood(String dateFormat) throws IOException {
+        indexService.mapperService().parse("_doc", relocateToDocValueMapping(b -> b.field("format", dateFormat)), false);
+    }
+
+    private void relocateToDocValuesDateFormatBad(String dateFormat, String badField, String expected, String actual) {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> relocateToDocValuesDateFormatGood(dateFormat));
+        assertEquals("[date] sets [relocate_to] to [doc_values] but [format] to ["
+                + dateFormat + "] which is invalid because it doesn't preserve the ["
+                + badField + "] of the date. Expected [" + expected + "] but was ["
+                + actual + "]", e.getMessage());
+
     }
 
     public void testRelocateToDocValuesWithoutDocValues() throws IOException {
         Exception e = expectThrows(MapperParsingException.class,
-            () -> indexService.mapperService().merge("_doc", relocateToDocValueMapping(b -> b.field("doc_values", false)),
-                MapperService.MergeReason.MAPPING_UPDATE));
+                () -> indexService.mapperService().merge("_doc", relocateToDocValueMapping(b -> b.field("doc_values", false)),
+                    MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to "
                 + "[doc_values] which requires doc_values to be enabled", e.getMessage());
     }
@@ -528,8 +607,9 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testAsThoughRelocatedWithFormat() throws IOException {
-        DateTimeFormatter format = DateTimeFormat.forPattern("yyyy/MM/dd");
-        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> b.field("format", "yyyy/MM/dd")));
+        String pattern = "yyyy.mm.dd'T'HH:MM:ss:SSSZ";
+        DateTimeFormatter format = DateTimeFormat.forPattern(pattern);
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> b.field("format", pattern)));
         Instant instant = new Instant(randomInt());
         assertEquals(singletonMap("date", format.print(instant)),
                 docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
