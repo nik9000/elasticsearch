@@ -505,6 +505,7 @@ public class DateFieldMapper extends FieldMapper {
 
     @Override
     public SourceRelocationHandler relocateToDocValuesHandler() {
+        // NOCOMMIT This is interresting! Some date formats will not work for this!
         assert fieldType().hasDocValues();
         return new SourceRelocationHandler() {
             @Override

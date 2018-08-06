@@ -69,7 +69,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-/** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
+/**
+ * A {@link FieldMapper} for numeric types: byte, short, int, long,
+ * half_float, float and double.
+ */
 public class NumberFieldMapper extends FieldMapper {
 
     public static final Setting<Boolean> COERCE_SETTING =
@@ -261,6 +264,17 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateDoubleFromDocValues(name, afd, docId, builder, (b, d) -> b.value(roundToHalfFloat(d)));
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return roundToHalfFloat(parse(sourceValue, coerce));
+            }
+
             private void validateParsed(float value) {
                 if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
@@ -351,6 +365,17 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateDoubleFromDocValues(name, afd, docId, builder, (b, d) -> b.value((float) d));
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return parse(sourceValue, coerce);
+            }
+
             private void validateParsed(float value) {
                 if (!Float.isFinite(value)) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
@@ -432,6 +457,17 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateDoubleFromDocValues(name, afd, docId, builder, (b, d) -> b.value(d));
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return parse(sourceValue, coerce);
+            }
+
             private void validateParsed(double value) {
                 if (!Double.isFinite(value)) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
@@ -493,6 +529,17 @@ public class NumberFieldMapper extends FieldMapper {
             Number valueForSearch(Number value) {
                 return value.byteValue();
             }
+
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateLongFromDocValues(name, afd, docId, builder);
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return parse(sourceValue, coerce);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -544,6 +591,17 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             Number valueForSearch(Number value) {
                 return value.shortValue();
+            }
+
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateLongFromDocValues(name, afd, docId, builder);
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return parse(sourceValue, coerce);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -655,6 +713,17 @@ public class NumberFieldMapper extends FieldMapper {
                     fields.add(new StoredField(name, value.intValue()));
                 }
                 return fields;
+            }
+
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateLongFromDocValues(name, afd, docId, builder);
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return parse(sourceValue, coerce);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -770,6 +839,17 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            protected void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                                 int docId, XContentBuilder builder) throws IOException{
+                relocateLongFromDocValues(name, afd, docId, builder);
+            }
+
+            @Override
+            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
+                return parse(sourceValue, coerce);
+            }
         };
 
         private final String name;
@@ -797,6 +877,12 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parse(Object value, boolean coerce);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
+
+        protected abstract void relocateFromDocValues(String name, AtomicNumericFieldData afd,
+                                          int docId, XContentBuilder builder) throws IOException;
+
+        protected abstract Object asThoughRelocated(Object sourceValue, boolean coerce);
+
         Number valueForSearch(Number value) {
             return value;
         }
@@ -1083,11 +1169,7 @@ public class NumberFieldMapper extends FieldMapper {
                     XContentBuilder builder) throws IOException {
                 IndexNumericFieldData fieldData = (IndexNumericFieldData) fieldDataLookup.apply(fieldType);
                 AtomicNumericFieldData ifd = (AtomicNumericFieldData) fieldData.load(context);
-                if (fieldData.getNumericType().isFloatingPoint()) {
-                    relocateFromDocValues(name(), ifd.getDoubleValues(), docId, builder);
-                } else {
-                    relocateFromDocValues(name(), ifd.getLongValues(), docId, builder);
-                }
+                fieldType().type.relocateFromDocValues(name(), ifd, docId, builder);
             }
 
             @Override
@@ -1095,22 +1177,33 @@ public class NumberFieldMapper extends FieldMapper {
                 if (sourceValue == null) {
                     return fieldType().nullValue();
                 }
-                return fieldType().type.parse(sourceValue, coerce.value());
+                return fieldType().type.asThoughRelocated(sourceValue, coerce.value());
             }
         };
     }
 
-    static void relocateFromDocValues(String name, SortedNumericDoubleValues dv,
+    private static void relocateDoubleFromDocValues(String name, AtomicNumericFieldData afd,
+                                        int docId, XContentBuilder builder, DoubleWriter writer) throws IOException {
+        SortedNumericDoubleValues dv = afd.getDoubleValues();
+        if (false == dv.advanceExact(docId)) return;
+        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
+        builder.field(name);
+        writer.write(builder, dv.nextValue());
+    }
+    @FunctionalInterface
+    private interface DoubleWriter {
+        void write(XContentBuilder builder, double d) throws IOException;
+    }
+
+    static void relocateLongFromDocValues(String name, AtomicNumericFieldData ifd,
             int docId, XContentBuilder builder) throws IOException {
+        SortedNumericDocValues dv = ifd.getLongValues();
         if (false == dv.advanceExact(docId)) return;
         if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
         builder.field(name, dv.nextValue());
     }
 
-    static void relocateFromDocValues(String name, SortedNumericDocValues dv,
-            int docId, XContentBuilder builder) throws IOException {
-        if (false == dv.advanceExact(docId)) return;
-        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
-        builder.field(name, dv.nextValue());
+    static float roundToHalfFloat(double d) {
+        return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort((float) d));
     }
 }

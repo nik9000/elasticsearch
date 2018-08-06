@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,7 +30,9 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
@@ -522,6 +525,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 + "malformed numbers to vanish", e.getMessage());
     }
 
+    // NOCOMMIT move these too
     public void testAsThoughRelocatedLong() throws IOException {
         long expected = randomLong();
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> {}));
@@ -592,72 +596,122 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testRelocateFromDocValuesNoDoubleValues() throws IOException {
+        NumberType type = randomFrom(NumberType.HALF_FLOAT, NumberType.FLOAT, NumberType.DOUBLE);
         int docId = randomInt();
         SortedNumericDoubleValues dv = mock(SortedNumericDoubleValues.class);
         when(dv.advanceExact(docId)).thenReturn(false);
-        NumberFieldMapper.relocateFromDocValues("double", dv, docId, null);
+        type.relocateFromDocValues(type.typeName(), afd(dv), docId, null);
         verify(dv).advanceExact(docId);
         verifyNoMoreInteractions(dv); // We never called docValueCount or nextValue or anything
     }
 
+    public void testRelocateFromDocValuesSingleHalfFloatValue() throws IOException {
+        double input = randomDouble();
+        String expected = Float.toString(NumberFieldMapper.roundToHalfFloat(input));
+        relocateFromDocValuesSingleDoubleValueTestCase(NumberType.HALF_FLOAT, input, expected);
+    }
+
+    public void testRelocateFromDocValuesSingleFloatValue() throws IOException {
+        double input = randomDouble();
+        String expected = Float.toString(NumericUtils.sortableIntToFloat(NumericUtils.floatToSortableInt((float) input)));
+        relocateFromDocValuesSingleDoubleValueTestCase(NumberType.FLOAT, input, expected);
+    }
+
     public void testRelocateFromDocValuesSingleDoubleValue() throws IOException {
+        double input = randomDouble();
+        String expected = Double.toString(input);
+        relocateFromDocValuesSingleDoubleValueTestCase(NumberType.DOUBLE, input, expected);
+    }
+
+    private void relocateFromDocValuesSingleDoubleValueTestCase(NumberType type, double input, String expected) throws IOException {
         int docId = randomInt();
-        double expectedValue = randomDouble();
         SortedNumericDoubleValues dv = mock(SortedNumericDoubleValues.class);
         when(dv.advanceExact(docId)).thenReturn(true);
         when(dv.docValueCount()).thenReturn(1);
-        when(dv.nextValue()).thenReturn(expectedValue);
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            NumberFieldMapper.relocateFromDocValues("double", dv, docId, builder);
-            builder.endObject();
-            try (XContentParser parser = createParser(builder)) {
-                assertEquals(singletonMap("double", expectedValue), parser.map());
-            }
-        }
+        when(dv.nextValue()).thenReturn(input);
+        relocateFromDocValuesSingleValueTestCase(type, afd(dv), docId, expected);
     }
 
     public void testRelocateFromDocValuesMultipleDoubleValues() throws IOException {
+        NumberType type = randomFrom(NumberType.HALF_FLOAT, NumberType.FLOAT, NumberType.DOUBLE);
         int docId = randomInt();
         SortedNumericDoubleValues dv = mock(SortedNumericDoubleValues.class);
         when(dv.advanceExact(docId)).thenReturn(true);
         when(dv.docValueCount()).thenReturn(between(2, 1000));
         expectThrows(IllegalStateException.class, () ->
-                NumberFieldMapper.relocateFromDocValues("double", dv, docId, null));
+                type.relocateFromDocValues(type.typeName(), afd(dv), docId, null));
+    }
+
+    private AtomicNumericFieldData afd(SortedNumericDoubleValues dv) {
+        AtomicNumericFieldData afd = mock(AtomicNumericFieldData.class);
+        when(afd.getDoubleValues()).thenReturn(dv);
+        return afd;
     }
 
     public void testRelocateFromDocValuesNoLongValues() throws IOException {
+        NumberType type = randomFrom(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG);
         int docId = randomInt();
         SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
         when(dv.advanceExact(docId)).thenReturn(false);
-        NumberFieldMapper.relocateFromDocValues("long", dv, docId, null);
+        type.relocateFromDocValues(type.typeName(), afd(dv), docId, null);
         verify(dv).advanceExact(docId);
         verifyNoMoreInteractions(dv); // We never called docValueCount or nextValue or anything
     }
 
+    public void testRelocateFromDocValuesSingleByteValue() throws IOException {
+        relocateFromDocValuesSingleLongValueTestCase(NumberType.BYTE, randomByte());
+    }
+
+    public void testRelocateFromDocValuesSingleShortValue() throws IOException {
+        relocateFromDocValuesSingleLongValueTestCase(NumberType.SHORT, randomShort());
+    }
+
+    public void testRelocateFromDocValuesSingleIntegerValue() throws IOException {
+        relocateFromDocValuesSingleLongValueTestCase(NumberType.INTEGER, randomInt());
+    }
+
     public void testRelocateFromDocValuesSingleLongValue() throws IOException {
+        relocateFromDocValuesSingleLongValueTestCase(NumberType.LONG, randomLong());
+    }
+
+    private void relocateFromDocValuesSingleLongValueTestCase(NumberType type, long input) throws IOException {
         int docId = randomInt();
-        long expectedValue = randomLong();
         SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
         when(dv.advanceExact(docId)).thenReturn(true);
         when(dv.docValueCount()).thenReturn(1);
-        when(dv.nextValue()).thenReturn(expectedValue);
+        when(dv.nextValue()).thenReturn(input);
+        relocateFromDocValuesSingleValueTestCase(type, afd(dv), docId, Long.toString(input));
+    }
+
+    private void relocateFromDocValuesSingleValueTestCase(NumberType type, AtomicNumericFieldData afd,
+            int docId, String expected) throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
-            NumberFieldMapper.relocateFromDocValues("long", dv, docId, builder);
+            type.relocateFromDocValues(type.typeName(), afd, docId, builder);
             builder.endObject();
             try (XContentParser parser = createParser(builder)) {
-                assertEquals(singletonMap("long", expectedValue), parser.map());
+                assertEquals(Token.START_OBJECT, parser.nextToken());
+                assertEquals(Token.FIELD_NAME, parser.nextToken());
+                assertTrue(parser.nextToken().isValue());
+                assertEquals(expected, parser.text());
+                assertEquals(Token.END_OBJECT, parser.nextToken());
             }
         }
     }
 
     public void testRelocateFromDocValuesMultipleLongValues() throws IOException {
+        NumberType type = randomFrom(NumberType.BYTE, NumberType.SHORT, NumberType.INTEGER, NumberType.LONG);
         int docId = randomInt();
         SortedNumericDocValues dv = mock(SortedNumericDocValues.class);
         when(dv.advanceExact(docId)).thenReturn(true);
         when(dv.docValueCount()).thenReturn(between(2, 1000));
         expectThrows(IllegalStateException.class, () ->
-                NumberFieldMapper.relocateFromDocValues("long", dv, docId, null));
+                type.relocateFromDocValues(type.typeName(), afd(dv), docId, null));
+    }
+
+    private AtomicNumericFieldData afd(SortedNumericDocValues dv) {
+        AtomicNumericFieldData afd = mock(AtomicNumericFieldData.class);
+        when(afd.getLongValues()).thenReturn(dv);
+        return afd;
     }
 }

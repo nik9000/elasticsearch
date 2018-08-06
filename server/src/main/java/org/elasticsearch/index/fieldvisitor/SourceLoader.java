@@ -83,7 +83,7 @@ public class SourceLoader {
      * Called by {@link FieldsVisitor} when it loads the stored field portion
      * of the {@code _source}.
      */
-    final void setLoadedSource(BytesReference loadedSource) {
+    public final void setLoadedSource(BytesReference loadedSource) { // NOMCOMMIT remove public
         this.loadedSource = loadedSource;
     }
 
@@ -162,6 +162,9 @@ public class SourceLoader {
 
         @Override
         protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
+            if (loadedSource == null) {
+                return null;
+            }
             Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(loadedSource, false);
             Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
 
