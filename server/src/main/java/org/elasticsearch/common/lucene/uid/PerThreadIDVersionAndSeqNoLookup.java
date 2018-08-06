@@ -25,6 +25,10 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fieldvisitor.SourceLoader;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -35,7 +39,9 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
+import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 
 /** Utility class to do efficient primary-key (only 1 doc contains the
  *  given term) lookups by segment, re-using the enums.  This class is
@@ -100,7 +106,14 @@ final class PerThreadIDVersionAndSeqNoLookup {
             if (versions.advanceExact(docID) == false) {
                 throw new IllegalArgumentException("Document [" + docID + "] misses the [" + VersionFieldMapper.NAME + "] field");
             }
-            return new DocIdAndVersion(docID, versions.longValue(), context);
+            return new DocIdAndVersion(docID, versions.longValue(), context) {
+                @Override
+                public SourceLoader createSourceLoader(
+                        DocumentMapper docMapper, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+                    return SourceLoader.forReadingFromIndex(
+                            docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers(), fieldDataLookup);
+                }
+            };
         } else {
             return null;
         }

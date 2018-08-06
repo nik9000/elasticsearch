@@ -4,6 +4,7 @@ Lists still bad?
 Reject when DateFieldMapper.ignore_malformed
 Reject when IpFieldMapper.ignore_malformed
 Engine.Get should build the source loader
+SecurityTests....
 
 Add mapping option to remove fields from source
 

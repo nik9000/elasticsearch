@@ -73,21 +73,7 @@ public abstract class SourceLoader {
 
     private SourceLoader() {
         // The only allowed subclasses are declared in this file
-    }
-
-    /**
-     * Called by {@link FieldsVisitor} when it moves to the next document.
-     */
-    final void reset() {
-        // TODO this should really be for a single document, not many.
-        /*
-         * We *do* want to load many documents, but the timing is different.
-         * Right now this only works if we do doc values at the same time
-         * as we do stored fields and it is *really* confusing when loading
-         * from the translog.
-         */
-        loadedSource = null;
-        source = null;
+        // TODO it'd be simpler if these only loaded a single document but, for now, it works like FieldVisitor
     }
 
     /**

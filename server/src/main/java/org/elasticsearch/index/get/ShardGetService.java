@@ -190,7 +190,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Map<String, DocumentField> fields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        SourceLoader sourceLoader = fetchSourceContext.fetchSource() ? buildSourceLoader(get) : null;
+        SourceLoader sourceLoader = fetchSourceContext.fetchSource() ?
+                get.docIdAndVersion().createSourceLoader(mapperService.documentMapper(), fieldDataLookup) : null;
         FieldsVisitor fieldVisitor = buildFieldsVisitor(gFields, sourceLoader);
         if (fieldVisitor != null) {
             try {
@@ -255,16 +256,5 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         return new CustomFieldsVisitor(Sets.newHashSet(fields), sourceLoader);
-    }
-
-    private SourceLoader buildSourceLoader(Engine.GetResult get) {
-        DocumentMapper docMapper = mapperService.documentMapper();
-        if (get.docIdAndVersion().context == null) {
-            // TODO this is fairly lame to have to check
-            return SourceLoader.forReadingFromTranslog(docMapper.translogSourceNormalizingFilter());
-        }
-        return SourceLoader.forReadingFromIndex(
-                docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers(),
-                fieldDataLookup);
     }
 }

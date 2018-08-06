@@ -24,6 +24,10 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fieldvisitor.SourceLoader;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -32,6 +36,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
 
@@ -95,7 +100,7 @@ public final class VersionsAndSeqNoResolver {
     }
 
     /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
-    public static class DocIdAndVersion {
+    public abstract static class DocIdAndVersion {
         public final int docId;
         public final long version;
         public final LeafReader reader;
@@ -104,7 +109,6 @@ public final class VersionsAndSeqNoResolver {
          * Only available if not reading from the translog.
          */
         public final LeafReaderContext context;
-        // TODO having to check this is pretty lame. There should be a better way.
 
         public DocIdAndVersion(int docId, long version, LeafReaderContext context) {
             this.docId = docId;
@@ -121,6 +125,9 @@ public final class VersionsAndSeqNoResolver {
             this.docBase = docBase;
             context = null;
         }
+
+        public abstract SourceLoader createSourceLoader(
+                DocumentMapper docMapper, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup);
     }
 
     /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo. */
