@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -49,32 +50,30 @@ public class SourceLoaderTests extends ESTestCase {
     private BytesReference original;
     private XContent expectedXContent;
 
-    // NOCOMMIT this just test from index, need from translog
     public void testNullSource() throws IOException {
         original = null;
         // Null original and no fields to add means the result should be null
-        assertNull(synthesizeSource(emptyMap()));
+        assertNull(fromIndex(emptyMap()));
+        assertNull(fromTranslog(emptyMap()));
 
-        // But if there are fields to write then we will write them
+        // If we have field to relocate when restoring from the index we'll write them
         expectedXContent = JsonXContent.jsonXContent;
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
-            assertEquals(singletonMap("foo", "bar"), parser.map());
-        }
+        assertEquals(singletonMap("foo", "bar"), fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+
+        // But we won't write anything if we're restoring from the translog because we didn't see the field's name
+        assertNull(fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", p.text()))));
     }
 
-    public void testEmptyObject() throws IOException {
+    public void testEmptySource() throws IOException {
         initTestData(b -> b.startObject().endObject());
-        try (XContentParser parser = synthesizeSource(emptyMap())) {
-            assertEquals(emptyMap(), parser.map());
-        }
+        assertEquals(emptyMap(), fromIndex(emptyMap()));
+        assertEquals(emptyMap(), fromTranslog(emptyMap()));
 
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> {}))) {
-            assertEquals(emptyMap(), parser.map());
-        }
+        assertEquals(emptyMap(), fromIndex(singletonMap("foo", b -> {})));
+        assertEquals(emptyMap(), fromTranslog(singletonMap("foo", (p, b) -> {})));
 
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
-            assertEquals(singletonMap("foo", "bar"), parser.map());
-        }
+        assertEquals(singletonMap("foo", "bar"), fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        assertEquals(emptyMap(), fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", p.text()))));
     }
 
     public void testWithField() throws IOException {
@@ -86,26 +85,75 @@ public class SourceLoaderTests extends ESTestCase {
             b.endObject();
         });
 
-        try (XContentParser parser = synthesizeSource(singletonMap("foo", b -> b.field("foo", "bar")))) {
-            assertEquals(singletonMap("foo", 1), parser.map());
-        }
+        assertEquals(singletonMap("foo", 1), fromIndex(emptyMap()));
+        assertEquals(singletonMap("foo", 1), fromTranslog(emptyMap()));
 
-        try (XContentParser parser = synthesizeSource(singletonMap("bar", b -> b.field("bar", 2)))) {
+        assertEquals(singletonMap("foo", 1), fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        assertEquals(singletonMap("foo", "1"), fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", p.text()))));
+
+        {
             Map<String, Object> expected = new HashMap<>();
             expected.put("foo", 1);
             expected.put("bar", 2);
-            assertEquals(expected, parser.map());
+            assertEquals(expected, fromIndex(singletonMap("bar", b -> b.field("bar", 2))));
         }
+        assertEquals(singletonMap("foo", 1), fromTranslog(singletonMap("bar", (p, b) -> b.field("bar", p.text()))));
 
-        Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters = new TreeMap<>();
-        valueWriters.put("foo", b -> b.field("foo", 1));
-        valueWriters.put("bar", b -> b.field("bar", 2));
-        try (XContentParser parser = synthesizeSource(valueWriters)) {
+        {
+            Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters = new TreeMap<>();
+            valueWriters.put("foo", b -> b.field("foo", 1));
+            valueWriters.put("bar", b -> b.field("bar", 2));
             Map<String, Object> expected = new HashMap<>();
             expected.put("foo", 1);
             expected.put("bar", 2);
-            assertEquals(expected, parser.map());
+            assertEquals(expected, fromIndex(valueWriters));
         }
+        {
+            Map<String, CheckedBiConsumer<XContentParser, XContentBuilder, IOException>> normalizers = new TreeMap<>();
+            normalizers.put("foo", (p, b) -> b.field("foo", p.text()));
+            normalizers.put("bar", (p, b) -> b.field("bar", p.text()));
+            assertEquals(singletonMap("foo", "1"), fromTranslog(normalizers));
+        }
+
+        assertEquals(singletonMap("foo", 1), fromIndex(singletonMap("foo", b -> {})));
+        assertEquals(emptyMap(), fromTranslog(singletonMap("foo", (p, b) -> {})));
+    }
+
+    public void testWithNullValuedField() throws IOException {
+        initTestData(b -> {
+            b.startObject();
+            {
+                b.field("foo").nullValue();
+            }
+            b.endObject();
+        });
+
+        assertEquals(singletonMap("foo", null), fromIndex(emptyMap()));
+        assertEquals(singletonMap("foo", null), fromTranslog(emptyMap()));
+
+        assertEquals(singletonMap("foo", null), fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        assertEquals(singletonMap("foo", "replaced"), fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", "replaced"))));
+    }
+
+    public void testWithFieldObject() throws IOException {
+        initTestData(b -> {
+            b.startObject();
+            {
+                b.startObject("foo");
+                {
+                    b.field("inner", 1);
+                }
+                b.endObject();
+            }
+            b.endObject();
+        });
+        Map<String, Object> unchanged = singletonMap("foo", singletonMap("inner", 1));
+
+        assertEquals(unchanged, fromIndex(emptyMap()));
+        assertEquals(unchanged, fromTranslog(emptyMap()));
+
+        assertEquals(unchanged, fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        assertEquals(unchanged, fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", p.text()))));
     }
 
     private void initTestData(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
@@ -116,7 +164,7 @@ public class SourceLoaderTests extends ESTestCase {
         }
     }
 
-    private XContentParser synthesizeSource(
+    private Map<String, Object> fromIndex(
                 Map<String, CheckedConsumer<XContentBuilder, IOException>> simpleRelocationHandlers) throws IOException {
         final int mockDocId = randomInt();
         final Function<MappedFieldType, IndexFieldData<?>> mockFieldDataLookup = m -> null;
@@ -134,9 +182,7 @@ public class SourceLoaderTests extends ESTestCase {
                 }
 
                 @Override
-                public void asThoughRelocated(XContentParser translogSourceParser,
-                        XContentBuilder normalizedBuilder) {
-                    // NOCOMMIT tests for this too
+                public void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) {
                     throw new UnsupportedOperationException();
                 }
             });
@@ -144,10 +190,41 @@ public class SourceLoaderTests extends ESTestCase {
         SourceLoader loader = SourceLoader.forReadingFromIndex(unmodifiableMap(relocationHandlers), mockFieldDataLookup);
         loader.setLoadedSource(original);
         loader.load(null, mockDocId);
+        return loaderToMap(loader);
+    }
+
+    private Map<String, Object> fromTranslog(
+                Map<String, CheckedBiConsumer<XContentParser, XContentBuilder, IOException>> simpleRelocationHandlers
+                ) throws IOException {
+        Map<String, SourceRelocationHandler> relocationHandlers = new HashMap<>(simpleRelocationHandlers.size());
+        int i = 0;
+        for (Map.Entry<String, CheckedBiConsumer<XContentParser, XContentBuilder, IOException>> e : simpleRelocationHandlers.entrySet()) {
+            relocationHandlers.put(e.getKey(), new SourceRelocationHandler() {
+                @Override
+                public void resynthesize(LeafReaderContext context, int docId,
+                        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                        XContentBuilder builder) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) throws IOException {
+                    e.getValue().accept(translogSourceParser, normalizedBuilder);
+                }
+            });
+        }
+        SourceLoader loader = SourceLoader.forReadingFromTranslog(unmodifiableMap(relocationHandlers));
+        loader.setLoadedSource(original);
+        loader.load(null, randomInt());
+        return loaderToMap(loader);
+    }
+
+    private Map<String, Object> loaderToMap(SourceLoader loader) throws IOException {
         if (loader.source() == null) {
             return null;
         }
-        return expectedXContent.createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loader.source().streamInput());
+        try (XContentParser parser = createParser(expectedXContent, loader.source())) {
+            return parser.map();
+        }
     }
 }

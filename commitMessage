@@ -41,14 +41,13 @@ code is possible. Either way, attempting to configure relocation on these
 fields will fail to update the mapping.
 * If a field is configured to be relocated but is sent to Elasticsearch as a
 list then Elasticsearch will reject the document. This is because doc values
-just stores all of the values so, when Elasticsearch is reconstructing the
-`_source, it can't tell if the value was a bare single element or a single
-element list. Additionally, most doc values implementations sort the values
-so we'd lose the original order of the list. So, for simplicity, we only
-support `relocate_to` for single valued fields.
-* Numeric fields cannot set both `relocate_to` to `doc_values` and
-`ignore_malformed` to `true` because malformed numbers wouldn't be saved in
-doc values and would vanish.
+doesn't store the difference between a singleton list and a single valued
+field. Or an empty list and a missing field. Additionally, most doc values
+implementations sort the values so we'd lose the original order of the list.
+So, for simplicity, we only support `relocate_to` for single valued fields.
+* Fields cannot set both `relocate_to` to `doc_values` and `ignore_malformed`
+to `true` because malformed values wouldn't be saved in doc values and would
+vanish on load which just feels like a foot gun.
 
 There are some caveats to this feature as well:
 * Explicit `null` values of relocated fields will be removed from the
