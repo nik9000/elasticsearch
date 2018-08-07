@@ -61,12 +61,6 @@ originally sent.
 original source.
 * Numbers may lose precision if we lost precision storing them in doc values.
 
-None of the caveats above happen when the `_update` API reads from the
-translog which it only does when updating a document that hasn't been
-refreshed. In this case you would get back the original source. That means
-that folks will have to be *very* careful with these fields in the `_update`
-API.
-
 This feature slows down indexing to about the same degree that configuring
 `includes` or `excludes` on the `_source` field does. I believe I can
 significantly improve this in a followup but I do want to for a followup

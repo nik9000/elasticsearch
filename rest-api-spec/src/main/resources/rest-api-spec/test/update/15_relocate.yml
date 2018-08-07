@@ -74,6 +74,7 @@ setup:
   - match: { _source.d:   "2018-01-01T12:33:55.000Z" }
 
   - do:
+      catch: bad_request
       update:
           index:   test
           type:    doc
@@ -84,17 +85,5 @@ setup:
                 foo: bort
                 i:   [3, 2]
                 f:   [0.1, -1]
-  - match: { _index:   test }
-  - match: { _type:    doc }
-  - match: { _id:      "1" }
-  - match: { _version: 3 }
-
-  - do:
-      get:
-          index:  test
-          type:   doc
-          id:     1
-  - match: { _source.foo: bort }
-  - match: { _source.i:   [3, 2] }
-  - match: { _source.f:   [0.1, -1] }
-  - match: { _source.d:   "2018-01-01T12:33:55.000Z" }
+  - match: {error.reason: 'failed to parse [_source]'}
+  - match: {error.caused_by.reason: 'the [i] field is configured for relocation but has multiple values which is unsupported'}

@@ -192,11 +192,18 @@ public class DocumentMapper implements ToXContentFragment {
             /*
              * Filter fields from source if we know how to relocate them.
              * We don't know how to relocate fields inside objects or
-             * multi valued fields.
+             * multi valued fields so this iteration is fairly simple.
              */
             Map<String, Object> filtered = new HashMap<>(map.size());
             for (Map.Entry<String, ?> e : map.entrySet()) {
-                if (false == sourceRelocationHandlers.containsKey(e.getKey()) || e.getValue() instanceof List) {
+                if (sourceRelocationHandlers.containsKey(e.getKey())) {
+                    if (e.getValue() instanceof List) {
+                        throw new IllegalArgumentException("the [" + e.getKey() + "] field is configured for "
+                                + "relocation but has multiple values which is unsupported");
+                    }
+                    // We also don't support Maps here but we'd fail to parse in other places
+                    assert false == e.getValue() instanceof Map;
+                } else {
                     filtered.put(e.getKey(), e.getValue());
                 }
             }

@@ -56,6 +56,7 @@ setup:
       reason: introduced in 7.0 (TODO change to 6.x when backported if backported)
 
   - do:
+      catch: bad_request
       index:
           index:  test
           type:   doc
@@ -63,20 +64,8 @@ setup:
           body:
               foo: bar
               i:   [1, 2]
-              f:   [1.2, -7]
-              ip:  [192.168.0.1, 192.168.0.2]
-              d:   "2018-01-01T12:33:55"
-
-  - do:
-      get:
-          index:  test
-          type:   doc
-          id:     1
-  - match: { _source.foo: bar }
-  - match: { _source.i:   [1, 2] }
-  - match: { _source.f:   [1.2, -7] }
-  - match: { _source.ip:  [192.168.0.1, 192.168.0.2] }
-  - match: { _source.d:   "2018-01-01T12:33:55.000Z" }
+  - match: {error.reason: 'failed to parse [_source]'}
+  - match: {error.caused_by.reason: 'the [i] field is configured for relocation but has multiple values which is unsupported'}
 
 ---
 "not all fields":
