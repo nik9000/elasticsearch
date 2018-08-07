@@ -54,8 +54,7 @@ public class IpFieldRelocationTests extends AbstractFieldRelocationTestCase {
                 random().nextBytes(ipv6);
                 address = InetAddress.getByAddress(ipv6);
             }
-            // Sometimes sorten with .format, sometime don't with getHostAddress
-            return randomBoolean() ? NetworkAddress.format(address) : address.getHostAddress();
+            return NetworkAddress.format(address);
         } catch (UnknownHostException e) {
             throw new AssertionError();
         }
