@@ -178,22 +178,13 @@ public abstract class SourceLoader {
         @Override
         protected BytesReference innerLoad(BytesReference loadedSource, LeafReaderContext context, int docId) throws IOException {
             XContentBuilder recreationBuilder;
-            Map<String, SourceRelocationHandler> relocationHandlersToInvoke;
             if (loadedSource == null) {
                 // NOCOMMIT is json right here? probably not too wrong at least.
                 recreationBuilder = new XContentBuilder(JsonXContent.jsonXContent, new BytesStreamOutput());
                 recreationBuilder.startObject();
-                relocationHandlersToInvoke = relocationHandlers;
             } else {
-                relocationHandlersToInvoke = new HashMap<>(relocationHandlers);
                 try (XContentParser loadedSourceParser = XContentHelper.createParser(
                             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loadedSource)) {
-                    if (logger.isWarnEnabled()) {
-                        // NOCOMMIT remove me when we make source relocation required if configured
-                        if (loadedSourceParser.contentType() == XContentType.JSON) {
-                            logger.warn("enhancing loaded source [{}]", loadedSource.utf8ToString());
-                        }
-                    }
                     recreationBuilder = new XContentBuilder(loadedSourceParser.contentType().xContent(), new BytesStreamOutput());
                     if (loadedSourceParser.nextToken() != Token.START_OBJECT) {
                         throw new IllegalStateException("unexpected xcontent layout [" + loadedSourceParser.currentToken() + "]");
@@ -204,13 +195,12 @@ public abstract class SourceLoader {
                         if (token != Token.FIELD_NAME) {
                             throw new IllegalStateException("unexpected xcontent layout [" + loadedSourceParser.currentToken() + "]");
                         }
-                        relocationHandlersToInvoke.remove(loadedSourceParser.currentName());
                         recreationBuilder.copyCurrentStructure(loadedSourceParser);
                     }
                 }
             }
 
-            for (SourceRelocationHandler handler : relocationHandlersToInvoke.values()) {
+            for (SourceRelocationHandler handler : relocationHandlers.values()) {
                 handler.resynthesize(context, docId, fieldDataLookup, recreationBuilder);
             }
             recreationBuilder.endObject();

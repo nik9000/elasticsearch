@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.startsWith;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -88,7 +90,8 @@ public class SourceLoaderTests extends ESTestCase {
         assertEquals(singletonMap("foo", 1), fromIndex(emptyMap()));
         assertEquals(singletonMap("foo", 1), fromTranslog(emptyMap()));
 
-        assertEquals(singletonMap("foo", 1), fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        Exception e = expectThrows(JsonParseException.class, () -> fromIndex(singletonMap("foo", b -> b.field("foo", 1))));
+        assertThat(e.getMessage(), startsWith("Duplicate field 'foo'"));
         assertEquals(singletonMap("foo", "1"), fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", p.text()))));
 
         {
@@ -101,11 +104,12 @@ public class SourceLoaderTests extends ESTestCase {
 
         {
             Map<String, CheckedConsumer<XContentBuilder, IOException>> valueWriters = new TreeMap<>();
-            valueWriters.put("foo", b -> b.field("foo", 1));
-            valueWriters.put("bar", b -> b.field("bar", 2));
+            valueWriters.put("bar", b -> b.field("bar", 1));
+            valueWriters.put("baz", b -> b.field("baz", 2));
             Map<String, Object> expected = new HashMap<>();
             expected.put("foo", 1);
-            expected.put("bar", 2);
+            expected.put("bar", 1);
+            expected.put("baz", 2);
             assertEquals(expected, fromIndex(valueWriters));
         }
         {
@@ -131,8 +135,17 @@ public class SourceLoaderTests extends ESTestCase {
         assertEquals(singletonMap("foo", null), fromIndex(emptyMap()));
         assertEquals(singletonMap("foo", null), fromTranslog(emptyMap()));
 
-        assertEquals(singletonMap("foo", null), fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        Exception e = expectThrows(JsonParseException.class, () -> fromIndex(singletonMap("foo", b -> b.field("foo", 1))));
+        assertThat(e.getMessage(), startsWith("Duplicate field 'foo'"));
         assertEquals(singletonMap("foo", "replaced"), fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", "replaced"))));
+
+        {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("foo", null);
+            expected.put("bar", 2);
+            assertEquals(expected, fromIndex(singletonMap("bar", b -> b.field("bar", 2))));
+        }
+        assertEquals(singletonMap("foo", null), fromTranslog(singletonMap("bar", (p, b) -> b.field("bar", p.text()))));
     }
 
     public void testWithFieldObject() throws IOException {
@@ -152,8 +165,22 @@ public class SourceLoaderTests extends ESTestCase {
         assertEquals(unchanged, fromIndex(emptyMap()));
         assertEquals(unchanged, fromTranslog(emptyMap()));
 
-        assertEquals(unchanged, fromIndex(singletonMap("foo", b -> b.field("foo", "bar"))));
+        Exception e = expectThrows(JsonParseException.class, () -> fromIndex(singletonMap("foo", b -> b.field("foo", 1))));
+        assertThat(e.getMessage(), startsWith("Duplicate field 'foo'"));
+        /*
+         * The normalizer isn't called for objects. We don't expected to see
+         * them in normal operation but we're sufficiently paranoid to ignore
+         * them.
+         */
         assertEquals(unchanged, fromTranslog(singletonMap("foo", (p, b) -> b.field("foo", p.text()))));
+
+        {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("foo", singletonMap("inner", 1));
+            expected.put("bar", "bar");
+            assertEquals(expected, fromIndex(singletonMap("bar", b -> b.field("bar", "bar"))));
+        }
+        assertEquals(unchanged, fromTranslog(singletonMap("bar", (p, b) -> b.field("bar", p.text()))));
     }
 
     private void initTestData(CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
