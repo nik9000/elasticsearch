@@ -144,7 +144,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     private BytesReference fromTranslog(DocumentMapper docMapper, BytesReference fromTranslog) throws IOException {
         SourceLoader sourceLoader = SourceLoader.forReadingFromTranslog(docMapper.translogSourceNormalizingFilter());
         sourceLoader.setLoadedSource(fromTranslog);
-        sourceLoader.load(null, 0);     // NOCOMMIT this really should be no-arg
+        sourceLoader.load(null, 0);
         return sourceLoader.source();
     }
 

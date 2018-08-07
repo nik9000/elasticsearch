@@ -525,7 +525,6 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 + "malformed numbers to vanish", e.getMessage());
     }
 
-    // NOCOMMIT move these too
     public void testAsThoughRelocatedLong() throws IOException {
         long expected = randomLong();
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> {}));

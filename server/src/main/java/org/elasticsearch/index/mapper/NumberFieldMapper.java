@@ -729,6 +729,7 @@ public class NumberFieldMapper extends FieldMapper {
         LONG("long", NumericType.LONG) {
             @Override
             public Long parse(Object value, boolean coerce) {
+                System.err.println("parsing long " + value.getClass() + " " + value);
                 if (value instanceof Long) {
                     return (Long)value;
                 }
@@ -1094,6 +1095,7 @@ public class NumberFieldMapper extends FieldMapper {
             value = null;
         } else {
             try {
+                System.err.println("BBBB " + parser.text());
                 numericValue = fieldType().type.parse(parser, coerce.value());
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
@@ -1104,6 +1106,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
             value = numericValue;
+            System.err.println("DDDDD " + numericValue);
         }
 
         if (value == null) {

@@ -38,8 +38,28 @@ public class NumberFieldRelocationTests extends AbstractFieldRelocationTestCase 
         builder.value(usually() ? n : n.toString());
     }
 
-    private static Number randomValidNumber() {
-        // NOCOMMIT more options
-        return randomDoubleBetween(-100, 100, true);
+    private Number randomValidNumber() {
+        switch (numberType) {
+        case HALF_FLOAT:
+            return randomDoubleBetween(-65504, 65504, true);
+        case FLOAT:
+            return randomDoubleBetween(Float.MIN_VALUE, Float.MAX_VALUE, true);
+        case DOUBLE:
+            return randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
+        case BYTE:
+            return randomBoolean() ?
+                    randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true) : between(Byte.MIN_VALUE, Byte.MAX_VALUE);
+        case SHORT:
+            return randomBoolean() ?
+                    randomDoubleBetween(Short.MIN_VALUE, Short.MAX_VALUE, true) : between(Short.MIN_VALUE, Short.MAX_VALUE);
+        case INTEGER:
+            return randomBoolean() ?
+                    randomDoubleBetween(Integer.MIN_VALUE, Integer.MAX_VALUE, true) : between(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        case LONG:
+            return randomBoolean() ?
+                    randomDoubleBetween(Long.MIN_VALUE, Long.MAX_VALUE, true) : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
+        default:
+            throw new UnsupportedOperationException("unknown type " + numberType);
+        }
     }
 }
