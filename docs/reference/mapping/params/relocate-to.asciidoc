@@ -33,7 +33,7 @@ PUT /index
           "relocate_to": "doc_values" <1>
         },
         "untouched_int": {
-          "type": "integer"
+          "type": "integer"           <2>
         }
       }
     }
@@ -42,14 +42,17 @@ PUT /index
 --------------------------------------------------
 // CONSOLE
 
+<1> Request relocating this field to doc_values.
+<2> This field will stay.
+
 Then you can index documents normally:
 
 [source,js]
 --------------------------------------------------
 PUT /index/_doc/1
 {
-  "relocated_int": 1, <2>
-  "untouched_int": 2  <3>
+  "relocated_int": 1, <1>
+  "untouched_int": 2  <2>
 }
 --------------------------------------------------
 // CONSOLE
