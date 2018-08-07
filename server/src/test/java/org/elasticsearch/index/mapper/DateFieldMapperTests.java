@@ -482,7 +482,6 @@ public class DateFieldMapperTests extends AbstractFieldMapperTestCase {
                 .startObject("properties")
                     .startObject("release_date")
                         .field("type", "date")
-                        .field("format", "yyyy/MM/dd")
                         .field("relocate_to", "cats!")
                     .endObject()
                 .endObject().endObject().endObject());
@@ -556,15 +555,25 @@ public class DateFieldMapperTests extends AbstractFieldMapperTestCase {
                 + dateFormat + "] which is invalid because it doesn't preserve the ["
                 + badField + "] of the date. Expected [" + expected + "] but was ["
                 + actual + "]", e.getMessage());
-
     }
 
     public void testRelocateToDocValuesWithoutDocValues() throws IOException {
-        Exception e = expectThrows(MapperParsingException.class,
-                () -> indexService.mapperService().merge("_doc", relocateToDocValueMapping(b -> b.field("doc_values", false)),
-                    MapperService.MergeReason.MAPPING_UPDATE));
+        Exception e = expectThrows(MapperParsingException.class, () -> indexService.mapperService().merge(
+                "_doc",
+                relocateToDocValueMapping(b -> b.field("doc_values", false)),
+                MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to "
                 + "[doc_values] which requires doc_values to be enabled", e.getMessage());
+    }
+
+    public void testRelocateToDocValuesWithIgnoreMalformed() throws IOException {
+        Exception e = expectThrows(MapperParsingException.class, () -> indexService.mapperService().merge(
+                "_doc",
+                relocateToDocValueMapping(b -> b.field("ignore_malformed", true)),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping [_doc]: [date] sets [relocate_to] to [doc_values] "
+                + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
+                + "malformed dates to vanish", e.getMessage());
     }
 
     public void testAsThoughRelocated() throws IOException {

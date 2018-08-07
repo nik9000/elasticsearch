@@ -512,6 +512,11 @@ public class DateFieldMapper extends FieldMapper {
     public SourceRelocationHandler relocateToDocValuesHandler() {
         assert fieldType().hasDocValues();
         validateFormatForRelocationToDocValues(name(), fieldType().dateTimeFormatter());
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException("[" + name() + "] sets [relocate_to] to [doc_values] "
+                    + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
+                    + "malformed dates to vanish");
+        }
         return new SourceRelocationHandler() {
             @Override
             public void resynthesize(LeafReaderContext context, int docId,

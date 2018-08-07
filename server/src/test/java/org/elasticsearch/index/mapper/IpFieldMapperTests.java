@@ -268,6 +268,25 @@ public class IpFieldMapperTests extends AbstractFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
+    public void testRelocateToDocValuesWithoutDocValues() throws IOException {
+        Exception e = expectThrows(MapperParsingException.class, () -> indexService.mapperService().merge(
+                "_doc",
+                relocateToDocValueMapping(b -> b.field("doc_values", false)),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping [_doc]: [ip] sets [relocate_to] to [doc_values] "
+                + "which requires doc_values to be enabled", e.getMessage());
+    }
+
+    public void testRelocateToDocValuesWithIgnoreMalformed() throws IOException {
+        Exception e = expectThrows(MapperParsingException.class, () -> indexService.mapperService().merge(
+                "_doc",
+                relocateToDocValueMapping(b -> b.field("ignore_malformed", true)),
+                MapperService.MergeReason.MAPPING_UPDATE));
+        assertEquals("Failed to parse mapping [_doc]: [ip] sets [relocate_to] to [doc_values] "
+                + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
+                + "malformed ips to vanish", e.getMessage());
+    }
+
     public void testAsThoughRelocated() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> {}));
         asThoughRelocatedTestCase(docMapper, "{\"ip\":\"192.168.0.1\"}");

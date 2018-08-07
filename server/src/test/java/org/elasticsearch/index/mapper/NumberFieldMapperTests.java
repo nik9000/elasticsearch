@@ -518,7 +518,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         Exception e = expectThrows(MapperParsingException.class,
             () -> indexService.mapperService().merge(
                 "_doc",
-                relocateToDocValueMapping(randomFrom("integer", "long", "float", "double"), b -> b.field("ignore_malformed", true)),
+                relocateToDocValueMapping(randomFrom(TYPES), b -> b.field("ignore_malformed", true)),
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals("Failed to parse mapping [_doc]: [number] sets [relocate_to] to [doc_values] "
                 + "and [ignore_malformed] to [true] which is not allowed because it'd cause "
