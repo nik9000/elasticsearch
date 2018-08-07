@@ -27,6 +27,7 @@ The following mapping parameters are common to some or all field datatypes:
 * <<null-value,`null_value`>>
 * <<position-increment-gap,`position_increment_gap`>>
 * <<properties,`properties`>>
+* <<relocate_to,`relocate_to`>>
 * <<search-analyzer,`search_analyzer`>>
 * <<similarity,`similarity`>>
 * <<mapping-store,`store`>>
@@ -72,6 +73,8 @@ include::params/null-value.asciidoc[]
 include::params/position-increment-gap.asciidoc[]
 
 include::params/properties.asciidoc[]
+
+include::params/relocate-to.asciidoc[]
 
 include::params/search-analyzer.asciidoc[]
 

@@ -134,6 +134,18 @@ The following parameters are accepted by `date` fields:
     which is substituted for any explicit `null` values.  Defaults to `null`,
     which means the field is treated as missing.
 
+<<relocate_to>>::
+
+    Should the field be relocated from the `_source` before it is saved?
+    Read <<relocate_to>> for more information about the feature in general,
+    but for dates specifically, setting `relocate_to` to `doc_values` will
+    cause the date to always be returned as a string formatted with the
+    `format` and is only allowed if the `format` prints the date with enough
+    precision to fully rebuild it. For example, `strict_date_optional_time`,
+    `yyyy.MM.dd'T'HH:mm:ss:SSSZ`, and the default are all fine but
+    `epoch_second` isn't because it doesn't contain the milliseconds field.
+
+
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from

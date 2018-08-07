@@ -1,0 +1,97 @@
+[[relocate_to]]
+=== `relocate_to`
+
+Elasticsearch can save disk space by relocating fields from `_source` before
+it is saved and adding them back again when the `_source` is retreived. You
+can configure this by setting the mapping property `relocate_to` on data types
+that support it this relocation.
+
+==== `"relocate_to": "none"`
+
+The `none` is the default value of `relocate_to` and requests that
+Elasticsearch not try and relocate the field from the `_source`. If *all*
+fields have this value then Elasticsearch can save some work while indexing
+the document and loading `_source`.
+
+==== `"relocate_to": "doc_values"`
+
+Setting `relocate_to` to `doc_values` causes Elasticsearch to drop the field
+from `_source` before saving it to disk and load it from <<doc-values>> when
+loading the source. This doesn't work for all fields but when it does work it
+can save a fair bit of disk space, especially for indices with simple analysis
+configurations. You can configure it like this:
+
+[source,js]
+--------------------------------------------------
+PUT /index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "relocated_int": {
+          "type": "integer",
+          "relocate_to": "doc_values" <1>
+        },
+        "untouched_int": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Then you can index documents normally:
+
+[source,js]
+--------------------------------------------------
+PUT /index/_doc/1
+{
+  "relocated_int": 1, <2>
+  "untouched_int": 2  <3>
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This field will be relocated to doc_values.
+<2> This field will stay in the `_source`.
+
+But not *all* documents. Fields with `relocate_to` set to `doc_values` can't
+be lists. So this will fail:
+
+[source,js]
+--------------------------------------------------
+PUT /index/_doc/1
+{
+  "relocated_int": [1, 2]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:bad_request]
+
+Settings `relocate_to` to `doc_values` is also not compatible with all mapping
+configurations. It is never compatible with setting `ignore_malformed` to
+`true` so this will fail:
+
+[source,js]
+--------------------------------------------------
+PUT /index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "relocated_int": {
+          "type": "integer",
+          "relocate_to": "doc_values",
+          "ignore_malformed": true
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:bad_request]

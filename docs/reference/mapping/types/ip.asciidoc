@@ -65,6 +65,14 @@ The following parameters are accepted by `ip` fields:
     Accepts an IPv4 value which is substituted for any explicit `null` values.
     Defaults to `null`, which means the field is treated as missing.
 
+<<relocate_to>>::
+
+    Should the field be relocated from the `_source` before it is saved?
+    Read <<relocate_to>> for more information about the feature in general,
+    but for ips specifically, setting `relocate_to` to `doc_values` will
+    cause the returned IP to always be normalized. This is a noop for IPv4
+    addresses, but IPv6 addresses will have `0000` sections removed.
+
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from
