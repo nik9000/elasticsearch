@@ -32,17 +32,13 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Collection;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -52,22 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class IpFieldMapperTests extends ESSingleNodeTestCase {
-
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
-
+public class IpFieldMapperTests extends AbstractFieldMapperTestCase {
     public void testDefaults() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
@@ -289,21 +270,17 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testAsThoughRelocated() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> {}));
-        assertEquals(singletonMap("ip", "192.168.0.1"),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", "192.168.0.1")));
-        assertEquals(singletonMap("ip", "::1"),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", "::1")));
-        assertEquals(emptyMap(),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", null)));
+        asThoughRelocatedTestCase(docMapper, "{\"ip\":\"192.168.0.1\"}");
+        asThoughRelocatedTestCase(docMapper, "{\"ip\":\"::1\"}");
+        asThoughRelocatedTestCase(docMapper, "{}", "{\"ip\":null}");
+        asThoughRelocatedTestCase(docMapper, "{\"ip\":\"::1\"}", "{\"ip\":\"0000:0000:0000:0000:0000:0000:0000:0001\"}");
     }
 
     public void testAsThoughRelocatedNullValue() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b ->
                 b.field("null_value", "0000:0000:0000:0000:0000:0000:0000:0001")));
-        assertEquals(singletonMap("ip", "192.168.0.1"),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", "192.168.0.1")));
-        assertEquals(singletonMap("ip", "::1"),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("ip", null)));
+        asThoughRelocatedTestCase(docMapper, "{\"ip\":\"192.168.0.1\"}");
+        asThoughRelocatedTestCase(docMapper, "{\"ip\":\"::1\"}", "{\"ip\":null}");
     }
 
     private CompressedXContent relocateToDocValueMapping(CheckedConsumer<XContentBuilder, IOException> extraFields) throws IOException {

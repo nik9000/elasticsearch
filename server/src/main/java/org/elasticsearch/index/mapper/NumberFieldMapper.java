@@ -271,8 +271,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return roundToHalfFloat(parse(sourceValue, coerce));
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                float value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, roundToHalfFloat(value));
             }
 
             private void validateParsed(float value) {
@@ -372,8 +382,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return parse(sourceValue, coerce);
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                float value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, value);
             }
 
             private void validateParsed(float value) {
@@ -464,8 +484,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return parse(sourceValue, coerce);
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                double value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, value);
             }
 
             private void validateParsed(double value) {
@@ -537,8 +567,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return parse(sourceValue, coerce);
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                short value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, value);
             }
         },
         SHORT("short", NumericType.SHORT) {
@@ -600,8 +640,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return parse(sourceValue, coerce);
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                short value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, value);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -722,14 +772,23 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return parse(sourceValue, coerce);
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                int value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, value);
             }
         },
         LONG("long", NumericType.LONG) {
             @Override
             public Long parse(Object value, boolean coerce) {
-                System.err.println("parsing long " + value.getClass() + " " + value);
                 if (value instanceof Long) {
                     return (Long)value;
                 }
@@ -848,8 +907,18 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            protected Object asThoughRelocated(Object sourceValue, boolean coerce) {
-                return parse(sourceValue, coerce);
+            protected void asThoughRelocated(String name, XContentParser translogSourceParser,
+                    XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException {
+                long value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    if (nullValue == null) {
+                        return;
+                    }
+                    value = parse(nullValue, coerce);
+                } else {
+                    value = parse(translogSourceParser, coerce);
+                }
+                normalizedBuilder.field(name, value);
             }
         };
 
@@ -882,7 +951,8 @@ public class NumberFieldMapper extends FieldMapper {
         protected abstract void relocateFromDocValues(String name, AtomicNumericFieldData afd,
                                           int docId, XContentBuilder builder) throws IOException;
 
-        protected abstract Object asThoughRelocated(Object sourceValue, boolean coerce);
+        protected abstract void asThoughRelocated(String name, XContentParser translogSourceParser,
+                XContentBuilder normalizedBuilder, Object nullValue, boolean coerce) throws IOException;
 
         Number valueForSearch(Number value) {
             return value;
@@ -1095,7 +1165,6 @@ public class NumberFieldMapper extends FieldMapper {
             value = null;
         } else {
             try {
-                System.err.println("BBBB " + parser.text());
                 numericValue = fieldType().type.parse(parser, coerce.value());
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
@@ -1106,7 +1175,6 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
             value = numericValue;
-            System.err.println("DDDDD " + numericValue);
         }
 
         if (value == null) {
@@ -1176,11 +1244,9 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Object asThoughRelocated(Object sourceValue) {
-                if (sourceValue == null) {
-                    return fieldType().nullValue();
-                }
-                return fieldType().type.asThoughRelocated(sourceValue, coerce.value());
+            public void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) throws IOException {
+                NumberFieldType fieldType = fieldType();
+                fieldType.type.asThoughRelocated(name(), translogSourceParser, normalizedBuilder, fieldType.nullValue(), coerce.value());
             }
         };
     }

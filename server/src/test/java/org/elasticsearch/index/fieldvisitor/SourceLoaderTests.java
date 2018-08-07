@@ -134,8 +134,9 @@ public class SourceLoaderTests extends ESTestCase {
                 }
 
                 @Override
-                public Object asThoughRelocated(Object sourceValue) {
-                    // NOCOMMIT abstract SourceRelocationHandler from SourceLoader.
+                public void asThoughRelocated(XContentParser translogSourceParser,
+                        XContentBuilder normalizedBuilder) {
+                    // NOCOMMIT tests for this too
                     throw new UnsupportedOperationException();
                 }
             });

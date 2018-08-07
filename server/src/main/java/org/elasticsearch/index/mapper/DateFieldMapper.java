@@ -44,6 +44,8 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -521,18 +523,17 @@ public class DateFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Object asThoughRelocated(Object sourceValue) {
-                // Convert whatever the _source object is into a string with the appropriate format
+            public void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) throws IOException {
                 String str;
-                if (sourceValue == null) {
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
                     str = fieldType().nullValueAsString();
                     if (str == null) {
-                        return null;
+                        return;
                     }
                 } else {
-                    str = sourceValue.toString();
+                    str = translogSourceParser.text();
                 }
-                return fieldType().dateTimeFormatter().printer().print(fieldType().parse(str));
+                normalizedBuilder.field(name(), fieldType().dateTimeFormatter().printer().print(fieldType().parse(str)));
             }
         };
     }

@@ -526,47 +526,31 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     public void testAsThoughRelocatedLong() throws IOException {
-        long expected = randomLong();
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> {}));
-        assertEquals(singletonMap("number", expected),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", expected)));
-        assertEquals(emptyMap(),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", null)));
+        asThoughRelocatedTestCase(docMapper, "{\"number\":" + randomLong() + "}");
+        asThoughRelocatedTestCase(docMapper, "{}", "{\"number\":null}");
     }
 
     public void testAsThoughRelocatedLongRounding() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> {}));
-        assertEquals(singletonMap("number", 0L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", .1)));
-        assertEquals(singletonMap("number", 0L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", -.1)));
-        assertEquals(singletonMap("number", 12L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", 12.1)));
-        assertEquals(singletonMap("number", 12L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", 12.9)));
-        assertEquals(singletonMap("number", -12L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", -12.1)));
-        assertEquals(singletonMap("number", -12L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", -12.9)));
+        asThoughRelocatedTestCase(docMapper, "{\"number\":0}", "{\"number\":0.1}");
+        asThoughRelocatedTestCase(docMapper, "{\"number\":0}", "{\"number\":-0.1}");
+        asThoughRelocatedTestCase(docMapper, "{\"number\":12}", "{\"number\":12.1}");
+        asThoughRelocatedTestCase(docMapper, "{\"number\":12}", "{\"number\":12.9}");
+        asThoughRelocatedTestCase(docMapper, "{\"number\":-12}", "{\"number\":-12.1}");
+        asThoughRelocatedTestCase(docMapper, "{\"number\":-12}", "{\"number\":-12.9}");
     }
 
     public void testAsThoughRelocatedDouble() throws IOException {
-        double expected = randomDouble();
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("double", b -> {}));
-        assertEquals(singletonMap("number", expected),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", expected)));
-        assertEquals(emptyMap(),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", null)));
+        asThoughRelocatedTestCase(docMapper, "{\"number\":" + randomDouble() + "}");
+        asThoughRelocatedTestCase(docMapper, "{}", "{\"number\":null}");
     }
 
     public void testAsThoughRelocatedNullValue() throws IOException {
-        long expected = randomLong();
-        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b ->
-                b.field("null_value", 123)));
-        assertEquals(singletonMap("number", expected),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", expected)));
-        assertEquals(singletonMap("number", 123L),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("number", null)));
+        DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping("long", b -> b.field("null_value", 123)));
+        asThoughRelocatedTestCase(docMapper, "{\"number\":" + randomLong() + "}");
+        asThoughRelocatedTestCase(docMapper, "{\"number\":123}", "{\"number\":null}");
     }
 
     private CompressedXContent relocateToDocValueMapping(String type,

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
@@ -699,7 +700,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         void resynthesize(LeafReaderContext context, int docId,
                 Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
                 XContentBuilder builder) throws IOException;
-        Object asThoughRelocated(Object sourceValue);
+        void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) throws IOException;
     }
 
     /**

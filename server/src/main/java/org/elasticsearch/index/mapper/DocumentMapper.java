@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
@@ -141,8 +140,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     private final Function<Map<String, ?>, Map<String, Object>> relocatedFilter;
 
-    private final Function<Map<String, ?>, Map<String, Object>> translogSourceNormalizingFilter;
-
     private final Map<String, SourceRelocationHandler> sourceRelocationHandlers;
 
     public DocumentMapper(MapperService mapperService, Mapping mapping) {
@@ -204,26 +201,6 @@ public class DocumentMapper implements ToXContentFragment {
                 }
             }
             return filtered;
-        };
-        translogSourceNormalizingFilter = sourceRelocationHandlers.isEmpty() ? null : map -> {
-            /*
-             * Replace fields that we know how to relocate with the values
-             * that we'd get from relocating them.
-             */
-            Map<String, Object> filtered = new HashMap<>(map.size());
-            for (Map.Entry<String, ?> e : map.entrySet()) {
-                SourceRelocationHandler handler = sourceRelocationHandlers.get(e.getKey());
-                if (null == handler || e.getValue() instanceof List) {
-                    filtered.put(e.getKey(), e.getValue());
-                } else {
-                    Object asThoughRelocated = handler.asThoughRelocated(e.getValue());
-                    if (asThoughRelocated != null) {
-                        filtered.put(e.getKey(), asThoughRelocated);
-                    }
-                }
-            }
-            return filtered;
-
         };
         this.sourceRelocationHandlers = unmodifiableMap(sourceRelocationHandlers);
 
@@ -389,10 +366,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     public Function<Map<String, ?>, Map<String, Object>> relocatedFilter() {
         return relocatedFilter;
-    }
-
-    public Function<Map<String, ?>, Map<String, Object>> translogSourceNormalizingFilter() {
-        return translogSourceNormalizingFilter;
     }
 
     public Map<String, SourceRelocationHandler> sourceRelocationHandlers() {

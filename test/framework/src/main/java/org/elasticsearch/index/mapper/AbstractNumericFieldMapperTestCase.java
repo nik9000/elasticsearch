@@ -23,7 +23,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
@@ -33,24 +32,17 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public abstract class AbstractNumericFieldMapperTestCase extends ESSingleNodeTestCase {
+/**
+ * Infrastructure for testing numeric mappers.
+ */
+public abstract class AbstractNumericFieldMapperTestCase extends AbstractFieldMapperTestCase {
     protected Set<String> TYPES;
     protected Set<String> WHOLE_TYPES;
-    protected IndexService indexService;
-    protected DocumentMapperParser parser;
 
     @Before
     public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
         setTypeList();
     }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
-
 
     protected abstract void setTypeList();
 

@@ -52,11 +52,11 @@ public abstract class SourceLoader {
     private static final Logger logger = LogManager.getLogger(SourceLoader.class);
 
     public static SourceLoader forReadingFromTranslog(
-            Function<Map<String, ?>, Map<String, Object>> filter) {
-        if (filter == null) {
+            Map<String, SourceRelocationHandler> relocationHandlers) {
+        if (relocationHandlers.isEmpty()) {
             return new PlainSourceLoader();
         }
-        return new TranslogNormalizingSourceLoader(filter);
+        return new TranslogNormalizingSourceLoader(relocationHandlers);
     }
 
     public static SourceLoader forReadingFromIndex(
@@ -115,10 +115,10 @@ public abstract class SourceLoader {
      * rebuilding relocated fields as though they were loaded from doc values.
      */
     private static class TranslogNormalizingSourceLoader extends SourceLoader {
-        private final Function<Map<String, ?>, Map<String, Object>> filter;
+        private final Map<String, SourceRelocationHandler> relocationHandlers;
 
-        private TranslogNormalizingSourceLoader(Function<Map<String, ?>, Map<String, Object>> filter) {
-            this.filter = filter;
+        private TranslogNormalizingSourceLoader(Map<String, SourceRelocationHandler> relocationHandlers) {
+            this.relocationHandlers = relocationHandlers;
         }
 
         @Override
@@ -126,14 +126,37 @@ public abstract class SourceLoader {
             if (loadedSource == null) {
                 return null;
             }
-            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(loadedSource, false);
-            Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
 
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            XContentType contentType = mapTuple.v1();
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType, bStream).map(filteredSource);
-            builder.close();
-            return bStream.bytes();
+            try (XContentParser translogSourceParser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loadedSource)) {
+                BytesStreamOutput bos = new BytesStreamOutput();
+                try (XContentBuilder normalizedBuilder = new XContentBuilder(translogSourceParser.contentType().xContent(), bos)) {
+                    if (translogSourceParser.nextToken() != Token.START_OBJECT) {
+                        throw new IllegalStateException("unexpected xcontent layout [" + translogSourceParser.currentToken() + "]");
+                    }
+                    normalizedBuilder.startObject();
+                    Token token;
+                    while ((token = translogSourceParser.nextToken()) != Token.END_OBJECT) {
+                        if (token != Token.FIELD_NAME) {
+                            throw new IllegalStateException("unexpected xcontent layout [" + translogSourceParser.currentToken() + "]");
+                        }
+                        String fieldName = translogSourceParser.currentName();
+                        token = translogSourceParser.nextToken();
+                        if (token == Token.VALUE_NULL || token.isValue()) {
+                            SourceRelocationHandler handler = relocationHandlers.get(fieldName);
+                            if (handler == null) {
+                                normalizedBuilder.field(fieldName).copyCurrentStructure(translogSourceParser);
+                            } else {
+                                handler.asThoughRelocated(translogSourceParser, normalizedBuilder);
+                            }
+                        } else {
+                            normalizedBuilder.field(fieldName).copyCurrentStructure(translogSourceParser);
+                        }
+                    }
+                    normalizedBuilder.endObject();
+                }
+                return bos.bytes();
+            }
         }
     }
 
@@ -178,7 +201,9 @@ public abstract class SourceLoader {
                     recreationBuilder.startObject();
                     Token token;
                     while ((token = loadedSourceParser.nextToken()) != Token.END_OBJECT) {
-                        assert token == Token.FIELD_NAME;
+                        if (token != Token.FIELD_NAME) {
+                            throw new IllegalStateException("unexpected xcontent layout [" + loadedSourceParser.currentToken() + "]");
+                        }
                         relocationHandlersToInvoke.remove(loadedSourceParser.currentName());
                         recreationBuilder.copyCurrentStructure(loadedSourceParser);
                     }

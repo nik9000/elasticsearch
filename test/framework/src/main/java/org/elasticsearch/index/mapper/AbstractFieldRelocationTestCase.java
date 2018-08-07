@@ -69,8 +69,10 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     public final void testRoundTrip() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping());
 
+        // NOCOMMIT pull to common method
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().field("field");
+        // NOCOMMIT randomly chose null sometimes
         writeRandomValue(builder);
         builder.endObject();
         BytesReference originalSource = BytesReference.bytes(builder);
@@ -118,6 +120,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().field("field");
+        // NOCOMMIT randomly chose null sometimes
         writeRandomValue(builder);
         builder.endObject();
         BytesReference originalSource = BytesReference.bytes(builder);
@@ -142,7 +145,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     }
 
     private BytesReference fromTranslog(DocumentMapper docMapper, BytesReference fromTranslog) throws IOException {
-        SourceLoader sourceLoader = SourceLoader.forReadingFromTranslog(docMapper.translogSourceNormalizingFilter());
+        SourceLoader sourceLoader = SourceLoader.forReadingFromTranslog(docMapper.sourceRelocationHandlers());
         sourceLoader.setLoadedSource(fromTranslog);
         sourceLoader.load(null, 0);
         return sourceLoader.source();

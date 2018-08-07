@@ -39,6 +39,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -435,23 +437,17 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Object asThoughRelocated(Object sourceValue) {
-                /*
-                 * To mimick loading from doc values we round trip the string.
-                 * We can be sure it is a string because xcontent only produces
-                 * strings.
-                 */
+            public void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) throws IOException {
                 InetAddress address;
-                if (sourceValue == null) {
-                    // fieldType().nullValueAsString() isn't properly formatted so we don't use it
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
                     address = (InetAddress) fieldType().nullValue();
                     if (address == null) {
-                        return null;
+                        return;
                     }
                 } else {
-                    address = InetAddresses.forString(sourceValue.toString());
+                    address = InetAddresses.forString(translogSourceParser.text());
                 }
-                return InetAddresses.toAddrString(address);
+                normalizedBuilder.field(name(), InetAddresses.toAddrString(address));
             }
         };
     }

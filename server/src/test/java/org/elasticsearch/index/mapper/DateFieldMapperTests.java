@@ -58,22 +58,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class DateFieldMapperTests extends ESSingleNodeTestCase {
-
-    IndexService indexService;
-    DocumentMapperParser parser;
-
-    @Before
-    public void setup() {
-        indexService = createIndex("test");
-        parser = indexService.mapperService().documentMapperParser();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
-
+public class DateFieldMapperTests extends AbstractFieldMapperTestCase {
     public void testDefaults() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
@@ -586,35 +571,35 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DateTimeFormatter format = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> {}));
         Instant instant = new Instant(randomInt());
-        assertEquals(singletonMap("date", format.print(instant)),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", instant.getMillis())));
-        assertEquals(singletonMap("date", format.print(instant)),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
-        assertEquals(emptyMap(),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", null)));
+        asThoughRelocatedTestCase(docMapper, "{\"date\":\"2018-01-02T00:11:22.000Z\"}", "{\"date\":\"2018-01-02T00:11:22.000Z\"}");
+        asThoughRelocatedTestCase(docMapper,
+                "{\"date\":\"" + format.print(instant) + "\"}",
+                "{\"date\":\"" + instant.getMillis() + "\"}");
+        asThoughRelocatedTestCase(docMapper,
+                "{\"date\":\"" + format.print(instant) + "\"}",
+                "{\"date\":\"" + format.print(instant) + "\"}");
+        asThoughRelocatedTestCase(docMapper, "{}", "{\"date\":null}");
     }
 
     public void testAsThoughRelocatedNullValue() throws IOException {
-        DateTimeFormatter format = ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC);
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> b.field("null_value", 0)));
         Instant instant = new Instant(randomInt());
-        assertEquals(singletonMap("date", format.print(instant)),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", instant.getMillis())));
-        assertEquals(singletonMap("date", format.print(instant)),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
-        assertEquals(singletonMap("date", "1970-01-01T00:00:00.000Z"),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", null)));
+        asThoughRelocatedTestCase(docMapper, "{\"date\":\"2018-01-02T00:11:22.000Z\"}", "{\"date\":\"2018-01-02T00:11:22.000Z\"}");
+        asThoughRelocatedTestCase(docMapper, "{\"date\":\"1970-01-01T00:00:00.000Z\"}", "{\"date\":null}");
     }
 
     public void testAsThoughRelocatedWithFormat() throws IOException {
-        String pattern = "yyyy.mm.dd'T'HH:MM:ss:SSSZ";
+        String pattern = "yyyy.MM.dd'T'HH:mm:ss.SSSZ";
         DateTimeFormatter format = DateTimeFormat.forPattern(pattern);
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping(b -> b.field("format", pattern)));
         Instant instant = new Instant(randomInt());
-        assertEquals(singletonMap("date", format.print(instant)),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", format.print(instant))));
-        assertEquals(emptyMap(),
-                docMapper.translogSourceNormalizingFilter().apply(singletonMap("date", null)));
+        asThoughRelocatedTestCase(docMapper,
+                "{\"date\":\"2018.01.02T00:11:22.000+0000\"}",
+                "{\"date\":\"2018.01.02T00:11:22.000+0000\"}");
+        asThoughRelocatedTestCase(docMapper,
+                "{\"date\":\"" + format.print(instant) + "\"}",
+                "{\"date\":\"" + format.print(instant) + "\"}");
+        asThoughRelocatedTestCase(docMapper, "{}", "{\"date\":null}");
     }
 
     private CompressedXContent relocateToDocValueMapping(CheckedConsumer<XContentBuilder, IOException> extraFields) throws IOException {

@@ -101,6 +101,8 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
+
 public class InternalEngine extends Engine {
 
     /**
@@ -585,7 +587,7 @@ public class InternalEngine extends Engine {
                                             public SourceLoader createSourceLoader(
                                                     DocumentMapper docMapper, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
                                                 return SourceLoader.forReadingFromTranslog(
-                                                        docMapper == null ? null : docMapper.translogSourceNormalizingFilter());
+                                                        docMapper == null ? emptyMap() : docMapper.sourceRelocationHandlers());
                                             }
                                         });
                                 }
