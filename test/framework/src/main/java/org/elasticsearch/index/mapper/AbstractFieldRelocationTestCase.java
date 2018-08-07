@@ -69,13 +69,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     public final void testRoundTrip() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping());
 
-        // NOCOMMIT pull to common method
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("field");
-        // NOCOMMIT randomly chose null sometimes
-        writeRandomValue(builder);
-        builder.endObject();
-        BytesReference originalSource = BytesReference.bytes(builder);
+        BytesReference originalSource = randomSource();
 
         ParsedDocument firstTimeDoc = docMapper.parse(
                 SourceToParse.source("test", "_doc", "1", originalSource, XContentType.JSON));
@@ -118,12 +112,7 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
     public final void testLoadFromTranslog() throws IOException {
         DocumentMapper docMapper = parser.parse("_doc", relocateToDocValueMapping());
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("field");
-        // NOCOMMIT randomly chose null sometimes
-        writeRandomValue(builder);
-        builder.endObject();
-        BytesReference originalSource = BytesReference.bytes(builder);
+        BytesReference originalSource = randomSource();
         ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "_doc", "1", originalSource, XContentType.JSON));
 
         IndexReader reader = MemoryIndex.fromDocument(doc.rootDoc(), new MockAnalyzer(random())).createSearcher().getIndexReader();
@@ -132,6 +121,18 @@ public abstract class AbstractFieldRelocationTestCase extends ESSingleNodeTestCa
         logger.info("comparing\n      mapping:{}\n     original:{}\n   from index:{}\nfrom translog:{}\n",
                 docMapper.mappingSource(), originalSource.utf8ToString(), fromIndex, fromTranslog);
         assertEquals(fromIndex, fromTranslog);
+    }
+
+    private BytesReference randomSource() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("field");
+        if (rarely()) {
+            builder.nullValue();
+        } else {
+            writeRandomValue(builder);
+        }
+        builder.endObject();
+        return BytesReference.bytes(builder);
     }
 
     private BytesReference fromIndex(DocumentMapper docMapper, IndexReader reader) throws IOException {
