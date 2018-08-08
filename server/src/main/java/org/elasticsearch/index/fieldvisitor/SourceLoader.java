@@ -185,6 +185,10 @@ public abstract class SourceLoader {
             } else {
                 try (XContentParser loadedSourceParser = XContentHelper.createParser(
                             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, loadedSource)) {
+                    if (loadedSourceParser.contentType() == XContentType.JSON) {
+                        // NOCOMMIT remove me
+                        logger.warn("original source {}", loadedSource.utf8ToString());
+                    }
                     recreationBuilder = new XContentBuilder(loadedSourceParser.contentType().xContent(), new BytesStreamOutput());
                     if (loadedSourceParser.nextToken() != Token.START_OBJECT) {
                         throw new IllegalStateException("unexpected xcontent layout [" + loadedSourceParser.currentToken() + "]");
