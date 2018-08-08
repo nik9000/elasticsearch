@@ -26,6 +26,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
@@ -36,11 +37,14 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
@@ -49,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -411,5 +416,41 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (includeDefaults || fieldType().splitQueriesOnWhitespace) {
             builder.field("split_queries_on_whitespace", fieldType().splitQueriesOnWhitespace);
         }
+    }
+
+    @Override
+    public SourceRelocationHandler relocateToDocValuesHandler() {
+        return new SourceRelocationHandler() {
+            @Override
+            public void resynthesize(LeafReaderContext context, int docId,
+                    Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+                    XContentBuilder builder) throws IOException {
+                IndexFieldData<?> fieldData = fieldDataLookup.apply(fieldType);
+                AtomicFieldData ifd = fieldData.load(context);
+                relocateFromDocValues(name(), ifd.getBytesValues(), docId, builder);
+            }
+
+            @Override
+            public void asThoughRelocated(XContentParser translogSourceParser, XContentBuilder normalizedBuilder) throws IOException {
+                String value;
+                if (translogSourceParser.currentToken() == Token.VALUE_NULL) {
+                    value = (String) fieldType().nullValue();
+                    if (value == null) {
+                        return;
+                    }
+                } else {
+                    value = translogSourceParser.text();
+                }
+                normalizedBuilder.field(name(), value);
+            }
+        };
+    }
+
+    static void relocateFromDocValues(String name, SortedBinaryDocValues dv,
+            int docId, XContentBuilder builder) throws IOException {
+        if (false == dv.advanceExact(docId)) return;
+        if (1 != dv.docValueCount()) throw new IllegalStateException("only single valued fields supported");
+        BytesRef val = dv.nextValue();
+        builder.field(name, val.utf8ToString());
     }
 }

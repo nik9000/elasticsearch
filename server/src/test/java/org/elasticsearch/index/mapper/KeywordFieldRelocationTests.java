@@ -34,38 +34,19 @@ import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 import java.util.Locale;
 
-public class DateFieldRelocationTests extends AbstractFieldRelocationTestCase {
-    private static FormatDateTimeFormatter randomFormat() {
-        if (randomBoolean()) {
-            return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-        } else {
-            return Joda.forPattern("yyyy.MM.dd'T'HH:mm:ss:SSSZ||epoch_millis", Locale.ROOT);
-        }
-    }
-
-    private FormatDateTimeFormatter formatter = randomFormat();
-
+public class KeywordFieldRelocationTests extends AbstractFieldRelocationTestCase {
     @Override
     protected String fieldType() {
-        return "date";
+        return "keyword";
     }
 
     @Override
     protected void extraMappingConfiguration(XContentBuilder builder) throws IOException {
-        if (formatter == DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER) {
-            return;
-        }
-        builder.field("format", formatter.format());
+        builder.field("ignore_above", 2000);
     }
 
     @Override
     protected void writeRandomValue(XContentBuilder builder) throws IOException {
-        long date = randomLongBetween(TimeUnit.DAYS.toMillis(-365000), TimeUnit.DAYS.toMillis(365000));
-        if (randomBoolean()) {
-            builder.value(date);
-        } else {
-            DateTime d = new Instant(date).toDateTime().withZone(randomDateTimeZone());
-            builder.value(formatter.printer().withZone(null).print(d));
-        }
+        builder.value(randomRealisticUnicodeOfLengthBetween(0, 1000));
     }
 }
