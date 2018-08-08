@@ -386,6 +386,7 @@ public class DateFieldMapperTests extends AbstractFieldMapperTestCase {
                     .startObject("properties")
                         .startObject("release_date")
                             .field("type", "date")
+                            .field("relocate_to", "none")
                         .endObject()
                     .endObject()
                 .endObject().endObject());
@@ -410,7 +411,7 @@ public class DateFieldMapperTests extends AbstractFieldMapperTestCase {
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(formatException.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
 
-        String relocateToDocValues = Strings.toString(XContentFactory.jsonBuilder().startObject()
+        String startRelocating = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("movie")
                     .startObject("properties")
                         .startObject("release_date")
@@ -419,35 +420,24 @@ public class DateFieldMapperTests extends AbstractFieldMapperTestCase {
                         .endObject()
                     .endObject()
                 .endObject().endObject());
-        indexService.mapperService().merge("movie", new CompressedXContent(relocateToDocValues),
-            MapperService.MergeReason.MAPPING_UPDATE);
-
-        String stopRelocating = Strings.toString(XContentFactory.jsonBuilder().startObject()
-                .startObject("movie")
-                    .startObject("properties")
-                        .startObject("release_date")
-                            .field("type", "date")
-                            .field("relocate_to", "none")
-                        .endObject()
-                    .endObject()
-                .endObject().endObject());
         Exception relocateToException = expectThrows(IllegalArgumentException.class,
-            () -> indexService.mapperService().merge("movie", new CompressedXContent(stopRelocating),
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(startRelocating),
                 MapperService.MergeReason.MAPPING_UPDATE));
         assertEquals(
-                "mapper [release_date] attempted to change [relocate_to] from [doc_values] to [none] but [relocate_to] "
-                    + "cannot be changed unless it is [NONE]",
+                "mapper [release_date] attempted to change [relocate_to] from [none] to "
+                + "[doc_values] but [relocate_to] cannot be changed",
                 relocateToException.getMessage());
 
-        String unspecifiedRelocation = Strings.toString(XContentFactory.jsonBuilder().startObject()
+        String okUpdate = Strings.toString(XContentFactory.jsonBuilder().startObject()
                 .startObject("movie")
                     .startObject("properties")
                         .startObject("release_date")
                             .field("type", "date")
+                            .field("ignore_malformed", true)
                         .endObject()
                     .endObject()
                 .endObject().endObject());
-        indexService.mapperService().merge("movie", new CompressedXContent(relocateToDocValues),
+        indexService.mapperService().merge("movie", new CompressedXContent(okUpdate),
             MapperService.MergeReason.MAPPING_UPDATE);
     }
 

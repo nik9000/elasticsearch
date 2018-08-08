@@ -1,5 +1,6 @@
 TODO
 
+You can't enable after the fact now that we don't check on load
 Test with security's field filtering
 Limit setting
 
