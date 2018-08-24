@@ -301,14 +301,9 @@ public class BulkByScrollTask extends CancellableTask {
 
         public Status buildStatus() {
             if (sliceStatuses.isEmpty()) {
-                try {
-                    return new Status(
-                        sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
-                        searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil
-                    );
-                } catch (NullPointerException npe) {
-                    throw new IllegalArgumentException("a required field is null when building Status");
-                }
+                return new Status(
+                    sliceId, total, updated, created, deleted, batches, versionConflicts, noops, bulkRetries,
+                    searchRetries, throttled, requestsPerSecond, reasonCancelled, throttledUntil);
             } else {
                 return new Status(sliceStatuses, reasonCancelled);
             }
