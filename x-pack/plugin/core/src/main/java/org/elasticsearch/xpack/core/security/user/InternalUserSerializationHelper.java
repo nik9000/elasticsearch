@@ -15,27 +15,17 @@ public class InternalUserSerializationHelper {
         final boolean isInternalUser = input.readBoolean();
         final String username = input.readString();
         if (isInternalUser) {
-            if (SystemUser.is(username)) {
-                return SystemUser.INSTANCE;
-            } else if (XPackUser.is(username)) {
-                return XPackUser.INSTANCE;
-            } else if (XPackSecurityUser.is(username)) {
-                return XPackSecurityUser.INSTANCE;
+            User user = InternalUsers.resolve(username);
+            if (user == null) {
+                throw new IllegalStateException("user [" + username + "] is not an internal user");
             }
-            throw new IllegalStateException("user [" + username + "] is not an internal user");
         }
         return User.partialReadFrom(username, input);
     }
     public static void writeTo(User user, StreamOutput output) throws IOException {
-        if (SystemUser.is(user)) {
+        if (InternalUsers.isInternal(user)) {
             output.writeBoolean(true);
-            output.writeString(SystemUser.NAME);
-        } else if (XPackUser.is(user)) {
-            output.writeBoolean(true);
-            output.writeString(XPackUser.NAME);
-        } else if (XPackSecurityUser.is(user)) {
-            output.writeBoolean(true);
-            output.writeString(XPackSecurityUser.NAME);
+            output.writeString(user.principal());
         } else {
             User.writeTo(user, output);
         }

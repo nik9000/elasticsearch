@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -93,7 +94,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
             mock(ActionFilters.class), usersStore);
         // Request will fail before the request hashing algorithm is checked, but we use the same algorithm as in settings for consistency
         ChangePasswordRequest request = new ChangePasswordRequest();
-        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        request.username(randomFrom(InternalUsers.users()).principal());
         request.passwordHash(Hasher.resolve(hashingAlgorithm).hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();

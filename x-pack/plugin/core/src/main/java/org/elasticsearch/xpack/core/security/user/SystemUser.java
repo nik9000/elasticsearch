@@ -11,7 +11,9 @@ import java.util.function.Predicate;
 
 /**
  * Internal user that is applied to all requests made elasticsearch itself
+ * @deprecated replace with internal users per internal action
  */
+@Deprecated
 public class SystemUser extends User {
 
     public static final String NAME = UsernamesField.SYSTEM_NAME;

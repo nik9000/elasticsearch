@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -80,7 +81,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ActionFilters.class),
             usersStore, transportService);
 
-        DeleteUserRequest request = new DeleteUserRequest(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        DeleteUserRequest request = new DeleteUserRequest(randomFrom(InternalUsers.users()).principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();

@@ -77,14 +77,15 @@ public class UserSerializationTests extends ESTestCase {
         assertThat(e.getMessage(), is("should always return false. Internal users should use the InternalUserSerializationHelper"));
     }
 
-    public void testXPackUserReadAndWrite() throws Exception {
+    public void testInternalUserReadAndWrite() throws Exception {
+        User user = randomFrom(InternalUsers.users();
         BytesStreamOutput output = new BytesStreamOutput();
 
-        InternalUserSerializationHelper.writeTo(XPackUser.INSTANCE, output);
+        InternalUserSerializationHelper.writeTo(user, output);
         User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
 
-        assertThat(readFrom, is(sameInstance(XPackUser.INSTANCE)));
-        assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
+        assertThat(readFrom, is(sameInstance(user)));
+        assertThat(readFrom.authenticatedUser(), is(user));
     }
 
     public void testFakeInternalUserSerialization() throws Exception {

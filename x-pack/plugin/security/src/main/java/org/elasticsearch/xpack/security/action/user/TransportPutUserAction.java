@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -78,7 +76,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                 validationException = addValidationError("user [" + username + "] is reserved and only the " +
                     "password can be changed", validationException);
             }
-        } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username) || XPackSecurityUser.NAME.equals(username)) {
+        } else if (InternalUsers.resovle(username) != null) {
             validationException = addValidationError("user [" + username + "] is internal", validationException);
         } else {
             Validation.Error usernameError = Validation.Users.validateUsername(username, true, settings);

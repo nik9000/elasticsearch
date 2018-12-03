@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -550,7 +551,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            if (XPackUser.is(token.principal()) == false) {
+            if (XPackUser.is(token.principal()) == false) {  // TODO resolve in review if these should all be converted as well
                 try {
                     enqueue(message("authentication_failed", action, token, null, indices(message), message), "authentication_failed");
                 } catch (Exception e) {
@@ -563,7 +564,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)) {
-            if (XPackUser.is(token.principal()) == false) {
+            if (XPackUser.is(token.principal()) == false) {  // TODO resolve in review if these should all be converted as well
                 try {
                     enqueue(message("authentication_failed", null, token, null, null, request), "authentication_failed");
                 } catch (Exception e) {
@@ -576,7 +577,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
-            if (XPackUser.is(token.principal()) == false) {
+            if (XPackUser.is(token.principal()) == false) {  // TODO resolve in review if these should all be converted as well
                 try {
                     enqueue(message("realm_authentication_failed", action, token, realm, indices(message), message),
                             "realm_authentication_failed");
@@ -590,7 +591,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
-            if (XPackUser.is(token.principal()) == false) {
+            if (XPackUser.is(token.principal()) == false) {  // TODO resolve in review if these should all be converted as well
                 try {
                     enqueue(message("realm_authentication_failed", null, token, realm, null, request), "realm_authentication_failed");
                 } catch (Exception e) {
@@ -603,7 +604,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg, String[] roleNames) {
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        final boolean isSystem = InternalUsers.isInternal(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
         final boolean shouldLog = logSystemAccessGranted || (isSystem == false && events.contains(ACCESS_GRANTED));
         if (shouldLog) {
@@ -621,6 +622,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+        // TODO resolve in review if these should all be converted as well
         if (events.contains(ACCESS_DENIED) && (XPackUser.is(authentication.getUser()) == false)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
@@ -658,6 +660,7 @@ public class IndexAuditTrail implements AuditTrail, ClusterStateListener {
 
     @Override
     public void tamperedRequest(String requestId, User user, String action, TransportMessage request) {
+        // TODO resolve in review if these should all be converted as well
         if (events.contains(TAMPERED_REQUEST) && XPackUser.is(user) == false) {
             try {
                 enqueue(message("tampered_request", action, user, null, null, indices(request), request), "tampered_request");

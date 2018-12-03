@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -141,7 +142,7 @@ public class AuthorizationService {
         if (auditId == null) {
             // We would like to assert that there is an existing request-id, but if this is a system action, then that might not be
             // true because the request-id is generated during authentication
-            if (isInternalUser(authentication.getUser()) != false) {
+            if (InternalUsers.isInternal(authentication.getUser()) != false) {
                 auditId = AuditUtil.getOrGenerateRequestId(threadContext);
             } else {
                 auditTrail.tamperedRequest(null, authentication.getUser(), action, request);
@@ -355,10 +356,6 @@ public class AuthorizationService {
         auditTrail.accessGranted(auditId, authentication, action, request, permission.names());
     }
 
-    private boolean isInternalUser(User user) {
-        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user);
-    }
-
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
         for (String index : SecurityIndexManager.indexNames()) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
@@ -457,21 +454,14 @@ public class AuthorizationService {
     }
 
     public void roles(User user, ActionListener<Role> roleActionListener) {
-        // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
-        // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackUser has the Superuser role and we can simply return that
-        if (SystemUser.is(user)) {
-            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
-                " roles");
-        }
-        if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1;
-            roleActionListener.onResponse(XPackUser.ROLE);
-            return;
-        }
-        if (XPackSecurityUser.is(user)) {
-            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
+        /*
+         * We need to special case the internal users in this method so we don't
+         * need to perform asynchronous actions here which are prone to
+         * deadlock.
+         */
+        Role internalRole = InternalUsers.resolveRole(user);
+        if (internalRole != null) {
+            roleActionListener.onResponse(internalRole);
             return;
         }
 

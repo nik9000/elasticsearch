@@ -1322,9 +1322,9 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {
     }
 
-    public void testDoesNotUseRolesStoreForXPackUser() {
+    public void testDoesNotUseRolesStoreForInternalUsers() {
         PlainActionFuture<Role> rolesFuture = new PlainActionFuture<>();
-        authorizationService.roles(XPackUser.INSTANCE, rolesFuture);
+        authorizationService.roles(randomFrom(InternalUsers.USERS), rolesFuture);
         final Role roles = rolesFuture.actionGet();
         assertThat(roles, equalTo(XPackUser.ROLE));
         verifyZeroInteractions(rolesStore);

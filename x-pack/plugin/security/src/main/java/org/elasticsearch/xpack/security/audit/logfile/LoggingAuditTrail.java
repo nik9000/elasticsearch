@@ -29,9 +29,9 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
@@ -403,7 +403,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     @Override
     public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg, String[] roleNames) {
         final User user = authentication.getUser();
-        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        final boolean isSystem = InternalUsers.isInternal(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(msg);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
