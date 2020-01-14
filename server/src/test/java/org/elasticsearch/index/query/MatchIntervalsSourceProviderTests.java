@@ -38,6 +38,7 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
 
     @Override
     protected Match mutateInstance(Match instance) throws IOException {
+        // NOCOMMIT add mutation for name
         String query = instance.getQuery();
         int maxGaps = instance.getMaxGaps();
         boolean isOrdered = instance.isOrdered();

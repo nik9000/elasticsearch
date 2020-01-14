@@ -39,6 +39,7 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
 
     @Override
     protected Combine mutateInstance(Combine instance) throws IOException {
+        // NOCOMMIT add name mutation
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         boolean ordered = instance.isOrdered();
         int maxGaps = instance.getMaxGaps();
