@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A {@link BucketCollector} that records collected doc IDs and buckets and
@@ -90,6 +91,16 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         @Override
         public Aggregator subAggregator(String name) {
             return in.subAggregator(name);
+        }
+
+        @Override
+        public BulkResult buildBulkResult() {
+            return in.buildBulkResult();
+        }
+
+        @Override
+        public boolean supportsBulkResult() {
+            return in.supportsBulkResult();
         }
 
         @Override

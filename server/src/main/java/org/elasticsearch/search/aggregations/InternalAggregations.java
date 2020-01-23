@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -34,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.emptyList;
 
 /**
  * An internal implementation of {@link Aggregations}.
@@ -52,6 +56,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         }
     };
 
+    // NOCOMMIT bulkResults is Accountable and Releasable.
+    private final List<Aggregator.BulkResult> bulkResults;
     private final List<SiblingPipelineAggregator> topLevelPipelineAggregators;
 
     /**
@@ -59,27 +65,43 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
-        this.topLevelPipelineAggregators = Collections.emptyList();
+        this.bulkResults = emptyList();
+        this.topLevelPipelineAggregators = emptyList();
     }
 
     /**
      * Constructs a new aggregation providing its {@link InternalAggregation}s and {@link SiblingPipelineAggregator}s
      */
-    public InternalAggregations(List<InternalAggregation> aggregations, List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
+    public InternalAggregations(List<InternalAggregation> aggregations, List<Aggregator.BulkResult> bulkResults,
+            List<SiblingPipelineAggregator> topLevelPipelineAggregators) {
         super(aggregations);
+        this.bulkResults = Objects.requireNonNull(bulkResults);
         this.topLevelPipelineAggregators = Objects.requireNonNull(topLevelPipelineAggregators);
     }
 
     public InternalAggregations(StreamInput in) throws IOException {
         super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+        bulkResults = in.getVersion().onOrAfter(Version.V_8_0_0) ? 
+                in.readList(stream -> in.readNamedWriteable(Aggregator.BulkResult.class)) : emptyList();
         this.topLevelPipelineAggregators = in.readList(
             stream -> (SiblingPipelineAggregator)in.readNamedWriteable(PipelineAggregator.class));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList((List<InternalAggregation>)aggregations);
+        @SuppressWarnings("unchecked")
+        List<InternalAggregation> cast = (List<InternalAggregation>) aggregations;
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeNamedWriteableList(cast);
+            out.writeNamedWriteableList(bulkResults);
+        } else {
+            List<InternalAggregation> realized = new ArrayList<>(aggregations.size());
+            realized.addAll(cast);
+            for (Aggregator.BulkResult bulk : bulkResults) {
+                realized.add(bulk.buildAggregation(0));
+            }
+            out.writeNamedWriteableList(realized);
+        }
         out.writeNamedWriteableList(topLevelPipelineAggregators);
     }
 
@@ -113,6 +135,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
+            // Convert the BulkResults into InternalAggregations at the last possible moment.
+            for (Aggregator.BulkResult bulkResult : reduced.bulkResults) {
+                reducedInternalAggs.add(bulkResult.buildAggregation(0));
+            }
             reducedInternalAggs = reducedInternalAggs.stream()
                 .map(agg -> agg.reducePipelines(agg, context))
                 .collect(Collectors.toList());
@@ -161,6 +187,18 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             reducedAggregations.add(first.reduce(aggregations, context));
         }
 
-        return new InternalAggregations(reducedAggregations, topLevelPipelineAggregators);
+        List<Aggregator.BulkResult> firstResults = aggregationsList.get(0).bulkResults;
+        List<Aggregator.BulkResult> others = new ArrayList<>(aggregationsList.size() - 1);
+        for (int i = 0; i < firstResults.size(); i++) {
+            for (InternalAggregations ia : aggregationsList) {
+                others.add(ia.bulkResults.get(i));
+            }
+            Aggregator.BulkReduce reduce = firstResults.get(i).beginReducing(others, context);
+            long[] otherOwningOrdinals = new long[aggregationsList.size() - 1];
+            Arrays.fill(otherOwningOrdinals, 0);
+            reduce.reduce(0, otherOwningOrdinals);
+        }
+
+        return new InternalAggregations(reducedAggregations, firstResults, topLevelPipelineAggregators);
     }
 }

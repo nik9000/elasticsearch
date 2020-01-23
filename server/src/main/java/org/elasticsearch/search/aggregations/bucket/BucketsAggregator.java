@@ -18,23 +18,32 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toList;
 
 public abstract class BucketsAggregator extends AggregatorBase {
 
@@ -163,4 +172,84 @@ public abstract class BucketsAggregator extends AggregatorBase {
         }
     }
 
+    protected boolean subsSupportBulkResult() {
+        return Arrays.stream(subAggregators).allMatch(Aggregator::supportsBulkResult);
+    }
+
+    protected BucketsBulkResult buildBucketsBulkResult() {
+        List<BulkResult> subResults = new ArrayList<>(subAggregators.length);
+        for (Aggregator sub : subAggregators) {
+            assert sub.supportsBulkResult() : "["  + sub + "] doesn't support bulk result but we tried to use them";
+            subResults.add(sub.buildBulkResult());
+        }
+        return new BucketsBulkResult(subResults, docCounts);
+    }
+
+    public static class BucketsBulkResult implements Writeable, Releasable {
+        private final List<BulkResult> subResults;
+        private final IntArray docCounts; // NOCOMMIT would we have to grow the ordinals?
+
+        public BucketsBulkResult(List<BulkResult> subResults, IntArray docCounts) {
+            this.subResults = subResults;
+            this.docCounts = docCounts;
+        }
+
+        public BucketsBulkResult(StreamInput in) throws IOException {
+            subResults = in.readNamedWriteableList(BulkResult.class);
+            // TODO this is ulra mega lame
+            long size = in.readVLong();
+            docCounts = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(size);
+            for (long i = 0; i < size; i++) {
+                docCounts.set(i, in.readVInt());
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeNamedWriteableList(subResults);
+            out.writeVLong(docCounts.size());
+            for (long i = 0; i < docCounts.size(); i++) {
+                out.writeVInt(docCounts.get(i));
+            }
+        }
+
+        @Override
+        public void close() {
+            IOUtils.closeWhileHandlingException(subResults);
+            docCounts.close();
+        }
+
+        public long bucketDocCount(long bucketOrd) {
+            if (bucketOrd >= docCounts.size()) {
+                // See BucketsAggregator.bucketDocCount for explanation of this check
+                return 0;
+            }
+            return docCounts.get(bucketOrd);
+        }
+
+        public InternalAggregations bucketAggregations(long bucketOrd) {
+            final InternalAggregation[] aggregations = new InternalAggregation[subResults.size()];
+            for (int i = 0; i < subResults.size(); i++) {
+                aggregations[i] = subResults.get(i).buildAggregation(bucketOrd);
+            }
+            return new InternalAggregations(Arrays.asList(aggregations));
+        }
+
+        /**
+         * Begin reducing many BulkResults into this one.
+         */
+        public Aggregator.BulkReduce beginReducing(List<BucketsBulkResult> others, ReduceContext ctx) {
+            Aggregator.BulkReduce[] subs = new Aggregator.BulkReduce[subResults.size()];
+            for (int i = 0; i < subs.length; i++) {
+                final int index = i;
+                subs[i] = subResults.get(i).beginReducing(
+                        others.stream().map(o -> o.subResults.get(index)).collect(toList()), ctx);
+            }
+            return (myOrd, otherOrds) -> {
+                for (Aggregator.BulkReduce sub : subs) {
+                    sub.reduce(myOrd, otherOrds);
+                }
+            };
+        }
+    }
 }

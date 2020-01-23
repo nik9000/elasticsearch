@@ -224,6 +224,20 @@ public abstract class AggregatorBase extends Aggregator {
         return subAggregatorbyName.get(aggName);
     }
 
+    @Override
+    public boolean supportsBulkResult() {
+        return false;
+    }
+
+    @Override
+    public BulkResult buildBulkResult() {
+        return null;
+    }
+
+    protected Aggregator.CommonBulkResult buildCommonBulkResult() {
+        return new Aggregator.CommonBulkResult(name, pipelineAggregators(), metaData());
+    }
+
     /**
      * @return  The current aggregation context.
      */

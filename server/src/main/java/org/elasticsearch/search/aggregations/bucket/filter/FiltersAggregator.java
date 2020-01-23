@@ -42,6 +42,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -201,8 +202,22 @@ public class FiltersAggregator extends BucketsAggregator {
         return new InternalFilters(name, buckets, keyed, pipelineAggregators(), metaData());
     }
 
+    @Override
+    public boolean supportsBulkResult() {
+        return subsSupportBulkResult();
+    }
+
+    @Override
+    public BulkResult buildBulkResult() {
+        List<String> keys = new ArrayList<>(totalNumKeys);
+        Collections.addAll(keys, this.keys);
+        if (showOtherBucket) {
+            keys.add(otherBucketKey);
+        }
+        return new FiltersBulkResult(buildCommonBulkResult(), buildBucketsBulkResult(), keys, keyed);
+    }
+
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
         return owningBucketOrdinal * totalNumKeys + filterOrd;
     }
-
 }

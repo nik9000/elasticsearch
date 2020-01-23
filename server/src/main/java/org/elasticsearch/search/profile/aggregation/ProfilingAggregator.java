@@ -28,6 +28,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
+import java.util.List;
 
 public class ProfilingAggregator extends Aggregator {
 
@@ -68,6 +69,17 @@ public class ProfilingAggregator extends Aggregator {
     @Override
     public Aggregator subAggregator(String name) {
         return delegate.subAggregator(name);
+    }
+
+    @Override
+    public BulkResult buildBulkResult() {
+        // TODO profile the reduce steps
+        return delegate.buildBulkResult();
+    }
+
+    @Override
+    public boolean supportsBulkResult() {
+        return delegate.supportsBulkResult();
     }
 
     @Override

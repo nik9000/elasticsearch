@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
@@ -284,7 +285,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 //Earlier versions serialize sibling pipeline aggs separately as they used to be set to QuerySearchResult directly, while
                 //later versions include them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
                 //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1.
-                this.aggregations = new InternalAggregations(internalAggs, pipelineAggregators);
+                this.aggregations = new InternalAggregations(internalAggs, emptyList(), pipelineAggregators);
             }
         }
         if (in.readBoolean()) {

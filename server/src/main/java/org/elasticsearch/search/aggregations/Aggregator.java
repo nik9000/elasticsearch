@@ -21,16 +21,22 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * An Aggregator.
@@ -101,6 +107,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public abstract InternalAggregation buildEmptyAggregation();
 
+    public abstract boolean supportsBulkResult();
+
+    public abstract BulkResult buildBulkResult();
+
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode implements Writeable {
 
@@ -146,6 +156,59 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeEnum(this);
+        }
+    }
+
+    public interface BulkResult extends NamedWriteable, Releasable {
+        /**
+         * Build an aggregation for data that has been collected into {@code bucket}.
+         */
+        InternalAggregation buildAggregation(long owningBucketOrdinal);
+
+        /**
+         * Begin reducing many BulkResults into this one.
+         */
+        BulkReduce beginReducing(List<Aggregator.BulkResult> others, ReduceContext ctx);
+    }
+    @FunctionalInterface
+    public interface BulkReduce {
+        void reduce(long myOwningBucketOrinal, long[] otherOwningBucketOrdinals);
+    }
+
+    public static final class CommonBulkResult implements Writeable {
+        private final String name;
+        private final List<PipelineAggregator> pipelineAggregators;
+        private final Map<String, Object> metaData;
+
+        public CommonBulkResult(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+            this.name = name;
+            this.pipelineAggregators = pipelineAggregators;
+            this.metaData = metaData;
+        }
+
+        public CommonBulkResult(StreamInput in) throws IOException {
+            name = in.readString();
+            pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class);
+            metaData = in.readMap();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeNamedWriteableList(pipelineAggregators);
+            out.writeMap(metaData);
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public List<PipelineAggregator> getPipelineAggregators() {
+            return pipelineAggregators;
+        }
+
+        public Map<String, Object> getMetaData() {
+            return metaData;
         }
     }
 }

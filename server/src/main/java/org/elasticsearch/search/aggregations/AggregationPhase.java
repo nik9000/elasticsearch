@@ -123,11 +123,18 @@ public class AggregationPhase implements SearchPhase {
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
+        List<Aggregator.BulkResult> bulkResults = new ArrayList<>(aggregators.length);
         context.aggregations().resetBucketMultiConsumer();
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregator.postCollection();
-                aggregations.add(aggregator.buildAggregation(0));
+                Aggregator.BulkResult bulkResult = aggregator.buildBulkResult();
+                if (bulkResult != null) {
+                    assert aggregator.supportsBulkResult();
+                    bulkResults.add(bulkResult);
+                } else {
+                    aggregations.add(aggregator.buildAggregation(0));
+                }
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
             }
@@ -143,7 +150,7 @@ public class AggregationPhase implements SearchPhase {
                     + "allowed at the top level");
             }
         }
-        context.queryResult().aggregations(new InternalAggregations(aggregations, siblingPipelineAggregators));
+        context.queryResult().aggregations(new InternalAggregations(aggregations, bulkResults, siblingPipelineAggregators));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
         context.aggregations(null);

@@ -42,6 +42,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+
 public class InternalAggregationsTests extends ESTestCase {
 
     private final NamedWriteableRegistry registry = new NamedWriteableRegistry(
@@ -59,8 +62,7 @@ public class InternalAggregationsTests extends ESTestCase {
         List<SiblingPipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
         topLevelPipelineAggs.add((SiblingPipelineAggregator)maxBucketPipelineAggregationBuilder.create());
-        List<InternalAggregations> aggs = Collections.singletonList(new InternalAggregations(Collections.singletonList(terms),
-            topLevelPipelineAggs));
+        List<InternalAggregations> aggs = singletonList(new InternalAggregations(singletonList(terms), emptyList(), topLevelPipelineAggs));
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(null, null, false);
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, reduceContext);
         assertEquals(1, reducedAggs.getTopLevelPipelineAggregators().size());
@@ -76,12 +78,12 @@ public class InternalAggregationsTests extends ESTestCase {
         InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(null, null, true);
         final InternalAggregations reducedAggs;
         if (randomBoolean()) {
-            InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms),
-                Collections.singletonList(siblingPipelineAggregator));
+            InternalAggregations aggs = new InternalAggregations(singletonList(terms), emptyList(),
+                    singletonList(siblingPipelineAggregator));
             reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs), reduceContext);
         } else {
-            InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms),
-                Collections.singletonList(siblingPipelineAggregator));
+            InternalAggregations aggs = new InternalAggregations(singletonList(terms), emptyList(),
+                    singletonList(siblingPipelineAggregator));
             reducedAggs = InternalAggregations.topLevelReduce(Collections.singletonList(aggs), reduceContext);
         }
         assertEquals(0, reducedAggs.getTopLevelPipelineAggregators().size());
@@ -117,7 +119,8 @@ public class InternalAggregationsTests extends ESTestCase {
                 topLevelPipelineAggs.add((SiblingPipelineAggregator)new SumBucketPipelineAggregationBuilder("name3", "bucket3").create());
             }
         }
-        return new InternalAggregations(aggsList, topLevelPipelineAggs);
+        // NOCOMMIT build bulk results here
+        return new InternalAggregations(aggsList, emptyList(), topLevelPipelineAggs);
     }
 
     public void testSerialization() throws Exception {

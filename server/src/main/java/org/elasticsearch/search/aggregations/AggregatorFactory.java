@@ -86,6 +86,17 @@ public abstract class AggregatorFactory {
         }
 
         @Override
+        public BulkResult buildBulkResult() {
+            // TODO figure out if these can implement
+            return null;
+        }
+
+        @Override
+        public boolean supportsBulkResult() {
+            return false;
+        }
+
+        @Override
         public void preCollection() throws IOException {
             for (long i = 0; i < aggregators.size(); ++i) {
                 final Aggregator aggregator = aggregators.get(i);

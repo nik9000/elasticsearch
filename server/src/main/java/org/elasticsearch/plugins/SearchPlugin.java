@@ -251,6 +251,7 @@ public interface SearchPlugin {
      */
     class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, ContextParser<String, ? extends AggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private Writeable.Reader<? extends Aggregator.BulkResult> bulkResultReader;
 
         /**
          * Specification for an {@link Aggregation}.
@@ -328,10 +329,25 @@ public interface SearchPlugin {
         }
 
         /**
+         * Add a reader for the "bulk" shard level results of this aggregation.
+         */
+        public AggregationSpec addBulkResultReader(Writeable.Reader<? extends Aggregator.BulkResult> bulkResultReader) {
+            this.bulkResultReader = bulkResultReader;
+            return this;
+        }
+
+        /**
          * Get the readers that must be registered for this aggregation's results.
          */
         public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
             return resultReaders;
+        }
+
+        /**
+         * Get the reader for this aggregation's "bulk" shard level results or null if there isn't one.
+         */
+        public Writeable.Reader<? extends Aggregator.BulkResult> getBulkResultReader() {
+            return bulkResultReader;
         }
     }
 

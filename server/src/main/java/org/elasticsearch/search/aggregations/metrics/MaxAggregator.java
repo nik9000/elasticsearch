@@ -205,4 +205,14 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
         });
         return result[0] != null ? converter.apply(result[0]) : null;
     }
+
+    @Override
+    public boolean supportsBulkResult() {
+        return true;
+    }
+
+    @Override
+    public BulkResult buildBulkResult() {
+        return new MaxBulkResult(buildCommonBulkResult(), formatter, maxes);
+    }
 }
