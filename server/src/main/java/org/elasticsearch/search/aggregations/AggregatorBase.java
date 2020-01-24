@@ -234,7 +234,7 @@ public abstract class AggregatorBase extends Aggregator {
         return null;
     }
 
-    protected Aggregator.CommonBulkResult buildCommonBulkResult() {
+    protected final Aggregator.CommonBulkResult buildCommonBulkResult() {
         return new Aggregator.CommonBulkResult(name, pipelineAggregators(), metaData());
     }
 

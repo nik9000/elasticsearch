@@ -87,7 +87,7 @@ public abstract class AggregatorFactory {
 
         @Override
         public BulkResult buildBulkResult() {
-            // TODO figure out if these can implement
+            // TODO implement eventually?
             return null;
         }
 

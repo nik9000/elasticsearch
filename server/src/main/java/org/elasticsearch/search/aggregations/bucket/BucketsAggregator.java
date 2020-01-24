@@ -175,7 +175,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         return Arrays.stream(subAggregators).allMatch(Aggregator::supportsBulkResult);
     }
 
-    protected BucketsBulkResult buildBucketsBulkResult() {
+    protected final BucketsBulkResult buildBucketsBulkResult() {
         List<BulkResult> subResults = new ArrayList<>(subAggregators.length);
         for (Aggregator sub : subAggregators) {
             assert sub.supportsBulkResult() : "["  + sub + "] doesn't support bulk result but we tried to use them";
@@ -232,6 +232,13 @@ public abstract class BucketsAggregator extends AggregatorBase {
             }
             return new InternalAggregations(Arrays.asList(aggregations));
         }
+
+        public InternalAggregations buildEmptySubAggregations() {
+            final InternalAggregation[] aggregations = new InternalAggregation[subResults.size()];
+            for (int i = 0; i < subResults.size(); i++) {
+                aggregations[i] = subResults.get(i).buildEmptyAggregation();
+            }
+            return new InternalAggregations(Arrays.asList(aggregations));        }
 
         /**
          * Begin reducing many BulkResults into this one.

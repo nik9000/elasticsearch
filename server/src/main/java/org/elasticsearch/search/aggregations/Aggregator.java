@@ -164,11 +164,16 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          */
         InternalAggregation buildAggregation(long owningBucketOrdinal);
 
+        InternalAggregation buildEmptyAggregation();
+
         /**
          * Begin reducing many BulkResults into this one.
          */
         BulkReduce beginReducing(List<Aggregator.BulkResult> others, ReduceContext ctx);
     }
+    /**
+     * Called once per bucket to reduce.
+     */
     @FunctionalInterface
     public interface BulkReduce {
         void reduce(long myOwningBucketOrinal, long[] otherOwningBucketOrdinals);

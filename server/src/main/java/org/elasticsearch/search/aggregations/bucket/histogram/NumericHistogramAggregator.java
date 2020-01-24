@@ -22,21 +22,24 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -167,5 +170,52 @@ class NumericHistogramAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    @Override
+    public boolean supportsBulkResult() {
+        return bucketOrds.size() <= Integer.MAX_VALUE && subsSupportBulkResult();
+    }
+
+    @Override
+    public BulkResult buildBulkResult() {
+        /*
+         * Build a sorted array of keys and an array of the associated ords
+         * so that:
+         * 1. We can merge two NumericHistogramBulkResults by walking them in order.
+         * 2. NumericHistogramBulkResults will build its buckets in order. Which is
+         *    important for compatibility with non-bulk responses.
+         */
+        DoubleArray keys = context.bigArrays().newDoubleArray(bucketOrds.size());
+        LongArray ords = context.bigArrays().newLongArray(bucketOrds.size());
+        for (long i = 0; i < bucketOrds.size(); i++) {
+            ords.set(i, i);
+        }
+        assert bucketOrds.size() > Integer.MAX_VALUE; // We only take this path if bucketOrds is small enough.
+        new IntroSorter() {
+            private double pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                double oldKey = keys.get(i);
+                keys.set(i, keys.get(j));
+                keys.set(j, oldKey);
+                long oldOrd = ords.get(i);
+                ords.set(i, ords.get(j));
+                ords.set(j, oldOrd);
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = keys.get(i);
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                return Double.compare(pivot, keys.get(j));
+            }
+        }.sort(0, (int) bucketOrds.size());
+        return new HistogramBulkResult(buildCommonBulkResult(), buildBucketsBulkResult(), formatter, interval, offset, keys, ords,
+                order, keyed, minDocCount, minBound, maxBound);
     }
 }

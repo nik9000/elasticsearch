@@ -121,6 +121,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramBulkResult;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
@@ -403,7 +404,9 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(IpRangeAggregationBuilder.NAME, IpRangeAggregationBuilder::new,
                 IpRangeAggregationBuilder::parse).addResultReader(InternalBinaryRange::new));
         registerAggregation(new AggregationSpec(HistogramAggregationBuilder.NAME, HistogramAggregationBuilder::new,
-                HistogramAggregationBuilder::parse).addResultReader(InternalHistogram::new));
+                HistogramAggregationBuilder::parse)
+                .addResultReader(InternalHistogram::new)
+                .addBulkResultReader(HistogramBulkResult::new));
         registerAggregation(new AggregationSpec(DateHistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder::new,
                 DateHistogramAggregationBuilder::parse).addResultReader(InternalDateHistogram::new));
         registerAggregation(new AggregationSpec(AutoDateHistogramAggregationBuilder.NAME, AutoDateHistogramAggregationBuilder::new,

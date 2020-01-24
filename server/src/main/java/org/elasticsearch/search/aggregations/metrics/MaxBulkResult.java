@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.Aggregator.BulkReduce;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 
@@ -79,6 +80,12 @@ public class MaxBulkResult implements Aggregator.BulkResult {
         LogManager.getLogger().warn("ADFADF {} {} {}", owningBucketOrdinal, common.getName(), maxes.get(owningBucketOrdinal));
         return new InternalMax(common.getName(), maxes.get(owningBucketOrdinal), format, common.getPipelineAggregators(),
                 common.getMetaData());
+    }
+
+    @Override
+    public InternalMax buildEmptyAggregation() {
+        return new InternalMax(common.getName(), Double.NEGATIVE_INFINITY, format, common.getPipelineAggregators(), common.getMetaData());
+
     }
 
     @Override

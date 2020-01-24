@@ -25,34 +25,34 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BulkReduce;
 import org.elasticsearch.search.aggregations.Aggregator.CommonBulkResult;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator.BucketsBulkResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
-import static java.util.Collections.newSetFromMap;
 import static java.util.stream.Collectors.toList;
 
 public class FiltersBulkResult implements Aggregator.BulkResult {
     private final Aggregator.CommonBulkResult common;
-    private final BucketsAggregator.BucketsBulkResult buckets;
+    private final BucketsAggregator.BucketsBulkResult bucketsResult;
     private final List<String> keys;
     private final boolean keyed;
 
-    public FiltersBulkResult(CommonBulkResult common, BucketsBulkResult buckets, List<String> keys, boolean keyed) {
+    public FiltersBulkResult(CommonBulkResult common, BucketsBulkResult bucketsResult, List<String> keys, boolean keyed) {
         this.common = common;
-        this.buckets = buckets;
+        this.bucketsResult = bucketsResult;
         this.keys = keys;
         this.keyed = keyed;
     }
 
     public FiltersBulkResult(StreamInput in) throws IOException {
         common = new Aggregator.CommonBulkResult(in);
-        buckets = new BucketsAggregator.BucketsBulkResult(in);
+        bucketsResult = new BucketsAggregator.BucketsBulkResult(in);
         keys = in.readStringList();
         keyed = in.readBoolean();
     }
@@ -60,7 +60,7 @@ public class FiltersBulkResult implements Aggregator.BulkResult {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         common.writeTo(out);
-        buckets.writeTo(out);
+        bucketsResult.writeTo(out);
         out.writeCollection(keys, StreamOutput::writeString);
         out.writeBoolean(keyed);
     }
@@ -72,29 +72,39 @@ public class FiltersBulkResult implements Aggregator.BulkResult {
 
     @Override
     public void close() {
-        buckets.close();
+        bucketsResult.close();
     }
 
     @Override
     public InternalFilters buildAggregation(long owningBucketOrdinal) {
         // TODO consumeAndMaybeBreak?
-        List<InternalFilters.InternalBucket> result = new ArrayList<>(keys.size());
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.size());
         long bucketOrd = owningBucketOrdinal * keys.size();
         for (int i = 0; i < keys.size(); i++) {
             LogManager.getLogger().warn("ADFADF {} {} {}", owningBucketOrdinal, common.getName(), keys.get(i));
-            result.add(new InternalFilters.InternalBucket(keys.get(i), buckets.bucketDocCount(bucketOrd),
-                    buckets.bucketAggregations(bucketOrd), keyed));
+            buckets.add(new InternalFilters.InternalBucket(keys.get(i), bucketsResult.bucketDocCount(bucketOrd),
+                    bucketsResult.bucketAggregations(bucketOrd), keyed));
             bucketOrd++;
         }
-        return new InternalFilters(common.getName(), result, keyed, common.getPipelineAggregators(), common.getMetaData());
+        return new InternalFilters(common.getName(), buckets, keyed, common.getPipelineAggregators(), common.getMetaData());
+    }
+
+    @Override
+    public InternalAggregation buildEmptyAggregation() {
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(keys.size());
+        InternalAggregations subAggs = bucketsResult.buildEmptySubAggregations();
+        for (int i = 0; i < keys.size(); i++) {
+            buckets.add(new InternalFilters.InternalBucket(keys.get(i), 0, subAggs, keyed));
+        }
+        return new InternalFilters(common.getName(), buckets, keyed, common.getPipelineAggregators(), common.getMetaData());
     }
 
     @Override
     public BulkReduce beginReducing(List<Aggregator.BulkResult> others, ReduceContext ctx) {
         List<BucketsAggregator.BucketsBulkResult> otherBuckets = others.stream()
-                .map(r -> ((FiltersBulkResult) r).buckets)
+                .map(r -> ((FiltersBulkResult) r).bucketsResult)
                 .collect(toList());
-        Aggregator.BulkReduce sub = buckets.beginReducing(otherBuckets, ctx);
+        Aggregator.BulkReduce sub = bucketsResult.beginReducing(otherBuckets, ctx);
         long[] mutOtherOrds = new long[others.size()];
         return (myOrd, otherOrds) -> {
             System.arraycopy(otherOrds, 0, mutOtherOrds, 0, otherOrds.length);
