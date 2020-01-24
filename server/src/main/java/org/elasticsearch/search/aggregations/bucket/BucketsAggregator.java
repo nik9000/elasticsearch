@@ -22,9 +22,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -41,7 +41,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 
@@ -215,8 +214,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
         @Override
         public void close() {
-            IOUtils.closeWhileHandlingException(subResults);
-            docCounts.close();
+            Releasables.close(Releasables.wrap(subResults), docCounts);
         }
 
         public long bucketDocCount(long bucketOrd) {
