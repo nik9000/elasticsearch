@@ -176,8 +176,6 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-
         // Buckets are ordered into groups - [keyed filters] [key1&key2 intersects]
         int maxOrd = owningBucketOrds.length * totalNumKeys;
         int totalBucketsToBuild = 0;
@@ -186,6 +184,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 totalBucketsToBuild++;
             }
         }
+        consumeBucketsAndMaybeBreak(totalBucketsToBuild);
         long[] bucketOrdsToBuild = new long[totalBucketsToBuild];
         int builtBucketIndex = 0;
         for (int ord = 0; ord < maxOrd; ord++) {
@@ -197,6 +196,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
         builtBucketIndex = 0;
         List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
         InternalAggregations[] bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
+        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ord = 0; ord < owningBucketOrds.length; ord++) {
             for (int i = 0; i < keys.length; i++) {
                 long bucketOrd = bucketOrd(owningBucketOrds[ord], i);

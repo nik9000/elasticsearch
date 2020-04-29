@@ -107,18 +107,11 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         }
 
         SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];
-        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantLongTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
+            list[i] = ordered.pop();
         }
 
-        runDeferredCollections(survivingBucketOrds);
-
-        for (SignificantLongTerms.Bucket bucket : list) {
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-        }
+        buildSubAggsForBuckets(list, bucket -> bucket.bucketOrd, (bucket, aggs) -> bucket.aggregations = aggs); 
 
         return new SignificantLongTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));

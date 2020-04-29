@@ -111,22 +111,14 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
-        final long[] survivingBucketOrds = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantStringTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
-        }
-
-        runDeferredCollections(survivingBucketOrds);
-
-        for (SignificantStringTerms.Bucket bucket : list) {
+            list[i] = ordered.pop();
             // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be
             // recycled at some point
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            list[i].termBytes = BytesRef.deepCopyOf(list[i].termBytes);
         }
 
+        buildSubAggsForBuckets(list, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
         return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
                 metadata(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
