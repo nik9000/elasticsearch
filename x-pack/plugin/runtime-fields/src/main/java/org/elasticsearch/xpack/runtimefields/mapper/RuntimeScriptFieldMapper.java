@@ -24,7 +24,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xpack.runtimefields.BooleanScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DateScriptFieldScript;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.IpScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.LongScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.StringScriptFieldScript;
@@ -127,14 +126,10 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
             NumberType.DOUBLE.typeName(),
             (builder, context) -> {
                 builder.formatAndLocaleNotSupported();
-                DoubleScriptFieldScript.Factory factory = builder.scriptCompiler.compile(
-                    builder.script.getValue(),
-                    DoubleScriptFieldScript.CONTEXT
-                );
                 return new ScriptDoubleMappedFieldType(
+                    builder.scriptCompiler,
                     builder.buildFullName(context),
                     builder.script.getValue(),
-                    factory,
                     builder.meta.getValue()
                 );
             },
@@ -292,7 +287,7 @@ public final class RuntimeScriptFieldMapper extends ParametrizedFieldMapper {
     }
 
     @FunctionalInterface
-    private interface ScriptCompiler {
+    interface ScriptCompiler {
         <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
     }
 }

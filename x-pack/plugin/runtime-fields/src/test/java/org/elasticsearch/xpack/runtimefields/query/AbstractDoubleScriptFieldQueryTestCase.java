@@ -6,17 +6,37 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
 
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractDoubleScriptFieldQueryTestCase<T extends AbstractDoubleScriptFieldQuery> extends
     AbstractScriptFieldQueryTestCase<T> {
 
-    protected final DoubleScriptFieldScript.LeafFactory leafFactory = mock(DoubleScriptFieldScript.LeafFactory.class);
+    protected final DoubleRuntimeValues.LeafFactory leafFactory = mock(DoubleRuntimeValues.LeafFactory.class);
 
     @Override
     public final void testVisit() {
         assertEmptyVisit();
+    }
+
+    protected static DoubleRuntimeValues values(double[] values) {
+        return new DoubleRuntimeValues() {
+            @Override
+            public void execute(int docId) {}
+
+            @Override
+            public void sort() {}
+
+            @Override
+            public double value(int idx) {
+                return values[idx];
+            }
+
+            @Override
+            public int count() {
+                return values.length;
+            }
+        };
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.xpack.runtimefields.DoubleArrayScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.RuntimeFields;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
@@ -265,32 +266,24 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
                         return factory;
                     }
 
-                    private DoubleScriptFieldScript.Factory factory(String code) {
+                    private DoubleArrayScriptFieldScript.Factory factory(String code) {
                         switch (code) {
                             case "read_foo":
-                                return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                                return (params, lookup) -> ctx -> new DoubleArrayScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public double[] execute() {
-                                        List<?> foos = (List<?>) getSource().get("foo");
-                                        double[] results = new double[foos.size()];
-                                        int i = 0;
-                                        for (Object foo : foos) {
-                                            results[i++] = ((Number) foo).doubleValue();
+                                    public void execute() {
+                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                            collectValue(((Number) foo).doubleValue());
                                         }
-                                        return results;
                                     }
                                 };
                             case "add_param":
-                                return (params, lookup) -> (ctx) -> new DoubleScriptFieldScript(params, lookup, ctx) {
+                                return (params, lookup) -> (ctx) -> new DoubleArrayScriptFieldScript(params, lookup, ctx) {
                                     @Override
-                                    public double[] execute() {
-                                        List<?> foos = (List<?>) getSource().get("foo");
-                                        double[] results = new double[foos.size()];
-                                        int i = 0;
-                                        for (Object foo : foos) {
-                                            results[i++] = ((Number) getParams().get("param")).doubleValue() + ((Number) foo).doubleValue();
+                                    public void execute() {
+                                        for (Object foo : (List<?>) getSource().get("foo")) {
+                                            collectValue(((Number) getParams().get("param")).doubleValue() + ((Number) foo).doubleValue());
                                         }
-                                        return results;
                                     }
                                 };
                             default:
@@ -302,8 +295,7 @@ public class ScriptDoubleMappedFieldTypeTests extends AbstractNonTextScriptMappe
         };
         ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, List.of(scriptPlugin, new RuntimeFields()));
         try (ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts)) {
-            DoubleScriptFieldScript.Factory factory = scriptService.compile(script, DoubleScriptFieldScript.CONTEXT);
-            return new ScriptDoubleMappedFieldType("test", script, factory, emptyMap());
+            return new ScriptDoubleMappedFieldType(scriptService::compile, "test", script, emptyMap());
         }
     }
 

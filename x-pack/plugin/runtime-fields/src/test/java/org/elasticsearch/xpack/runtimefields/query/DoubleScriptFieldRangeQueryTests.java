@@ -57,14 +57,14 @@ public class DoubleScriptFieldRangeQueryTests extends AbstractDoubleScriptFieldQ
     @Override
     public void testMatches() {
         DoubleScriptFieldRangeQuery query = new DoubleScriptFieldRangeQuery(randomScript(), leafFactory, "test", 1.2, 3.14);
-        assertTrue(query.matches(new double[] { 1.2 }));
-        assertTrue(query.matches(new double[] { 3.14 }));
-        assertTrue(query.matches(new double[] { 2 }));
-        assertFalse(query.matches(new double[] {}));
-        assertFalse(query.matches(new double[] { 5 }));
-        assertTrue(query.matches(new double[] { 2, 5 }));
-        assertTrue(query.matches(new double[] { 5, 2 }));
-        assertFalse(query.matches(new double[] { 1 }));
+        assertTrue(query.matches(values(new double[] { 1.2 })));
+        assertTrue(query.matches(values(new double[] { 3.14 })));
+        assertTrue(query.matches(values(new double[] { 2 })));
+        assertFalse(query.matches(values(new double[] {})));
+        assertFalse(query.matches(values(new double[] { 5 })));
+        assertTrue(query.matches(values(new double[] { 2, 5 })));
+        assertTrue(query.matches(values(new double[] { 5, 2 })));
+        assertFalse(query.matches(values(new double[] { 1 })));
     }
 
     @Override

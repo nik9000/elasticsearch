@@ -7,22 +7,22 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
 
 import java.util.Objects;
 
 public class DoubleScriptFieldTermQuery extends AbstractDoubleScriptFieldQuery {
     private final double term;
 
-    public DoubleScriptFieldTermQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName, double term) {
+    public DoubleScriptFieldTermQuery(Script script, DoubleRuntimeValues.LeafFactory leafFactory, String fieldName, double term) {
         super(script, leafFactory, fieldName);
         this.term = term;
     }
 
     @Override
-    protected boolean matches(double[] values) {
-        for (double value : values) {
-            if (term == value) {
+    protected boolean matches(DoubleRuntimeValues values) {
+        for (int i = 0; i < values.count(); i++) {
+            if (term == values.value(i)) {
                 return true;
             }
         }

@@ -20,6 +20,7 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
             Map.entry(BooleanScriptFieldScript.CONTEXT, BooleanScriptFieldScript.whitelist()),
             Map.entry(DateScriptFieldScript.CONTEXT, DateScriptFieldScript.whitelist()),
             Map.entry(DoubleScriptFieldScript.CONTEXT, DoubleScriptFieldScript.whitelist()),
+            Map.entry(DoubleArrayScriptFieldScript.CONTEXT, DoubleArrayScriptFieldScript.whitelist()),
             Map.entry(IpScriptFieldScript.CONTEXT, IpScriptFieldScript.whitelist()),
             Map.entry(LongScriptFieldScript.CONTEXT, LongScriptFieldScript.whitelist()),
             Map.entry(StringScriptFieldScript.CONTEXT, StringScriptFieldScript.whitelist())

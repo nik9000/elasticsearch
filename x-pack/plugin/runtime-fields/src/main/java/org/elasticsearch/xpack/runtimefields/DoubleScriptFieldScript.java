@@ -14,7 +14,6 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -39,36 +38,31 @@ public abstract class DoubleScriptFieldScript extends AbstractScriptFieldScript 
         super(params, searchLookup, ctx);
     }
 
-    public abstract double[] execute();
+    public abstract double execute();
 
-    /**
-     * Execute the script for the provided {@code docId}.
-     */
-    public final double[] runForDoc(int docId) {
-        setDocument(docId);
-        return execute();
-    }
+    public final DoubleRuntimeValues asRuntimeDoubles() {
+        return new DoubleRuntimeValues() {
+            double value;
 
-    public static double[] convertFromDouble(double v) {
-        return new double[] { v };
-    }
+            @Override
+            public void execute(int docId) {
+                setDocument(docId);
+                value = DoubleScriptFieldScript.this.execute();
+            }
 
-    public static double[] convertFromCollection(Collection<?> v) {
-        double[] result = new double[v.size()];
-        int i = 0;
-        for (Object o : v) {
-            result[i++] = ((Number) o).doubleValue();
-        }
-        return result;
-    }
+            @Override
+            public void sort() {}
 
-    public static double[] convertFromDef(Object o) {
-        if (o instanceof Number) {
-            return convertFromDouble(((Number) o).doubleValue());
-        } else if (o instanceof Collection) {
-            return convertFromCollection((Collection<?>) o);
-        } else {
-            return (double[]) o;
-        }
+            @Override
+            public double value(int idx) {
+                assert idx == 0;
+                return value;
+            }
+
+            @Override
+            public int count() {
+                return 1;
+            }
+        };
     }
 }

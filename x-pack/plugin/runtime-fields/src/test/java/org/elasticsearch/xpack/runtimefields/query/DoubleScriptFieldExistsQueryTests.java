@@ -6,7 +6,11 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DoubleScriptFieldExistsQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldExistsQuery> {
     @Override
@@ -29,12 +33,10 @@ public class DoubleScriptFieldExistsQueryTests extends AbstractDoubleScriptField
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(new double[] { 1 }));
-        assertFalse(createTestInstance().matches(new double[0]));
-        double[] big = new double[between(1, 10000)];
-        for (int i = 0; i < big.length; i++) {
-            big[i] = 1.0;
-        }
+        assertTrue(createTestInstance().matches(values(new double[] { 1 })));
+        assertFalse(createTestInstance().matches(values(new double[0])));
+        DoubleRuntimeValues big = mock(DoubleRuntimeValues.class);
+        when(big.count()).thenReturn(between(2, Integer.MAX_VALUE));
         assertTrue(createTestInstance().matches(big));
     }
 

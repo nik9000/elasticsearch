@@ -15,9 +15,13 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.runtimefields.DoubleArrayScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 import org.elasticsearch.xpack.runtimefields.fielddata.ScriptDoubleFieldData;
+import org.elasticsearch.xpack.runtimefields.mapper.RuntimeScriptFieldMapper.ScriptCompiler;
 import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldExistsQuery;
 import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldRangeQuery;
 import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermQuery;
@@ -29,11 +33,34 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
-    private final DoubleScriptFieldScript.Factory scriptFactory;
+    private final DoubleRuntimeValues.Factory factory;
 
-    ScriptDoubleMappedFieldType(String name, Script script, DoubleScriptFieldScript.Factory scriptFactory, Map<String, String> meta) {
+    ScriptDoubleMappedFieldType(ScriptCompiler compiler, String name, Script script, Map<String, String> meta) {
         super(name, script, meta);
-        this.scriptFactory = scriptFactory;
+        this.factory = buildFactory(compiler, script);
+    }
+
+    private DoubleRuntimeValues.Factory buildFactory(ScriptCompiler compiler, Script script) {
+        try {
+            DoubleScriptFieldScript.Factory scriptFactory = compiler.compile(script, DoubleScriptFieldScript.CONTEXT);
+            return lookup -> {
+                DoubleScriptFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(script.getParams(), lookup);
+                return context -> leafFactory.newInstance(context).asRuntimeDoubles();
+            };
+        } catch (ScriptException singleValueException) {
+            try {
+                DoubleArrayScriptFieldScript.Factory scriptFactory = compiler.compile(script, DoubleArrayScriptFieldScript.CONTEXT);
+                return lookup -> {
+                    DoubleArrayScriptFieldScript.LeafFactory leafFactory = scriptFactory.newFactory(script.getParams(), lookup);
+                    return context -> leafFactory.newInstance(context).asRuntimeDoubles();
+                };
+            } catch (ScriptException multiValuedException) {
+                IllegalArgumentException e = new IllegalArgumentException("compile error");
+                e.addSuppressed(singleValueException);
+                e.addSuppressed(multiValuedException);
+                throw e;
+            }
+        }
     }
 
     @Override
@@ -51,8 +78,8 @@ public class ScriptDoubleMappedFieldType extends AbstractScriptMappedFieldType {
         return new ScriptDoubleFieldData.Builder(name(), leafFactory(searchLookup.get()));
     }
 
-    private DoubleScriptFieldScript.LeafFactory leafFactory(SearchLookup searchLookup) {
-        return scriptFactory.newFactory(script.getParams(), searchLookup);
+    private DoubleRuntimeValues.LeafFactory leafFactory(SearchLookup searchLookup) {
+        return factory.newFactory(searchLookup);
     }
 
     @Override

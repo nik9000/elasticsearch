@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
 
 public class DoubleScriptFieldExistsQuery extends AbstractDoubleScriptFieldQuery {
-    public DoubleScriptFieldExistsQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    public DoubleScriptFieldExistsQuery(Script script, DoubleRuntimeValues.LeafFactory leafFactory, String fieldName) {
         super(script, leafFactory, fieldName);
     }
 
     @Override
-    protected boolean matches(double[] values) {
-        return values.length > 0;
+    protected boolean matches(DoubleRuntimeValues values) {
+        return values.count() > 0;
     }
 
     @Override

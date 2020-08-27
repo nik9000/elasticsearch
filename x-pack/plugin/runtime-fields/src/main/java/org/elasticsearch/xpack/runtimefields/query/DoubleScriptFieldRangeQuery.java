@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.query;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
 
 import java.util.Objects;
 
@@ -17,7 +17,7 @@ public class DoubleScriptFieldRangeQuery extends AbstractDoubleScriptFieldQuery 
 
     public DoubleScriptFieldRangeQuery(
         Script script,
-        DoubleScriptFieldScript.LeafFactory leafFactory,
+        DoubleRuntimeValues.LeafFactory leafFactory,
         String fieldName,
         double lowerValue,
         double upperValue
@@ -29,9 +29,9 @@ public class DoubleScriptFieldRangeQuery extends AbstractDoubleScriptFieldQuery 
     }
 
     @Override
-    protected boolean matches(double[] values) {
-        for (double value : values) {
-            if (lowerValue <= value && value <= upperValue) {
+    protected boolean matches(DoubleRuntimeValues values) {
+        for (int i = 0; i < values.count(); i++) {
+            if (lowerValue <= values.value(i) && values.value(i) <= upperValue) {
                 return true;
             }
         }

@@ -17,6 +17,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xpack.runtimefields.DoubleRuntimeValues;
 import org.elasticsearch.xpack.runtimefields.DoubleScriptFieldScript;
 
 import java.io.IOException;
@@ -26,9 +27,9 @@ import java.util.Objects;
  * Abstract base class for building queries based on {@link DoubleScriptFieldScript}.
  */
 abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery {
-    private final DoubleScriptFieldScript.LeafFactory leafFactory;
+    private final DoubleRuntimeValues.LeafFactory leafFactory;
 
-    AbstractDoubleScriptFieldQuery(Script script, DoubleScriptFieldScript.LeafFactory leafFactory, String fieldName) {
+    AbstractDoubleScriptFieldQuery(Script script, DoubleRuntimeValues.LeafFactory leafFactory, String fieldName) {
         super(script, fieldName);
         this.leafFactory = Objects.requireNonNull(leafFactory);
     }
@@ -36,7 +37,7 @@ abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery {
     /**
      * Does the value match this query?
      */
-    protected abstract boolean matches(double[] values);
+    protected abstract boolean matches(DoubleRuntimeValues values);
 
     @Override
     public final Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
@@ -48,12 +49,13 @@ abstract class AbstractDoubleScriptFieldQuery extends AbstractScriptFieldQuery {
 
             @Override
             public Scorer scorer(LeafReaderContext ctx) throws IOException {
-                DoubleScriptFieldScript script = leafFactory.newInstance(ctx);
+                DoubleRuntimeValues values = leafFactory.newInstance(ctx);
                 DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() throws IOException {
-                        return AbstractDoubleScriptFieldQuery.this.matches(script.runForDoc(approximation().docID()));
+                        values.execute(approximation().docID());
+                        return AbstractDoubleScriptFieldQuery.this.matches(values);
                     }
 
                     @Override
