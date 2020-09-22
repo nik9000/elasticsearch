@@ -101,6 +101,10 @@ public abstract class AbstractFieldScript {
         return leafSearchLookup.doc();
     }
 
+    protected final int docId() { // NOCOMMIT temporary hack for grok
+        return leafSearchLookup.source().docId();
+    }
+
     /**
      * Check if the we can add another value to the list of values.
      * @param currentSize the current size of the list

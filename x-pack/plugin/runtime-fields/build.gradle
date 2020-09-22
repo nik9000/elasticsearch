@@ -14,6 +14,7 @@ compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
 dependencies {
   compileOnly project(":server")
   compileOnly project(':modules:lang-painless:spi')
+  api project(':libs:elasticsearch-grok')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
 }
 
