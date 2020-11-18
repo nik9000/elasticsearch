@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -354,7 +352,6 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         return inputs;
     }
 
-    @Repeat(iterations=1000)
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
