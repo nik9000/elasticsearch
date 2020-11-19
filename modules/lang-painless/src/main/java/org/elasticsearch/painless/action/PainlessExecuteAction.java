@@ -549,7 +549,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
                     SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
-                    ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
+                    ParsedDocument parsedDocument = indexService.mapperService().snapshot().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);

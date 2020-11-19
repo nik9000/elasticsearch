@@ -68,12 +68,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MapperService mapperService = mock(MapperService.class);
-        ScriptService  scriptService = mock(ScriptService.class);
-        when(mapperService.documentMapper()).thenReturn(null);
-        when(mapperService.simpleMatchToFullName(anyString()))
+        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
+        ScriptService scriptService = mock(ScriptService.class);
+        when(mapperSnapshot.documentMapper()).thenReturn(null);
+        when(mapperSnapshot.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
-        when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
+        when(mapperSnapshot.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
             return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
@@ -91,7 +91,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                null, null, mapperSnapshot, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -182,12 +182,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MapperService mapperService = mock(MapperService.class);
+        MapperService.Snapshot mapperSnapshot = mock(MapperService.Snapshot.class);
         ScriptService  scriptService = mock(ScriptService.class);
-        when(mapperService.documentMapper()).thenReturn(null);
-        when(mapperService.simpleMatchToFullName(anyString()))
+        when(mapperSnapshot.documentMapper()).thenReturn(null);
+        when(mapperSnapshot.simpleMatchToFullName(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
-        when(mapperService.fieldType(Mockito.anyString())).then(invocation -> {
+        when(mapperSnapshot.fieldType(Mockito.anyString())).then(invocation -> {
             final String fieldName = (String) invocation.getArguments()[0];
             return new KeywordFieldMapper.KeywordFieldType(fieldName);
         });
@@ -223,7 +223,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                null, null, mapperSnapshot, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());

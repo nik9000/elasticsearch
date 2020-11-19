@@ -174,7 +174,7 @@ public class MetadataMappingService {
         String index = indexService.index().getName();
         try {
             MapperService mapperService = indexService.mapperService();
-            DocumentMapper mapper = mapperService.documentMapper();
+            DocumentMapper mapper = mapperService.snapshot().documentMapper();
             if (mapper != null) {
                 if (mapper.mappingSource().equals(builder.mapping().source()) == false) {
                     dirty = true;
@@ -252,7 +252,7 @@ public class MetadataMappingService {
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper existingMapper = mapperService.documentMapper();
+                DocumentMapper existingMapper = mapperService.snapshot().documentMapper();
                 DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
@@ -262,6 +262,7 @@ public class MetadataMappingService {
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
             for (IndexMetadata indexMetadata : updateList) {
+                // NOCOMMIT maybe move all of this into MappingService?
                 boolean updatedMapping = false;
                 // do the actual merge here on the master, and update the mapping source
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
@@ -269,7 +270,7 @@ public class MetadataMappingService {
                 final MapperService mapperService = indexMapperServices.get(index);
 
                 CompressedXContent existingSource = null;
-                DocumentMapper existingMapper = mapperService.documentMapper();
+                DocumentMapper existingMapper = mapperService.snapshot().documentMapper();
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
@@ -302,7 +303,7 @@ public class MetadataMappingService {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                DocumentMapper mapper = mapperService.documentMapper();
+                DocumentMapper mapper = mapperService.snapshot().documentMapper();
                 if (mapper != null) {
                     indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));
                 }

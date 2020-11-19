@@ -389,7 +389,7 @@ public class FetchPhase {
             }
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper();
+        DocumentMapper documentMapper = context.getQueryShardContext().documentMapper();
         ObjectMapper nestedObjectMapper
             = documentMapper.findNestedObjectMapper(nestedDocId, context, subReaderContext);
         assert nestedObjectMapper != null;

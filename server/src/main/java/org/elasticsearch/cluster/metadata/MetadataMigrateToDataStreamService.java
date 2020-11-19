@@ -170,7 +170,7 @@ public class MetadataMigrateToDataStreamService {
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
         mapperService.merge("_doc", Map.of("_data_stream_timestamp", Map.of("enabled", true)), MapperService.MergeReason.MAPPING_UPDATE);
-        DocumentMapper mapper = mapperService.documentMapper();
+        DocumentMapper mapper = mapperService.snapshot().documentMapper();
 
         b.put(IndexMetadata.builder(im)
             .removeAlias(dataStreamName)

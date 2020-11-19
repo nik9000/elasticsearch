@@ -459,11 +459,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService mapperService() {
-        return indexService.mapperService();
-    }
-
-    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }

@@ -161,9 +161,10 @@ public class TermVectorsService  {
     }
 
     private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
+        MapperService.Snapshot mapperSnapshot = indexShard.mapperService().snapshot();
         Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
-            fieldNames.addAll(indexShard.mapperService().simpleMatchToFullName(pattern));
+            fieldNames.addAll(mapperSnapshot.simpleMatchToFullName(pattern));
         }
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
@@ -330,8 +331,8 @@ public class TermVectorsService  {
 
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,
                                                 XContentType xContentType, String routing) {
-        MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
+        MapperService.Snapshot mapperSnapshot = indexShard.mapperService().snapshot();
+        DocumentMapperForType docMapper = mapperSnapshot.documentMapperWithAutoCreate();
         ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
                 new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing));
         if (docMapper.getMapping() != null) {

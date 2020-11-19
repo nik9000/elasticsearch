@@ -602,7 +602,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testParentObjectMapperAreNested() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> {
+        MapperService.Snapshot mapperSnapshot = createMapperService(mapping(b -> {
             b.startObject("comments");
             {
                 b.field("type", "nested");
@@ -613,11 +613,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        }));
-        ObjectMapper objectMapper = mapperService.getObjectMapper("comments.messages");
-        assertTrue(objectMapper.parentObjectMapperAreNested(mapperService::getObjectMapper));
+        })).snapshot();
+        ObjectMapper objectMapper = mapperSnapshot.getObjectMapper("comments.messages");
+        assertTrue(objectMapper.parentObjectMapperAreNested(mapperSnapshot::getObjectMapper));
 
-        mapperService = createMapperService(mapping(b -> {
+        mapperSnapshot = createMapperService(mapping(b -> {
             b.startObject("comments");
             {
                 b.field("type", "object");
@@ -628,9 +628,9 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        }));
-        objectMapper = mapperService.getObjectMapper("comments.messages");
-        assertFalse(objectMapper.parentObjectMapperAreNested(mapperService::getObjectMapper));
+        })).snapshot();
+        objectMapper = mapperSnapshot.getObjectMapper("comments.messages");
+        assertFalse(objectMapper.parentObjectMapperAreNested(mapperSnapshot::getObjectMapper));
     }
 
     public void testLimitNestedDocsDefaultSettings() throws Exception {

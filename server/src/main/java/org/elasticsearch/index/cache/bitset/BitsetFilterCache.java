@@ -47,7 +47,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -236,17 +235,14 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
             boolean hasNested = false;
             final Set<Query> warmUp = new HashSet<>();
-            final MapperService mapperService = indexShard.mapperService();
-            DocumentMapper docMapper = mapperService.documentMapper();
-            if (docMapper != null) {
-                if (docMapper.hasNestedObjects()) {
-                    hasNested = true;
-                    for (ObjectMapper objectMapper : docMapper.mappers().objectMappers().values()) {
-                        if (objectMapper.nested().isNested()) {
-                            ObjectMapper parentObjectMapper = objectMapper.getParentObjectMapper(mapperService::getObjectMapper);
-                            if (parentObjectMapper != null && parentObjectMapper.nested().isNested()) {
-                                warmUp.add(parentObjectMapper.nestedTypeFilter());
-                            }
+            final MapperService.Snapshot mapperSnapshot = indexShard.mapperService().snapshot();
+            if (mapperSnapshot.hasNested()) {
+                hasNested = true;
+                for (ObjectMapper objectMapper : mapperSnapshot.documentMapper().mappers().objectMappers().values()) {
+                    if (objectMapper.nested().isNested()) {
+                        ObjectMapper parentObjectMapper = objectMapper.getParentObjectMapper(mapperSnapshot::getObjectMapper);
+                        if (parentObjectMapper != null && parentObjectMapper.nested().isNested()) {
+                            warmUp.add(parentObjectMapper.nestedTypeFilter());
                         }
                     }
                 }

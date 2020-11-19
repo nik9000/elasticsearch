@@ -417,7 +417,7 @@ public class MetadataCreateIndexService {
 
             final IndexMetadata indexMetadata;
             try {
-                indexMetadata = buildIndexMetadata(request.index(), aliases, indexService.mapperService()::documentMapper,
+                indexMetadata = buildIndexMetadata(request.index(), aliases, indexService.mapperService().snapshot()::documentMapper,
                     temporaryIndexMeta.getSettings(), temporaryIndexMeta.getRoutingNumShards(), sourceMetadata,
                     temporaryIndexMeta.isSystem());
             } catch (Exception e) {
@@ -924,7 +924,7 @@ public class MetadataCreateIndexService {
             indexService.getIndexSortSupplier().get();
         }
         if (request.dataStreamName() != null) {
-            validateTimestampFieldMapping("@timestamp", mapperService);
+            validateTimestampFieldMapping("@timestamp", mapperService.snapshot());
         }
     }
 

@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.MapperService.Snapshot;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -376,7 +377,7 @@ public class QueryShardContextTests extends ESTestCase {
         return new QueryShardContext(
             0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+                mapperService.snapshot(), null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null, runtimeMappings);
     }
 
@@ -403,16 +404,21 @@ public class QueryShardContextTests extends ESTestCase {
             throw new UnsupportedOperationException();
         }, () -> true, null) {
             @Override
-            public MappedFieldType fieldType(String name) {
-                return fieldTypeLookup.get(name);
-            }
+            public Snapshot snapshot() {
+                return new Snapshot(this, documentMapper()) {
+                    @Override
+                    public MappedFieldType fieldType(String name) {
+                        return fieldTypeLookup.get(name);
+                    }
 
-            @Override
-            public Set<String> simpleMatchToFullName(String pattern) {
-                if (Regex.isMatchAllPattern(pattern)) {
-                    return Collections.unmodifiableSet(fieldTypeLookup.keySet());
-                }
-                throw new UnsupportedOperationException();
+                    @Override
+                    public Set<String> simpleMatchToFullName(String pattern) {
+                        if (Regex.isMatchAllPattern(pattern)) {
+                            return Collections.unmodifiableSet(fieldTypeLookup.keySet());
+                        }
+                        throw new UnsupportedOperationException();
+                    }                    
+                };
             }
         };
     }

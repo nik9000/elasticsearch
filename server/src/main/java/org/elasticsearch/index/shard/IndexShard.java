@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
@@ -108,6 +109,7 @@ import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -918,7 +920,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        DocumentMapper mapper = mapperService.documentMapper();
+        DocumentMapper mapper = mapperService.snapshot().documentMapper();
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
@@ -1938,8 +1940,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
                                                     long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, mapperService == null ? null : mapperService::fieldType,
-            fromSeqNo, toSeqNo, requiredFullRange);
+        return getEngine().newChangesSnapshot(source, fieldTypeLookup(), fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -2680,7 +2681,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     private DocumentMapperForType docMapper() {
-        return mapperService.documentMapperWithAutoCreate();
+        return mapperService.snapshot().documentMapperWithAutoCreate();
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -2695,13 +2696,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig(shardId,
                 threadPool, indexSettings, warmer, store, indexSettings.getMergePolicy(),
                 mapperService != null ? mapperService.indexAnalyzer() : null,
-                similarityService.similarity(mapperService == null ? null : mapperService::fieldType), codecService, shardEventListener,
+                    similarityService.similarity(fieldTypeLookup()), codecService, shardEventListener,
                 indexCache != null ? indexCache.query() : null, cachingPolicy, translogConfig,
                 IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
                 List.of(refreshListeners, refreshPendingLocationListener),
                 Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
                 indexSort, circuitBreakerService, globalCheckpointSupplier, replicationTracker::getRetentionLeases,
                 () -> getOperationPrimaryTerm(), tombstoneDocSupplier());
+    }
+
+    @Nullable
+    private Function<String, MappedFieldType> fieldTypeLookup() {
+        return mapperService == null ? null : name -> mapperService.snapshot().fieldType(name);
     }
 
     /**

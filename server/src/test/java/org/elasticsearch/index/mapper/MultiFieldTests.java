@@ -68,7 +68,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             MapperService.MergeReason.MAPPING_UPDATE);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/multifield/test-data.json"));
-        Document doc = mapperService.documentMapper().parse(
+        Document doc = mapperService.snapshot().documentMapper().parse(
             new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
         IndexableField f = doc.getField("name");

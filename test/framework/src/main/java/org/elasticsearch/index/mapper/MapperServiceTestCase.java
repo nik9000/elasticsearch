@@ -115,17 +115,17 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings) throws IOException {
-        return createMapperService(mappings).documentMapper();
+        return createMapperService(mappings).snapshot().documentMapper();
     }
 
     protected final DocumentMapper createDocumentMapper(Version version, XContentBuilder mappings) throws IOException {
-        return createMapperService(version, mappings).documentMapper();
+        return createMapperService(version, mappings).snapshot().documentMapper();
     }
 
     protected final DocumentMapper createDocumentMapper(String mappings) throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
-        return mapperService.documentMapper();
+        return mapperService.snapshot().documentMapper();
     }
 
     protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
@@ -346,7 +346,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public MappedFieldType getFieldType(String path) {
-                return mapperService.fieldType(path);
+                return mapperService.snapshot().fieldType(path);
             }
 
             @Override
@@ -404,8 +404,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         withLuceneIndex(
             mapperService,
             writer -> {
+                MapperService.Snapshot mapperSnapshot = mapperService.snapshot();
                 for (SourceToParse doc: docs) {
-                    writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
+                    writer.addDocuments(mapperSnapshot.documentMapper().parse(doc).docs());
                 }
             },
             reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query))
@@ -414,18 +415,19 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected QueryShardContext createQueryShardContext(MapperService mapperService) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
+        MapperService.Snapshot mapperSnapshot = mapperService.snapshot();
+        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperSnapshot.fieldType(inv.getArguments()[0].toString()));
         when(queryShardContext.isFieldMapped(anyString()))
-            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
+            .thenAnswer(inv -> mapperSnapshot.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
-            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
+            inv -> mapperSnapshot.getObjectMapper(inv.getArguments()[0].toString()));
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
+            inv -> mapperSnapshot.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperSnapshot::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
         return queryShardContext;

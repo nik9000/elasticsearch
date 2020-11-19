@@ -26,15 +26,15 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testValidateTimestampFieldMapping() throws Exception {
         String mapping = generateMapping("@timestamp", "date");
-        validateTimestampFieldMapping("@timestamp", createMapperService(mapping));
+        validateTimestampFieldMapping("@timestamp", createMapperSnapshot(mapping));
         mapping = generateMapping("@timestamp", "date_nanos");
-        validateTimestampFieldMapping("@timestamp", createMapperService(mapping));
+        validateTimestampFieldMapping("@timestamp", createMapperSnapshot(mapping));
     }
 
     public void testValidateTimestampFieldMappingNoFieldMapping() {
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService("{}"))
+            () -> validateTimestampFieldMapping("@timestamp", createMapperSnapshot("{}"))
         );
         assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
         String mapping1 = "{\n"
@@ -47,11 +47,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             + "        }\n"
             + "      }\n"
             + "    }";
-        e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping1)));
+        e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperSnapshot(mapping1)));
         assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
 
         String mapping2 = generateMapping("@timestamp2", "date");
-        e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping2)));
+        e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping("@timestamp", createMapperSnapshot(mapping2)));
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] does not exist"));
     }
 
@@ -59,7 +59,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         String mapping = generateMapping("@timestamp", "keyword");
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping("@timestamp", createMapperService(mapping))
+            () -> validateTimestampFieldMapping("@timestamp", createMapperSnapshot(mapping))
         );
         assertThat(
             e.getMessage(),
@@ -67,7 +67,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
     }
 
-    MapperService createMapperService(String mapping) throws IOException {
+    MapperService.Snapshot createMapperSnapshot(String mapping) throws IOException {
         String indexName = "test";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
             .settings(
@@ -87,7 +87,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             indexName
         );
         mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
-        return mapperService;
+        return mapperService.snapshot();
     }
 
 }

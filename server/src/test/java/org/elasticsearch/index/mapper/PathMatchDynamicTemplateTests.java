@@ -39,7 +39,7 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
         MapperService mapperService = index.mapperService();
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(
+        ParsedDocument parsedDoc = mapperService.snapshot().documentMapper().parse(
             new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
         client().admin().indices().preparePutMapping("test")
             .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
@@ -50,21 +50,21 @@ public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
         assertThat(f.stringValue(), equalTo("top_level"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        assertThat(mapperService.fieldType("name").isStored(), equalTo(false));
+        assertThat(mapperService.snapshot().fieldType("name").isStored(), equalTo(false));
 
         f = doc.getField("obj1.name");
         assertThat(f.name(), equalTo("obj1.name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        assertThat(mapperService.fieldType("obj1.name").isStored(), equalTo(true));
+        assertThat(mapperService.snapshot().fieldType("obj1.name").isStored(), equalTo(true));
 
         f = doc.getField("obj1.obj2.name");
         assertThat(f.name(), equalTo("obj1.obj2.name"));
         assertThat(f.fieldType().stored(), equalTo(false));
 
-        assertThat(mapperService.fieldType("obj1.obj2.name").isStored(), equalTo(false));
+        assertThat(mapperService.snapshot().fieldType("obj1.obj2.name").isStored(), equalTo(false));
 
         // verify more complex path_match expressions
-        assertNotNull(mapperService.fieldType("obj3.obj4.prop1").getTextSearchInfo());
+        assertNotNull(mapperService.snapshot().fieldType("obj3.obj4.prop1").getTextSearchInfo());
     }
 }

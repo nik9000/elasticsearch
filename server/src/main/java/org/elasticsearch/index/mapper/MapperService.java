@@ -42,11 +42,13 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -108,10 +110,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentMapperParser documentMapperParser;
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
-    private final MapperAnalyzerWrapper indexAnalyzer;
+    private final Analyzer indexAnalyzer;
     private final MapperRegistry mapperRegistry;
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
+    /**
+     * The current {@link DocumentMapper}. Most read access should be mediated by
+     * {@link #snapshot()} so it is obvious to the caller that they are performing
+     * the volatile read. {@link #indexAnalyzer()} returns an {@link Analyzer}
+     * that reads this for every field as well.
+     */
     private volatile DocumentMapper mapper;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
@@ -120,8 +128,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                          ScriptService scriptService) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
+        indexAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapper.mappers().indexAnalyzer();
+            }
+        };
         this.indexAnalyzers = indexAnalyzers;
-        this.indexAnalyzer = new MapperAnalyzerWrapper();
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
@@ -133,10 +146,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
         this.documentMapperParser = new DocumentMapperParser(indexSettings, indexAnalyzers, this::resolveDocumentType, documentParser,
             this::getMetadataMappers, parserContextSupplier, metadataMapperParsers);
-    }
-
-    public boolean hasNested() {
-        return this.mapper != null && this.mapper.hasNestedObjects();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -226,9 +235,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
         // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
         // merge version of it, which it does when refreshing the mappings), and warn log it.
-        if (documentMapper().mappingSource().equals(incomingMappingSource) == false) {
+        DocumentMapper documentMapper = mapper;
+        if (documentMapper.mappingSource().equals(incomingMappingSource) == false) {
             logger.debug("[{}] parsed mapping, and got different sources\noriginal:\n{}\nparsed:\n{}",
-                index(), incomingMappingSource, documentMapper().mappingSource());
+                index(), incomingMappingSource, documentMapper.mappingSource());
 
             requireRefresh = true;
         }
@@ -355,13 +365,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Return the document mapper, or {@code null} if no mapping has been put yet.
-     */
-    public DocumentMapper documentMapper() {
-        return mapper;
-    }
-
-    /**
      * Returns {@code true} if the given {@code mappingSource} includes a type
      * as a top-level object.
      */
@@ -379,6 +382,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     private String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
+            DocumentMapper mapper = this.mapper;
             if (mapper != null) {
                 return mapper.type();
             }
@@ -387,66 +391,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the document mapper for this MapperService.  If no mapper exists,
-     * creates one and returns that.
+     * An analyzer that performs a volatile read on the mapping find correct {@link FieldNameAnalyzer}.
      */
-    public DocumentMapperForType documentMapperWithAutoCreate() {
-        DocumentMapper mapper = documentMapper();
-        if (mapper != null) {
-            return new DocumentMapperForType(mapper, null);
-        }
-        mapper = parse(SINGLE_MAPPING_NAME, null);
-        return new DocumentMapperForType(mapper, mapper.mapping());
-    }
-
-    /**
-     * Given the full name of a field, returns its {@link MappedFieldType}.
-     */
-    public MappedFieldType fieldType(String fullName) {
-        if (fullName.equals(TypeFieldType.NAME)) {
-            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
-        }
-        return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
-    }
-
-    /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
-     */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
-    }
-
-    /**
-     * Given a field name, returns its possible paths in the _source. For example,
-     * the 'source path' for a multi-field is the path to its parent field.
-     */
-    public Set<String> sourcePath(String fullName) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().sourcePaths(fullName);
-    }
-
-    /**
-     * Returns all mapped field types.
-     */
-    public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
-        return this.mapper == null ? Collections.emptySet() :
-            this.mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
-    }
-
-    public ObjectMapper getObjectMapper(String name) {
-        return this.mapper == null ? null : this.mapper.mappers().objectMappers().get(name);
-    }
-
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
-    }
-
-    public boolean containsBrokenAnalysis(String field) {
-        return this.indexAnalyzer.containsBrokenAnalysis(field);
     }
 
     @Override
@@ -478,23 +426,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.isMetadataField(indexVersionCreated, field);
     }
 
-    /** An analyzer wrapper that can lookup fields within the index mappings */
-    final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
-
-        MapperAnalyzerWrapper() {
-            super(Analyzer.PER_FIELD_REUSE_STRATEGY);
-        }
-
-        @Override
-        protected Analyzer getWrappedAnalyzer(String fieldName) {
-            return mapper.mappers().indexAnalyzer();
-        }
-
-        boolean containsBrokenAnalysis(String field) {
-            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
-        }
-    }
-
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
         // refresh indexAnalyzers and search analyzers
@@ -513,5 +444,127 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         return reloadedAnalyzers;
+    }
+
+    /**
+     * Create an immutable snapshot of the current mapping.
+     */
+    public Snapshot snapshot() {
+        return new Snapshot(this, mapper);
+    }
+
+    public static class Snapshot {
+        private final MapperService mapperService;
+        private final DocumentMapper mapper;
+
+        public Snapshot(MapperService mapperService, DocumentMapper mapper) {
+            this.mapperService = mapperService;
+            this.mapper = mapper;
+        }
+
+        /**
+         * Given the full name of a field, returns its {@link MappedFieldType}.
+         */
+        public MappedFieldType fieldType(String fullName) {
+            if (fullName.equals(TypeFieldType.NAME)) {
+                return new TypeFieldType(mapper == null ? "_doc" : mapper.type());
+            }
+            return mapper == null ? null : mapper.mappers().fieldTypes().get(fullName);
+        }
+
+        public DocumentMapper documentMapper() {
+            return mapper;
+        }
+
+        public boolean hasNested() {
+            return mapper != null && mapper.hasNestedObjects();
+        }
+
+        public ObjectMapper getObjectMapper(String name) {
+            return mapper == null ? null : mapper.mappers().objectMappers().get(name);
+        }
+
+        /**
+         * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
+         * then the fields will be returned with a type prefix.
+         */
+        public Set<String> simpleMatchToFullName(String pattern) {
+            if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // no wildcards
+                return Collections.singleton(pattern);
+            }
+            return mapper == null ? Collections.emptySet() : mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
+        }
+
+        /**
+         * Given a field name, returns its possible paths in the _source. For example,
+         * the 'source path' for a multi-field is the path to its parent field.
+         */
+        public Set<String> sourcePath(String fullName) {
+            return mapper == null ? Collections.emptySet() : mapper.mappers().fieldTypes().sourcePaths(fullName);
+        }
+
+        /**
+         * Returns the document mapper for this MapperService.  If no mapper exists,
+         * creates one and returns that.
+         */
+        public DocumentMapperForType documentMapperWithAutoCreate() {
+            if (mapper != null) {
+                return new DocumentMapperForType(mapper, null);
+            }
+            DocumentMapper auto = mapperService.parse(SINGLE_MAPPING_NAME, null);
+            return new DocumentMapperForType(auto, auto.mapping());
+        }
+
+        /**
+         * Returns all mapped field types.
+         */
+        public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
+            return mapper == null ? Collections.emptySet() : mapper.mappers().fieldTypes().filter(MappedFieldType::eagerGlobalOrdinals);
+        }
+
+        public Analyzer indexAnalyzer() {
+            return mapper.mappers().indexAnalyzer();
+        }
+
+        /**
+         * Does the index analyzer for this field have token filters that may produce
+         * backwards offsets in term vectors
+         */
+        public boolean containsBrokenAnalysis(String field) {
+            return mapper.mappers().indexAnalyzer().containsBrokenAnalysis(field);
+        }
+
+        /**
+         * The context used to parse field.
+         */
+        public ParserContext parserContext() {
+            // Safe to plumb through to the Snapshot because it is immutable
+            return mapperService.parserContext();
+        }
+
+        /**
+         * @return Whether a field is a metadata field.
+         * this method considers all mapper plugins
+         */
+        public boolean isMetadataField(String field) {
+            // Safe to plumb through to the Snapshot because it is immutable
+            return mapperService.isMetadataField(field);
+        }
+
+        public IndexAnalyzers getIndexAnalyzers() {
+            // Safe to plumb through to the Snapshot because it is immutable
+            return mapperService.getIndexAnalyzers();
+        }
+    }
+
+    @Deprecated
+    public MappedFieldType fieldType(String fullName) {
+        return snapshot().fieldType(fullName);
+    }
+
+    @Deprecated
+    public DocumentMapper documentMapper() {
+        return mapper;
     }
 }

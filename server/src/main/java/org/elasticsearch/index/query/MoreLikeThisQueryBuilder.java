@@ -971,7 +971,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // set analyzer
         Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.getIndexAnalyzer();
+            analyzerObj = context.getFieldNameIndexAnalyzer();
         }
         mltQuery.setAnalyzer(analyzerObj);
 

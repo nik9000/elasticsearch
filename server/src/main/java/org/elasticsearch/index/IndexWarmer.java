@@ -117,9 +117,9 @@ public final class IndexWarmer {
 
         @Override
         public TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
-            final MapperService mapperService = indexShard.mapperService();
+            final MapperService.Snapshot mapperSnapshot = indexShard.mapperService().snapshot();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
-            for (MappedFieldType fieldType : mapperService.getEagerGlobalOrdinalsFields()) {
+            for (MappedFieldType fieldType : mapperSnapshot.getEagerGlobalOrdinalsFields()) {
                 final String indexName = fieldType.name();
                 warmUpGlobalOrdinals.put(indexName, fieldType);
             }

@@ -48,25 +48,26 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             b.endArray();
         }));
-        DocumentMapper docMapper = mapperService.documentMapper();
+        DocumentMapper docMapper = mapperService.snapshot().documentMapper();
         ParsedDocument parsedDoc = docMapper.parse(source(b -> {
             b.field("s", "hello");
             b.field("l", 1);
         }));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
+        MapperService.Snapshot mapperSnapshot = mapperService.snapshot();
 
-        assertThat(mapperService.fieldType("s"), notNullValue());
-        assertFalse(mapperService.fieldType("s").isSearchable());
+        assertThat(mapperSnapshot.fieldType("s"), notNullValue());
+        assertFalse(mapperSnapshot.fieldType("s").isSearchable());
 
-        assertThat(mapperService.fieldType("l"), notNullValue());
-        assertTrue(mapperService.fieldType("l").isSearchable());
+        assertThat(mapperSnapshot.fieldType("l"), notNullValue());
+        assertTrue(mapperSnapshot.fieldType("l").isSearchable());
     }
 
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         MapperService mapperService = createMapperService(mapping);
         String docJson = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        ParsedDocument parsedDoc = mapperService.snapshot().documentMapper().parse(source(docJson));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         Document doc = parsedDoc.rootDoc();
@@ -77,7 +78,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name");
+        Mapper fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -86,7 +87,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi1");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
@@ -95,7 +96,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1.org");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi1.org");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
@@ -104,7 +105,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi2");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
@@ -113,7 +114,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2.org");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi2.org");
         assertNotNull(fieldMapper);
     }
 
@@ -121,7 +122,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
         MapperService mapperService = createMapperService(mapping);
         String docJson = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        ParsedDocument parsedDoc = mapperService.snapshot().documentMapper().parse(source(docJson));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         Document doc = parsedDoc.rootDoc();
@@ -132,7 +133,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name");
+        Mapper fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -141,7 +142,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi1");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
@@ -150,7 +151,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1.org");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi1.org");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
@@ -159,7 +160,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi2");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
@@ -168,7 +169,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2.org");
+        fieldMapper = mapperService.snapshot().documentMapper().mappers().getMapper("multi2.org");
         assertNotNull(fieldMapper);
     }
 }

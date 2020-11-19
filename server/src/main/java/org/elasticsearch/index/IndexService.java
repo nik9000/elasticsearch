@@ -198,7 +198,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
                 // The sort order is validated right after the merge of the mapping later in the process.
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig().buildIndexSort(
-                    mapperService::fieldType,
+                    name -> mapperService.snapshot().fieldType(name),
                     (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), searchLookup)
                 );
             } else {
@@ -596,9 +596,25 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
-            shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
-            similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, runtimeMappings);
+            shardId,
+            indexSettings,
+            bigArrays,
+            indexCache.bitsetFilterCache(),
+            indexFieldData::getForField,
+            mapperService.snapshot(),
+            similarityService(),
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings
+        );
     }
 
     /**

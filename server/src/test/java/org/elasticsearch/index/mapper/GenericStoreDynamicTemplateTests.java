@@ -31,7 +31,7 @@ public class GenericStoreDynamicTemplateTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
 
         String json = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/genericstore/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(json));
+        ParsedDocument parsedDoc = mapperService.snapshot().documentMapper().parse(source(json));
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         Document doc = parsedDoc.rootDoc();
 
@@ -40,7 +40,7 @@ public class GenericStoreDynamicTemplateTests extends MapperServiceTestCase {
         assertThat(f.stringValue(), equalTo("some name"));
         assertThat(f.fieldType().stored(), equalTo(true));
 
-        assertTrue(mapperService.fieldType("name").isStored());
+        assertTrue(mapperService.snapshot().fieldType("name").isStored());
 
         boolean stored = false;
         for (IndexableField field : doc.getFields("age")) {

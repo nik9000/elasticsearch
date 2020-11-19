@@ -54,7 +54,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     .endObject()
                 .endObject());
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         // update with a different explicit value
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
@@ -64,7 +64,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, reason, mapping2);
-        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping2, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         // update with an implicit value: no change
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
@@ -73,7 +73,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, reason, mapping3);
-        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping2, mapperService.snapshot().documentMapper().mappingSource().toString());
     }
 
     public void testDateDetection() throws Exception {
@@ -85,7 +85,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     .endObject()
                 .endObject());
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         // update with a different explicit value
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
@@ -95,7 +95,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, reason, mapping2);
-        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping2, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         // update with an implicit value: no change
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
@@ -104,7 +104,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, reason, mapping3);
-        assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping2, mapperService.snapshot().documentMapper().mappingSource().toString());
     }
 
     public void testDateFormatters() throws Exception {
@@ -116,7 +116,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     .endObject()
                 .endObject());
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         // no update if formatters are not set explicitly
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
@@ -125,7 +125,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, reason, mapping2);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
@@ -134,7 +134,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, reason, mapping3);
-        assertEquals(mapping3, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping3, mapperService.snapshot().documentMapper().mappingSource().toString());
     }
 
     public void testDynamicTemplates() throws Exception {
@@ -154,7 +154,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     .endObject()
                 .endObject());
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         // no update if templates are not set explicitly
         String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
@@ -163,7 +163,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, mapping2);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
 
         String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
                 .startObject()
@@ -172,7 +172,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 .endObject()
             .endObject());
         merge(mapperService, mapping3);
-        assertEquals(mapping3, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping3, mapperService.snapshot().documentMapper().mappingSource().toString());
     }
 
     public void testDynamicTemplatesForIndexTemplate() throws IOException {
@@ -392,7 +392,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             }
             mapping.endObject();
             mapperService = createMapperService(mapping);
-            assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"index_phrases\":true"));
+            assertThat(mapperService.snapshot().documentMapper().mappingSource().toString(), containsString("\"index_phrases\":true"));
         }
         {
             XContentBuilder mapping = XContentFactory.jsonBuilder();
@@ -448,7 +448,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         mapping.endObject();
         Version createdVersion = randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_7_0);
         MapperService mapperService = createMapperService(createdVersion, mapping);
-        assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
+        assertThat(mapperService.snapshot().documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("dynamic template [my_template] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"type\":" +
             "\"string\"}}], attempted to validate it with the following match_mapping_type: [[string]], " +
             "last error: [No mapper found for type [string]]");
@@ -466,7 +466,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             builder.startObject("field3").field("type", "test").endObject();
         }));
         MapperService mapperService = createMapperService(mapping);
-        assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
     }
 
     public void testRuntimeSectionMerge() throws IOException {
@@ -474,8 +474,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         {
             String mapping = Strings.toString(fieldMapping(b -> b.field("type", "keyword")));
             mapperService = createMapperService(mapping);
-            assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
-            MappedFieldType field = mapperService.fieldType("field");
+            assertEquals(mapping, mapperService.snapshot().documentMapper().mappingSource().toString());
+            MappedFieldType field = mapperService.snapshot().fieldType("field");
             assertThat(field, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
         {
@@ -485,10 +485,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             }));
             merge(mapperService, mapping);
             //field overrides now the concrete field already defined
-            RuntimeField field = (RuntimeField)mapperService.fieldType("field");
+            RuntimeField field = (RuntimeField) mapperService.snapshot().fieldType("field");
             assertEquals("first version", field.prop1);
             assertNull(field.prop2);
-            RuntimeField field2 = (RuntimeField)mapperService.fieldType("field2");
+            RuntimeField field2 = (RuntimeField) mapperService.snapshot().fieldType("field2");
             assertNull(field2.prop1);
             assertNull(field2.prop2);
         }
@@ -497,23 +497,23 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 //the existing runtime field gets updated
                 builder -> builder.startObject("field").field("type", "test").field("prop2", "second version").endObject()));
             merge(mapperService, mapping);
-            RuntimeField field = (RuntimeField)mapperService.fieldType("field");
+            RuntimeField field = (RuntimeField) mapperService.snapshot().fieldType("field");
             assertNull(field.prop1);
             assertEquals("second version", field.prop2);
-            RuntimeField field2 = (RuntimeField)mapperService.fieldType("field2");
+            RuntimeField field2 = (RuntimeField) mapperService.snapshot().fieldType("field2");
             assertNull(field2.prop1);
             assertNull(field2.prop2);
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
             merge(mapperService, mapping);
-            RuntimeField field = (RuntimeField)mapperService.fieldType("field");
+            RuntimeField field = (RuntimeField) mapperService.snapshot().fieldType("field");
             assertNull(field.prop1);
             assertEquals("second version", field.prop2);
-            RuntimeField field2 = (RuntimeField)mapperService.fieldType("field2");
+            RuntimeField field2 = (RuntimeField) mapperService.snapshot().fieldType("field2");
             assertNull(field2.prop1);
             assertNull(field2.prop2);
-            MappedFieldType concrete = mapperService.fieldType("concrete");
+            MappedFieldType concrete = mapperService.snapshot().fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
         {
@@ -528,7 +528,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     "\"properties\":{" +
                     "\"concrete\":{\"type\":\"keyword\"}," +
                     "\"field\":{\"type\":\"keyword\"}}}}",
-                mapperService.documentMapper().mappingSource().toString());
+                mapperService.snapshot().documentMapper().mappingSource().toString());
         }
     }
 

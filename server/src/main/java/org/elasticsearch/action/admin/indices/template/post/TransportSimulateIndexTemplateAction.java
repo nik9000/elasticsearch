@@ -200,7 +200,7 @@ public class TransportSimulateIndexTemplateAction
                     }
                 }
 
-                DocumentMapper documentMapper = mapperService.documentMapper();
+                DocumentMapper documentMapper = mapperService.snapshot().documentMapper();
                 return documentMapper != null ? documentMapper.mappingSource() : null;
             });
 

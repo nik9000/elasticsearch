@@ -25,13 +25,13 @@ public class CamelCaseFieldNameTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(mapping(b -> {}));
 
-        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("thisIsCamelCase", "value1")));
+        ParsedDocument doc = mapperService.snapshot().documentMapper().parse(source(b -> b.field("thisIsCamelCase", "value1")));
 
         assertNotNull(doc.dynamicMappingsUpdate());
 
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
 
-        DocumentMapper documentMapper = mapperService.documentMapper();
+        DocumentMapper documentMapper = mapperService.snapshot().documentMapper();
         assertNotNull(documentMapper.mappers().getMapper("thisIsCamelCase"));
         assertNull(documentMapper.mappers().getMapper("this_is_camel_case"));
 

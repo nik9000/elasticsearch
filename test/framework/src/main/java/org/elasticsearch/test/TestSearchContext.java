@@ -28,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -275,11 +274,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return indexShard;
-    }
-
-    @Override
-    public MapperService mapperService() {
-        return indexService == null ? null : indexService.mapperService();
     }
 
     @Override

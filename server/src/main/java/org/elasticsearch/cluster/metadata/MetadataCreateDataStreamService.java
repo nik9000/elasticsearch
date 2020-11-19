@@ -206,13 +206,13 @@ public class MetadataCreateDataStreamService {
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
+    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService.Snapshot mapperSnapshot) throws IOException {
         MetadataFieldMapper fieldMapper =
-            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
+            (MetadataFieldMapper) mapperSnapshot.documentMapper().mappers().getMapper("_data_stream_timestamp");
         assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
 
         Map<String, Object> parsedTemplateMapping =
-            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
+            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperSnapshot.documentMapper().mappingSource().string());
         Boolean enabled = ObjectPath.eval("_doc._data_stream_timestamp.enabled", parsedTemplateMapping);
         // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
         // that would be a bug.
@@ -221,7 +221,7 @@ public class MetadataCreateDataStreamService {
         }
 
         // Sanity check (this validation logic should already have been executed when merging mappings):
-        fieldMapper.validate(mapperService.documentMapper().mappers());
+        fieldMapper.validate(mapperSnapshot.documentMapper().mappers());
     }
 
 }

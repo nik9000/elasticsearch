@@ -120,7 +120,7 @@ final class StoreRecovery {
             indexShard.mapperService().merge(sourceMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.
             Sort indexSort = indexShard.getIndexSort();
-            final boolean hasNested = indexShard.mapperService().hasNested();
+            final boolean hasNested = indexShard.mapperService().snapshot().hasNested();
             final boolean isSplit = sourceMetadata.getNumberOfShards() < indexShard.indexSettings().getNumberOfShards();
             ActionListener.completeWith(recoveryListener(indexShard, listener), () -> {
                 logger.debug("starting recovery from local shards {}", shards);

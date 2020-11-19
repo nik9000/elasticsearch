@@ -40,13 +40,14 @@ public class TypeFieldTypeTests extends MapperServiceTestCase {
 
     public void testDocValues() throws Exception {
 
-        MapperService mapperService = createMapperService(XContentFactory.jsonBuilder()
-            .startObject().startObject("type").endObject().endObject());
-        DocumentMapper mapper = mapperService.documentMapper();
-        ParsedDocument document = mapper.parse(source(b -> {}));
+        MapperService mapperService = createMapperService(
+            XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject()
+        );
+        MapperService.Snapshot mapperSnapshot = mapperService.snapshot();
+        ParsedDocument document = mapperSnapshot.documentMapper().parse(source(b -> {}));
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(document.rootDoc()), r -> {
-            MappedFieldType ft = mapperService.fieldType(TypeFieldType.NAME);
+            MappedFieldType ft = mapperSnapshot.fieldType(TypeFieldType.NAME);
             IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test", () -> {
                 throw new UnsupportedOperationException();
             }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());

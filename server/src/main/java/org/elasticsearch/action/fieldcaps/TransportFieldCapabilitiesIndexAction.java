@@ -113,14 +113,15 @@ public class TransportFieldCapabilitiesIndexAction
         }
         ShardId shardId = request.shardId();
         MapperService mapperService = indicesService.indexServiceSafe(shardId.getIndex()).mapperService();
+        MapperService.Snapshot mapperSnapshot = mapperService.snapshot();
         Set<String> fieldNames = new HashSet<>();
         for (String field : request.fields()) {
-            fieldNames.addAll(mapperService.simpleMatchToFullName(field));
+            fieldNames.addAll(mapperSnapshot.simpleMatchToFullName(field));
         }
         Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
-            MappedFieldType ft = mapperService.fieldType(field);
+            MappedFieldType ft = mapperSnapshot.fieldType(field);
             if (ft != null) {
                 if (indicesService.isMetadataField(mapperService.getIndexSettings().getIndexVersionCreated(), field)
                     || fieldPredicate.test(ft.name())) {
@@ -141,7 +142,7 @@ public class TransportFieldCapabilitiesIndexAction
                     // checks if the parent field contains sub-fields
                     if (mapperService.fieldType(parentField) == null) {
                         // no field type, it must be an object field
-                        ObjectMapper mapper = mapperService.getObjectMapper(parentField);
+                        ObjectMapper mapper = mapperSnapshot.getObjectMapper(parentField);
                         String type = mapper.nested().isNested() ? "nested" : "object";
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                             false, false, Collections.emptyMap());

@@ -114,11 +114,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+    public void snapshotShard(Store store, MapperService.Snapshot mapperSnapshot, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
                               Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
-        if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+        if (mapperSnapshot.documentMapper() != null // if there is no mapping this is null
+            && mapperSnapshot.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(
                 new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
                     "or filters the source"));
@@ -142,7 +142,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     // do nothing;
                 }
             }, Store.OnClose.EMPTY);
-            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
+            Supplier<Query> querySupplier = mapperSnapshot.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
             snapshot.syncSnapshot(snapshotIndexCommit);
@@ -155,7 +155,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,
+            super.snapshotShard(tempStore, mapperSnapshot, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,
                 repositoryMetaVersion, userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
         } catch (IOException e) {
             try {

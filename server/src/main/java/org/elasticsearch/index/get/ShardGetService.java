@@ -133,7 +133,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService);
+            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService.snapshot());
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -180,18 +180,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
-            return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get, mapperService);
+            return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get, mapperService.snapshot());
         } finally {
             get.close();
         }
     }
 
     private GetResult innerGetLoadFromStoredFields(String id, String[] storedFields, FetchSourceContext fetchSourceContext,
-                                                   Engine.GetResult get, MapperService mapperService) {
+                                                   Engine.GetResult get, MapperService.Snapshot mapperSnapshot) {
         assert get.exists() : "method should only be called if document could be retrieved";
 
         // check first if stored fields to be loaded don't contain an object field
-        DocumentMapper docMapper = mapperService.documentMapper();
+        DocumentMapper docMapper = mapperSnapshot.documentMapper();
         if (storedFields != null) {
             for (String field : storedFields) {
                 Mapper fieldMapper = docMapper.mappers().getMapper(field);
@@ -227,7 +227,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 // just make source consistent by reapplying source filters from mapping (possibly also nulling the source)
                 if (forceSourceForComputingTranslogStoredFields == false) {
                     try {
-                        source = indexShard.mapperService().documentMapper().sourceMapper().applyFilters(source, null);
+                        source = mapperSnapshot.documentMapper().sourceMapper().applyFilters(source, null);
                     } catch (IOException e) {
                         throw new ElasticsearchException("Failed to reapply filters for [" + id + "] after reading from translog", e);
                     }
@@ -236,7 +236,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(shardId.getIndexName(), id, source, XContentHelper.xContentType(source),
                         fieldVisitor.routing());
-                    ParsedDocument doc = indexShard.mapperService().documentMapper().parse(sourceToParse);
+                    ParsedDocument doc = mapperSnapshot.documentMapper().parse(sourceToParse);
                     assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
                     // update special fields
                     doc.updateSeqID(docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
@@ -270,7 +270,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(mapperService::fieldType);
+                fieldVisitor.postProcess(mapperSnapshot::fieldType);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

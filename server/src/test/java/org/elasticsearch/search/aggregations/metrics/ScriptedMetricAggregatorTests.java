@@ -552,7 +552,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
      */
     @Override
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
+                                                        MapperService.Snapshot mapperSnapshot,
                                                         IndexSettings indexSettings,
                                                         CircuitBreakerService circuitBreakerService,
                                                         BigArrays bigArrays) {
@@ -564,8 +564,8 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
-            getIndexFieldDataLookup(mapperService, circuitBreakerService),
-            mapperService,
+            getIndexFieldDataLookup(circuitBreakerService),
+            mapperSnapshot,
             null,
             scriptService,
             xContentRegistry(),

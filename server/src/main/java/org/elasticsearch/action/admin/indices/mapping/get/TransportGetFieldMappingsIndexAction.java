@@ -97,7 +97,7 @@ public class TransportGetFieldMappingsIndexAction
         Predicate<String> metadataFieldPredicate = (f) -> indicesService.isMetadataField(indexCreatedVersion, f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        DocumentMapper documentMapper = indexService.mapperService().documentMapper();
+        DocumentMapper documentMapper = indexService.mapperService().snapshot().documentMapper();
         Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, documentMapper, request);
         return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }
