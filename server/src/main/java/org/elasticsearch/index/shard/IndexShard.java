@@ -920,6 +920,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
+        // TODO it'd be cleaner if `get` had the mapping snapshot in it.
         DocumentMapper mapper = mapperService.snapshot().documentMapper();
         if (mapper == null) {
             return GetResult.NOT_EXISTS;

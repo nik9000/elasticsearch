@@ -405,7 +405,7 @@ public class QueryShardContextTests extends ESTestCase {
         }, () -> true, null) {
             @Override
             public Snapshot snapshot() {
-                return new Snapshot(this, documentMapper()) {
+                return new Snapshot(this, null, 1) {
                     @Override
                     public MappedFieldType fieldType(String name) {
                         return fieldTypeLookup.get(name);

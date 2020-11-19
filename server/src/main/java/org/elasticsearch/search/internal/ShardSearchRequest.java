@@ -396,9 +396,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey() throws IOException {
+    public BytesReference cacheKey(long mappingVersion) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
+            out.writeLong(mappingVersion);
             this.innerWriteTo(out, true);
             // copy it over since we don't want to share the thread-local bytes in #scratch
             return out.copyBytes();

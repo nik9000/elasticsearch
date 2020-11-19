@@ -115,12 +115,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
 
     /**
-     * The current {@link DocumentMapper}. Most read access should be mediated by
-     * {@link #snapshot()} so it is obvious to the caller that they are performing
-     * the volatile read. {@link #indexAnalyzer()} returns an {@link Analyzer}
-     * that reads this for every field as well.
+     * The current mapping accessed through {@link #snapshot()} and {@link #indexAnalyzer()}.
      */
-    private volatile DocumentMapper mapper;
+    private volatile Snapshot snapshot;
 
     public MapperService(IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, NamedXContentRegistry xContentRegistry,
                          SimilarityService similarityService, MapperRegistry mapperRegistry,
@@ -131,7 +128,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         indexAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                return mapper.mappers().indexAnalyzer();
+                return snapshot.mapper.mappers().indexAnalyzer();
             }
         };
         this.indexAnalyzers = indexAnalyzers;
@@ -165,7 +162,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
-        final DocumentMapper existingMapper = mapper;
+        final DocumentMapper existingMapper = snapshot.mapper;
         final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
@@ -199,7 +196,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
-            assertMappingVersion(currentIndexMetadata, newIndexMetadata, this.mapper);
+            assertMappingVersion(currentIndexMetadata, newIndexMetadata, snapshot.mapper);
             return false;
         }
 
@@ -222,7 +219,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         MappingMetadata mappingMetadata = newIndexMetadata.mapping();
         CompressedXContent incomingMappingSource = mappingMetadata.source();
 
-        String op = mapper != null ? "updated" : "added";
+        String op = snapshot != null ? "updated" : "added";
         if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
             logger.debug("[{}] {} mapping, source [{}]", index(), op, incomingMappingSource.string());
         } else if (logger.isTraceEnabled()) {
@@ -235,7 +232,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
         // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
         // merge version of it, which it does when refreshing the mappings), and warn log it.
-        DocumentMapper documentMapper = mapper;
+        DocumentMapper documentMapper = snapshot.mapper;
         if (documentMapper.mappingSource().equals(incomingMappingSource) == false) {
             logger.debug("[{}] parsed mapping, and got different sources\noriginal:\n{}\nparsed:\n{}",
                 index(), incomingMappingSource, documentMapper.mappingSource());
@@ -252,7 +249,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (Assertions.ENABLED && currentIndexMetadata != null) {
             if (currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
                 // if the mapping version is unchanged, then there should not be any updates and all mappings should be the same
-                assert updatedMapper == mapper;
+                assert updatedMapper == snapshot.mapper;
 
                 MappingMetadata mapping = newIndexMetadata.mapping();
                 if (mapping != null) {
@@ -261,7 +258,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     assert currentSource.equals(newSource) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
                             + "to be the same as new mapping [" + newSource + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(snapshot.mapper));
                     assert currentSource.equals(mapperSource) :
                         "expected current mapping [" + currentSource + "] for type [" + mapping.type() + "] "
                             + "to be the same as new mapping [" + mapperSource + "]";
@@ -326,25 +323,30 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         assert mapper != null;
 
         // compute the merged DocumentMapper
-        DocumentMapper oldMapper = this.mapper;
-        DocumentMapper newMapper;
-        if (oldMapper != null) {
-            newMapper = oldMapper.merge(mapper.mapping(), reason);
+        Snapshot oldSnapshot = this.snapshot;
+        Snapshot newSnapshot;
+        if (oldSnapshot != null) {
+            DocumentMapper merged = oldSnapshot.mapper.merge(mapper.mapping(), reason);
+            long version = oldSnapshot.version;
+            if (merged.mappingSource().equals(oldSnapshot.mapper.mappingSource())) {
+                version++;
+            }
+            newSnapshot = new Snapshot(this, merged, version);
         } else {
-            newMapper = mapper;
+            newSnapshot = new Snapshot(this, mapper, 1);
         }
-        newMapper.root().fixRedundantIncludes();
-        newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
+        newSnapshot.mapper.root().fixRedundantIncludes();
+        newSnapshot.mapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
 
         if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
-            return newMapper;
+            return newSnapshot.mapper;
         }
 
         // commit the change
-        this.mapper = newMapper;
-        assert assertSerialization(newMapper);
+        this.snapshot = newSnapshot;
+        assert assertSerialization(newSnapshot.mapper);
 
-        return newMapper;
+        return newSnapshot.mapper;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -382,7 +384,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     private String resolveDocumentType(String type) {
         if (MapperService.SINGLE_MAPPING_NAME.equals(type)) {
-            DocumentMapper mapper = this.mapper;
+            DocumentMapper mapper = snapshot.mapper;
             if (mapper != null) {
                 return mapper.type();
             }
@@ -447,19 +449,27 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Create an immutable snapshot of the current mapping.
+     * {@code volatile} read of an immutable snapshot of the current mapping.
      */
     public Snapshot snapshot() {
-        return new Snapshot(this, mapper);
+        return snapshot;
     }
 
     public static class Snapshot {
         private final MapperService mapperService;
         private final DocumentMapper mapper;
+        /**
+         * Current version of the of the mapping. Increments if the mapping
+         * changes locally. Distinct from
+         * {@link IndexMetadata#getMappingVersion()} because it purely
+         * considers the local mapping changes.
+         */
+        private final long version;
 
-        public Snapshot(MapperService mapperService, DocumentMapper mapper) {
+        public Snapshot(MapperService mapperService, DocumentMapper mapper, long version) {
             this.mapperService = mapperService;
             this.mapper = mapper;
+            this.version = version;
         }
 
         /**
@@ -556,15 +566,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // Safe to plumb through to the Snapshot because it is immutable
             return mapperService.getIndexAnalyzers();
         }
+
+        /**
+         * Current version of the of the mapping. Increments if the mapping
+         * changes locally. Distinct from
+         * {@link IndexMetadata#getMappingVersion()} because it purely
+         * considers the local mapping changes.
+         */
+        public long version() {
+            return version;
+        }
     }
 
     @Deprecated
-    public MappedFieldType fieldType(String fullName) {
+    public MappedFieldType fieldType(String fullName) { // NOCOMMIT remove all main code access
         return snapshot().fieldType(fullName);
     }
 
     @Deprecated
     public DocumentMapper documentMapper() {
-        return mapper;
+        return snapshot.mapper;
     }
 }

@@ -593,4 +593,8 @@ public class QueryShardContext extends QueryRewriteContext {
     public DocumentMapper documentMapper() {
         return mapperSnapshot.documentMapper();
     }
+
+    public long mappingVersion() {
+        return mapperSnapshot.version();
+    }
 }
