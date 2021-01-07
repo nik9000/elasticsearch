@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TestRuntimeField;
@@ -197,27 +197,27 @@ public class IndicesModuleTests extends ESTestCase {
             public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
                 return new DynamicRuntimeFieldsBuilder() {
                     @Override
-                    public RuntimeFieldType newDynamicStringField(String name) {
+                    public RuntimeField newDynamicStringField(String name) {
                         return null;
                     }
 
                     @Override
-                    public RuntimeFieldType newDynamicLongField(String name) {
+                    public RuntimeField newDynamicLongField(String name) {
                         return null;
                     }
 
                     @Override
-                    public RuntimeFieldType newDynamicDoubleField(String name) {
+                    public RuntimeField newDynamicDoubleField(String name) {
                         return null;
                     }
 
                     @Override
-                    public RuntimeFieldType newDynamicBooleanField(String name) {
+                    public RuntimeField newDynamicBooleanField(String name) {
                         return null;
                     }
 
                     @Override
-                    public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
+                    public RuntimeField newDynamicDateField(String name, DateFormatter dateFormatter) {
                         return null;
                     }
                 };

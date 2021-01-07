@@ -51,7 +51,7 @@ final class FieldTypeLookup {
         String type,
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<RuntimeFieldType> runtimeFieldTypes
+        Collection<RuntimeField> runtimeFields
     ) {
         this.type = type;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
@@ -83,9 +83,11 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
         }
 
-        for (RuntimeFieldType runtimeFieldType : runtimeFieldTypes) {
-            //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+        for (RuntimeField runtimeField : runtimeFields) {
+            for (MappedFieldType runtimeFieldType : runtimeField.fields()) {
+                //this will override concrete fields with runtime fields that have the same name
+                fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            }
         }
 
         this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);

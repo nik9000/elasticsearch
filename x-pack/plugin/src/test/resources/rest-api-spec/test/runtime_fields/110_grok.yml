@@ -1,0 +1,230 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: http_logs
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              http:
+                type: grok
+                patterns: '%{IPORHOST:clientip} %{HTTPDUSER:ident} %{USER:auth} \[%{TIMESTAMP_ISO8601:timestamp}\] \"%{WORD:verb} %{NOTSPACE:request} HTTP/%{NUMBER:version}\" %{NUMBER:response:int} (?:%{NUMBER:bytes:long}|-)'
+                field: message
+              sneaky:
+                # Parse the log line in a terrible way to extract two floating point numbers so we have something to test with.
+                # The "double" field is the first two bytes of the ipv4 address interpreted as a number.
+                # the "float" field is the http version.
+                type: grok
+                patterns: '%{NUMBER:double:double}.+?/%{NUMBER:float:float}'
+                field: message
+            properties:
+              timestamp:
+                type: date
+              message:
+                type: wildcard
+  - do:
+      bulk:
+        index: http_logs
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [1998-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [1998-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [1998-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:19-05:00", "message" : "247.37.0.1 - - [1998-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:22-05:00", "message" : "247.37.0.1 - - [1998-04-30T14:31:22-05:00] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [1998-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.1\" 200 24736"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: http_logs
+  - match: {http_logs.mappings.runtime.http.type: grok }
+  - match: {http_logs.mappings.runtime.http.field: message }
+  - match: {http_logs.mappings.runtime.http.patterns: ['%{IPORHOST:clientip} %{HTTPDUSER:ident} %{USER:auth} \[%{TIMESTAMP_ISO8601:timestamp}\] \"%{WORD:verb} %{NOTSPACE:request} HTTP/%{NUMBER:version}\" %{NUMBER:response:int} (?:%{NUMBER:bytes:long}|-)'] }
+
+---
+field capabilities:
+  - do:
+      field_caps:
+        index: http_logs
+        fields: '*'
+
+  - match: {fields.timestamp.date.searchable:             true}
+  - match: {fields.timestamp.date.aggregatable:           true}
+  - match: {fields.message.keyword.searchable:            true}
+  - match: {fields.message.keyword.aggregatable:          true}
+  - is_false: fields.http
+  - match: {fields.http\.clientip.keyword.searchable:     true}
+  - match: {fields.http\.clientip.keyword.aggregatable:   true}
+  - match: {fields.http\.ident.keyword.searchable:        true}
+  - match: {fields.http\.ident.keyword.aggregatable:      true}
+  - match: {fields.http\.auth.keyword.searchable:         true}
+  - match: {fields.http\.auth.keyword.aggregatable:       true}
+  - match: {fields.http\.timestamp.keyword.searchable:    true}
+  - match: {fields.http\.timestamp.keyword.aggregatable:  true}
+  - match: {fields.http\.verb.keyword.searchable:         true}
+  - match: {fields.http\.verb.keyword.aggregatable:       true}
+  - match: {fields.http\.request.keyword.searchable:      true}
+  - match: {fields.http\.request.keyword.aggregatable:    true}
+  - match: {fields.http\.version.keyword.searchable:      true}
+  - match: {fields.http\.version.keyword.aggregatable:    true}
+  - match: {fields.http\.response.long.searchable:        true}
+  - match: {fields.http\.response.long.aggregatable:      true}
+  - match: {fields.http\.bytes.long.searchable:           true}  # runtime fields upgrad ints to longs
+  - match: {fields.http\.bytes.long.aggregatable:         true}
+  - match: {fields.sneaky\.double.double.searchable:      true}
+  - match: {fields.sneaky\.double.double.aggregatable:    true}
+  - match: {fields.sneaky\.float.double.searchable:       true}  # runtime fields upgrad floats to doubles
+  - match: {fields.sneaky\.float.double.aggregatable:     true}
+
+---
+query keyword:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            term:
+              http.clientip: 252.0.0.0
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:27-05:00"}
+
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            term:
+              http.clientip: 26.1.0.0
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:12-05:00"}
+
+---
+query other keyword:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            term:
+              http.request: '/french/splash_inet.html'
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:19-05:00"}
+
+---
+query int:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            range:
+              http.response:
+                gte: 300
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:22-05:00"}
+
+---
+query long:
+  - do:
+      search:
+        index: http_logs
+        body:
+          sort:
+            timestamp: desc
+          query:
+            range:
+              http.bytes:
+                lt: 20000
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:22-05:00"}
+
+---
+query double:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            range:
+              sneaky.double:
+                gt: 249.1
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:27-05:00"}
+
+---
+query float:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            range:
+              sneaky.float:
+                gt: 1.0
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:27-05:00"}
+
+---
+query two fields:
+  - do:
+      search:
+        index: http_logs
+        body:
+          query:
+            bool:
+              must:
+                - range:
+                    http.bytes:
+                      lt: 20000
+                - range:
+                    http.response:
+                      lt: 300
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.timestamp: "1998-04-30T14:31:19-05:00"}
+
+---
+query field defined at runtime:
+  - do:
+      search:
+        index: http_logs
+        body:
+          runtime_mappings:
+            http:
+              type: grok
+              patterns: '%{ISO8601_TIMEZONE:zone}\]'
+              field: message
+          query:
+            term:
+              http.zone: '-05:00'
+  - match: {hits.total.value: 6}
+
+---
+query field defined in mapping combined with field at runtime:
+  - do:
+      search:
+        index: http_logs
+        body:
+          runtime_mappings:
+            http:
+              type: grok
+              patterns: '%{ISO8601_TIMEZONE:zone}\]'
+              field: message
+          query:
+            bool:
+              must:
+                - term:
+                    http.zone: '-05:00'
+                - term:
+                    http.response: 304
+  - match: {hits.total.value: 1}

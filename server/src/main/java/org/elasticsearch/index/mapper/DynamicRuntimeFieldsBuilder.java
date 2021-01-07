@@ -36,21 +36,21 @@ public interface DynamicRuntimeFieldsBuilder {
     /**
      * Dynamically creates a runtime field from a parsed string value
      */
-    RuntimeFieldType newDynamicStringField(String name);
+    RuntimeField newDynamicStringField(String name);
     /**
      * Dynamically creates a runtime field from a parsed long value
      */
-    RuntimeFieldType newDynamicLongField(String name);
+    RuntimeField newDynamicLongField(String name);
     /**
      * Dynamically creates a runtime field from a parsed double value
      */
-    RuntimeFieldType newDynamicDoubleField(String name);
+    RuntimeField newDynamicDoubleField(String name);
     /**
      * Dynamically creates a runtime field from a parsed boolean value
      */
-    RuntimeFieldType newDynamicBooleanField(String name);
+    RuntimeField newDynamicBooleanField(String name);
     /**
      * Dynamically creates a runtime field from a parsed date value
      */
-    RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter);
+    RuntimeField newDynamicDateField(String name, DateFormatter dateFormatter);
 }

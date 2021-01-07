@@ -43,7 +43,7 @@ public class MappingLookupTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
                                                      List<ObjectMapper> objectMappers,
-                                                     List<RuntimeFieldType> runtimeFields) {
+                                                     List<RuntimeField> runtimeFields) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         runtimeFields.forEach(builder::addRuntime);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());

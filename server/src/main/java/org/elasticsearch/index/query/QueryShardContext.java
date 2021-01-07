@@ -55,7 +55,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -616,8 +616,8 @@ public class QueryShardContext extends QueryRewriteContext {
     private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
         if (runtimeMappings.isEmpty() == false) {
-            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
-                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
+            RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
+                runtimeField -> runtimeField.fields().forEach(ft -> runtimeFieldTypes.put(ft.name(), ft)));
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);
     }

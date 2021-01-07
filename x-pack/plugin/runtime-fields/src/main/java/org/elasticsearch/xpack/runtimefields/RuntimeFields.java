@@ -15,7 +15,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.runtimefields.mapper.DoubleFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.DoubleScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.GeoPointFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.GeoPointScriptFieldType;
+import org.elasticsearch.xpack.runtimefields.mapper.GrokRuntimeField;
 import org.elasticsearch.xpack.runtimefields.mapper.IpFieldScript;
 import org.elasticsearch.xpack.runtimefields.mapper.IpScriptFieldType;
 import org.elasticsearch.xpack.runtimefields.mapper.KeywordScriptFieldType;
@@ -44,7 +45,7 @@ import java.util.Map;
 public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptPlugin, ActionPlugin {
 
     @Override
-    public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+    public Map<String, RuntimeField.Parser> getRuntimeFieldTypes() {
         return Map.ofEntries(
             Map.entry(BooleanFieldMapper.CONTENT_TYPE, BooleanScriptFieldType.PARSER),
             Map.entry(NumberFieldMapper.NumberType.LONG.typeName(), LongScriptFieldType.PARSER),
@@ -52,7 +53,8 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
             Map.entry(IpFieldMapper.CONTENT_TYPE, IpScriptFieldType.PARSER),
             Map.entry(DateFieldMapper.CONTENT_TYPE, DateScriptFieldType.PARSER),
             Map.entry(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER),
-            Map.entry(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER)
+            Map.entry(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER),
+            Map.entry("grok", GrokRuntimeField.PARSER)
         );
     }
 

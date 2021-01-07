@@ -43,6 +43,34 @@ import java.util.function.Consumer;
 
 public final class Grok {
     /**
+     * Combine a list of patterns into one.
+     */
+    public static String combinePatterns(List<String> patterns, String traceMatchKey) {
+        if (patterns.size() == 0) {
+            return "";
+        }
+        if (patterns.size() == 1) {
+            return patterns.get(0);
+        }
+        StringBuilder combinedPattern = null;
+        for (int i = 0; i < patterns.size(); i++) {
+            String valueWrap;
+            if (traceMatchKey == null) {
+                valueWrap = "(?:" + patterns.get(i) + ")";
+            } else {
+                valueWrap = "(?<" + traceMatchKey + "." + i + ">" + patterns.get(i) + ")";
+            }
+            if (combinedPattern == null) {
+                combinedPattern = new StringBuilder(valueWrap);
+            } else {
+                combinedPattern.append('|').append(valueWrap);
+            }
+        }
+
+        return combinedPattern.toString();
+    }
+
+    /**
      * Patterns built in to the grok library.
      */
     public static final Map<String, String> BUILTIN_PATTERNS = loadBuiltinPatterns();

@@ -47,7 +47,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -145,7 +145,7 @@ public class TransportFieldCapabilitiesIndexAction
 
                     // Check the ancestor of the field to find nested and object fields.
                     // Runtime fields are excluded since they can override any path.
-                    if (ft instanceof RuntimeFieldType == false) {
+                    if (ft instanceof RuntimeField == false) {
                         int dotIndex = ft.name().lastIndexOf('.');
                         while (dotIndex > -1) {
                             String parentField = ft.name().substring(0, dotIndex);

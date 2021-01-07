@@ -159,7 +159,7 @@ public final class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mapping.root().name(), mappers, aliasMappers, mapping.root().runtimeFieldTypes());
+        this.fieldTypeLookup = new FieldTypeLookup(mapping.root().name(), mappers, aliasMappers, mapping.root().runtimeFields());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }

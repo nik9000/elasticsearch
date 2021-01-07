@@ -192,22 +192,6 @@ public class GrokProcessorTests extends ESTestCase {
         assertThat(doc.getFieldValue("_ingest._grok_match_index", String.class), equalTo("0"));
     }
 
-    public void testCombinedPatterns() {
-        String combined;
-        combined = GrokProcessor.combinePatterns(Arrays.asList(""), false);
-        assertThat(combined, equalTo(""));
-        combined = GrokProcessor.combinePatterns(Arrays.asList(""), true);
-        assertThat(combined, equalTo(""));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo"), false);
-        assertThat(combined, equalTo("foo"));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo"), true);
-        assertThat(combined, equalTo("foo"));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo", "bar"), false);
-        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo", "bar"), true);
-        assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
-    }
-
     public void testCombineSamePatternNameAcrossPatterns() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());

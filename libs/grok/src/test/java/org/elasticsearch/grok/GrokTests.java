@@ -669,6 +669,15 @@ public class GrokTests extends ESTestCase {
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
     }
 
+    public void testCombinedPatterns() {
+        assertThat(Grok.combinePatterns(Arrays.asList(""), null), equalTo(""));
+        assertThat(Grok.combinePatterns(Arrays.asList(""), "foo"), equalTo(""));
+        assertThat(Grok.combinePatterns(Arrays.asList("foo"), null), equalTo("foo"));
+        assertThat(Grok.combinePatterns(Arrays.asList("foo"), "foo"), equalTo("foo"));
+        assertThat(Grok.combinePatterns(Arrays.asList("foo", "bar"), null), equalTo("(?:foo)|(?:bar)"));
+        assertThat(Grok.combinePatterns(Arrays.asList("foo", "bar"), "foo"), equalTo("(?<foo.0>foo)|(?<foo.1>bar)"));
+    }
+
     private void assertGrokedField(String fieldName) {
         String line = "foo";
         Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "%{WORD:" + fieldName + "}", logger::warn);

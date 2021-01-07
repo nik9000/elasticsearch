@@ -59,7 +59,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final Function<String, SimilarityProvider> similarityLookupService;
             private final Function<String, TypeParser> typeParsers;
-            private final Function<String, RuntimeFieldType.Parser> runtimeTypeParsers;
+            private final Function<String, RuntimeField.Parser> runtimeTypeParsers;
             private final boolean supportsDynamicRuntimeMappings;
             private final Version indexVersionCreated;
             private final Supplier<QueryShardContext> queryShardContextSupplier;
@@ -71,7 +71,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
                                  Function<String, TypeParser> typeParsers,
-                                 Function<String, RuntimeFieldType.Parser> runtimeTypeParsers,
+                                 Function<String, RuntimeField.Parser> runtimeTypeParsers,
                                  Version indexVersionCreated,
                                  Supplier<QueryShardContext> queryShardContextSupplier,
                                  DateFormatter dateFormatter,
@@ -117,7 +117,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return typeParsers.apply(type);
             }
 
-            public RuntimeFieldType.Parser runtimeFieldTypeParser(String type) {
+            public RuntimeField.Parser runtimeFieldTypeParser(String type) {
                 return runtimeTypeParsers.apply(type);
             }
 

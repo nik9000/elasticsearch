@@ -58,6 +58,11 @@ public final class GrokCaptureConfig {
         return type;
     }
 
+    @Override
+    public String toString() {
+        return name + ":" + type;
+    }
+
     /**
      * Build a {@linkplain GrokCaptureExtracter} that will call {@code emit} when
      * it extracts text, boxed if the "native" representation is primitive type.
@@ -99,10 +104,10 @@ public final class GrokCaptureConfig {
     }
 
     /**
-     * Build an extract that has access to the "native" type of the extracter
+     * Build an extracter that has access to the "native" type of the extracted
      * match. This means that patterns like {@code %{NUMBER:bytes:float}} has
      * access to an actual {@link float}. Extracters returned from this method
-     * should be stateless stateless and can be reused. Pathological implementations
+     * should be stateless and can be reused. Pathological implementations
      * of the {@code map} parameter could violate this, but the caller should
      * take care to stay sane.
      * <p>

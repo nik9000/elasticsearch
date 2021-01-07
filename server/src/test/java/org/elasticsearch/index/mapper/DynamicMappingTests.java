@@ -216,7 +216,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         Mapping merged = mapperService.documentMapper().mapping();
         assertNotNull(merged.root.getMapper("test"));
-        assertEquals(1, merged.root.runtimeFieldTypes().size());
+        assertEquals(1, merged.root.runtimeFields().size());
         assertNotNull(merged.root.getRuntimeFieldType("field"));
     }
 
@@ -229,7 +229,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.endObject().endObject().endObject();
         }));
         RootObjectMapper root = doc.dynamicMappingsUpdate().root;
-        assertEquals(0, root.runtimeFieldTypes().size());
+        assertEquals(0, root.runtimeFields().size());
         {
             //the runtime field is defined but the object structure is not, hence it is defined under properties
             Mapper path1 = root.getMapper("path1");
@@ -252,7 +252,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             assertThat(path3, instanceOf(ObjectMapper.class));
             assertFalse(path3.iterator().hasNext());
         }
-        assertEquals(1, merged.root.runtimeFieldTypes().size());
+        assertEquals(1, merged.root.runtimeFields().size());
         assertNotNull(merged.root.getRuntimeFieldType("path1.path2.path3.field"));
     }
 

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 
 public final class DynamicRuntimeFieldsBuilder implements org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder {
 
@@ -16,27 +16,27 @@ public final class DynamicRuntimeFieldsBuilder implements org.elasticsearch.inde
     private DynamicRuntimeFieldsBuilder() {}
 
     @Override
-    public RuntimeFieldType newDynamicStringField(String name) {
+    public RuntimeField newDynamicStringField(String name) {
         return new KeywordScriptFieldType(name);
     }
 
     @Override
-    public RuntimeFieldType newDynamicLongField(String name) {
+    public RuntimeField newDynamicLongField(String name) {
         return new LongScriptFieldType(name);
     }
 
     @Override
-    public RuntimeFieldType newDynamicDoubleField(String name) {
+    public RuntimeField newDynamicDoubleField(String name) {
         return new DoubleScriptFieldType(name);
     }
 
     @Override
-    public RuntimeFieldType newDynamicBooleanField(String name) {
+    public RuntimeField newDynamicBooleanField(String name) {
         return new BooleanScriptFieldType(name);
     }
 
     @Override
-    public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
+    public RuntimeField newDynamicDateField(String name, DateFormatter dateFormatter) {
         return new DateScriptFieldType(name, dateFormatter);
     }
 }

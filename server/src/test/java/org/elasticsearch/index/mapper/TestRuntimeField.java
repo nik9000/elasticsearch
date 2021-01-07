@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class TestRuntimeField extends RuntimeFieldType {
+public class TestRuntimeField extends RuntimeField.Simple {
 
     private final String type;
 
@@ -72,27 +72,27 @@ public class TestRuntimeField extends RuntimeFieldType {
         public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
             return new DynamicRuntimeFieldsBuilder() {
                 @Override
-                public RuntimeFieldType newDynamicStringField(String name) {
+                public RuntimeField newDynamicStringField(String name) {
                     return new TestRuntimeField(name, "keyword");
                 }
 
                 @Override
-                public RuntimeFieldType newDynamicLongField(String name) {
+                public RuntimeField newDynamicLongField(String name) {
                     return new TestRuntimeField(name, "long");
                 }
 
                 @Override
-                public RuntimeFieldType newDynamicDoubleField(String name) {
+                public RuntimeField newDynamicDoubleField(String name) {
                     return new TestRuntimeField(name, "double");
                 }
 
                 @Override
-                public RuntimeFieldType newDynamicBooleanField(String name) {
+                public RuntimeField newDynamicBooleanField(String name) {
                     return new TestRuntimeField(name, "boolean");
                 }
 
                 @Override
-                public RuntimeFieldType newDynamicDateField(String name, DateFormatter dateFormatter) {
+                public RuntimeField newDynamicDateField(String name, DateFormatter dateFormatter) {
                     return new TestRuntimeField(name, "date");
                 }
             };

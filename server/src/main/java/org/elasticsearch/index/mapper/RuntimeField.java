@@ -25,45 +25,31 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 /**
  * Base implementation for a runtime field that can be defined as part of the runtime section of the index mappings
  */
-public abstract class RuntimeFieldType extends MappedFieldType implements ToXContentFragment {
+public interface RuntimeField extends ToXContentFragment {
 
-    protected RuntimeFieldType(String name, Map<String, String> meta) {
-        super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
-    }
+    String name();
 
-    @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
-        builder.field("type", typeName());
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        doXContentBody(builder, includeDefaults);
-        builder.endObject();
-        return builder;
-    }
-
+    List<MappedFieldType> fields();
+    
     /**
-     * Prints out the parameters that subclasses expose
-     */
-    protected abstract void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException;
-
-    /**
-     * Parser for a runtime field. Creates the appropriate {@link RuntimeFieldType} for a runtime field,
+     * Parser for a runtime field. Creates the appropriate {@link RuntimeField} for a runtime field,
      * as defined in the runtime section of the index mappings.
      */
     public interface Parser {
-        RuntimeFieldType parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
+        RuntimeField parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
             throws MapperParsingException;
     }
 
-    public static void parseRuntimeFields(Map<String, Object> node,
+    static void parseRuntimeFields(Map<String, Object> node,
                                           Mapper.TypeParser.ParserContext parserContext,
-                                          Consumer<RuntimeFieldType> runtimeFieldTypeConsumer) {
+                                          Consumer<RuntimeField> runtimeFieldTypeConsumer) {
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -92,5 +78,32 @@ public abstract class RuntimeFieldType extends MappedFieldType implements ToXCon
                     + fieldName.getClass().getName());
             }
         }
+    }
+
+    // TODO this makes script fields feel funny. Would a wrapping implementation be cleaner?
+    abstract class Simple extends MappedFieldType implements RuntimeField {
+        protected Simple(String name, Map<String, String> meta) {
+            super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
+        }
+
+        @Override
+        public List<MappedFieldType> fields() {
+            return List.of(this);
+        }
+
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(name());
+            builder.field("type", typeName());
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            doXContentBody(builder, includeDefaults);
+            builder.endObject();
+            return builder;
+        }
+
+        /**
+         * Prints out the parameters that subclasses expose
+         */
+        protected abstract void doXContentBody(XContentBuilder builder, boolean includeDefaults) throws IOException;
     }
 }

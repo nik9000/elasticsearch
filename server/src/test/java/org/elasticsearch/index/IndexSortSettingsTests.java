@@ -21,11 +21,10 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -152,7 +151,14 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
-        MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap()) {
+        MappedFieldType fieldType = new MappedFieldType(
+            "field",
+            true,
+            false,
+            false,
+            TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS,
+            Collections.emptyMap()
+        ) {
             @Override
             public ValueFetcher valueFetcher(QueryShardContext context, String format) {
                 throw new UnsupportedOperationException();
@@ -171,11 +177,6 @@ public class IndexSortSettingsTests extends ESTestCase {
 
             @Override
             public Query termQuery(Object value, QueryShardContext context) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            protected void doXContentBody(XContentBuilder builder, boolean includeDefaults) {
                 throw new UnsupportedOperationException();
             }
         };

@@ -16,6 +16,7 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'), configuration: 'default')
+  api project(':libs:elasticsearch-grok')
 }
 
 tasks.named("dependencyLicenses").configure {

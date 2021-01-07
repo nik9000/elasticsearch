@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -136,10 +136,10 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
-    private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
-        Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+    private static Map<String, RuntimeField.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
+        Map<String, RuntimeField.Parser> runtimeParsers = new LinkedHashMap<>();
         for (MapperPlugin mapperPlugin : mapperPlugins) {
-            for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
+            for (Map.Entry<String, RuntimeField.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
                 if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Runtime field type [" + entry.getKey() + "] is already registered");
                 }

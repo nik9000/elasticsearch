@@ -64,7 +64,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
@@ -309,7 +309,7 @@ public class QueryShardContextTests extends ESTestCase {
 
     public void testFielddataLookupOneFieldManyReferences() throws IOException {
         int numFields = randomIntBetween(5, 20);
-        List<RuntimeFieldType> fields = new ArrayList<>(numFields + 1);
+        List<RuntimeField> fields = new ArrayList<>(numFields + 1);
         fields.add(runtimeField("root", leafLookup -> {
             StringBuilder value = new StringBuilder();
             for (int i = 0; i < numFields; i++) {
@@ -329,7 +329,7 @@ public class QueryShardContextTests extends ESTestCase {
         );
     }
 
-    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
+    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         runtimeFields.forEach(builder::addRuntime);
@@ -369,7 +369,7 @@ public class QueryShardContextTests extends ESTestCase {
         return createQueryShardContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of(), List.of());
     }
 
-    private static QueryShardContext createQueryShardContext(RuntimeFieldType... fieldTypes) {
+    private static QueryShardContext createQueryShardContext(RuntimeField... fieldTypes) {
         return createQueryShardContext(
             "uuid",
             null,
@@ -450,11 +450,11 @@ public class QueryShardContextTests extends ESTestCase {
         return mapperService;
     }
 
-    private static RuntimeFieldType runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
+    private static RuntimeField runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
         return runtimeField(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup));
     }
 
-    private static RuntimeFieldType runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
+    private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
         return new TestRuntimeField(name, null) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,

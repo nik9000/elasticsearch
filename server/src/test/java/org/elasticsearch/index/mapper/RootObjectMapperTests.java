@@ -714,7 +714,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
     private static class RuntimeFieldPlugin extends Plugin implements MapperPlugin {
         @Override
-        public Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes() {
+        public Map<String, RuntimeField.Parser> getRuntimeFieldTypes() {
             return Map.of("test", (name, node, parserContext) -> {
                 Object prop1 = node.remove("prop1");
                 Object prop2 = node.remove("prop2");

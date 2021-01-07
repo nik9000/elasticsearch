@@ -51,12 +51,13 @@ public final class GrokProcessor extends AbstractProcessor {
         super(tag, description);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
-        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
+        String combinedPatterns = Grok.combinePatterns(matchPatterns, traceMatch ? PATTERN_MATCH_KEY : null);
+        this.grok = new Grok(patternBank, combinedPatterns, matcherWatchdog, logger::debug);
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
         // Joni warnings are only emitted on an attempt to match, and the warning emitted for every call to match which is too verbose
         // so here we emit a warning (if there is one) to the logfile at warn level on construction / processor creation.
-        new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::warn).match("___nomatch___");
+        new Grok(patternBank, combinedPatterns, matcherWatchdog, logger::warn).match("___nomatch___");
     }
 
     @Override
@@ -109,31 +110,6 @@ public final class GrokProcessor extends AbstractProcessor {
 
     List<String> getMatchPatterns() {
         return matchPatterns;
-    }
-
-    static String combinePatterns(List<String> patterns, boolean traceMatch) {
-        String combinedPattern;
-        if (patterns.size() > 1) {
-            combinedPattern = "";
-            for (int i = 0; i < patterns.size(); i++) {
-                String pattern = patterns.get(i);
-                String valueWrap;
-                if (traceMatch) {
-                    valueWrap = "(?<" + PATTERN_MATCH_KEY + "." + i + ">" + pattern + ")";
-                } else {
-                    valueWrap = "(?:" + patterns.get(i) + ")";
-                }
-                if (combinedPattern.equals("")) {
-                    combinedPattern = valueWrap;
-                } else {
-                    combinedPattern = combinedPattern + "|" + valueWrap;
-                }
-            }
-        }  else {
-            combinedPattern = patterns.get(0);
-        }
-
-        return combinedPattern;
     }
 
     public static final class Factory implements Processor.Factory {

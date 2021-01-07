@@ -19,24 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
@@ -52,6 +34,24 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DocumentParserTests extends MapperServiceTestCase {
 
@@ -642,7 +642,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testSingleRuntimeFieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
-        List<RuntimeFieldType> updates = Collections.singletonList(new TestRuntimeField("foo", "any"));
+        List<RuntimeField> updates = Collections.singletonList(new TestRuntimeField("foo", "any"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), Collections.emptyList(), updates);
         assertNotNull(mapping);
         assertNull(mapping.root().getMapper("foo"));
@@ -663,7 +663,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testRuntimeSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
-        List<RuntimeFieldType> updates = Collections.singletonList(new TestRuntimeField("x.foo", "any"));
+        List<RuntimeField> updates = Collections.singletonList(new TestRuntimeField("x.foo", "any"));
         Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mappers(), Collections.emptyList(), updates);
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
@@ -814,40 +814,40 @@ public class DocumentParserTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0).value(1).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
-        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
-        assertEquals("long", foo.typeName());
+        RuntimeField foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("long", foo.fields().get(0).typeName());
     }
 
     public void testDynamicRuntimeDoubleArray() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(0.25).value(1.43).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
-        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
-        assertEquals("double", foo.typeName());
+        RuntimeField foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("double", foo.fields().get(0).typeName());
     }
 
     public void testDynamicRuntimeStringArray() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("test1").value("test2").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
-        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
-        assertEquals("keyword", foo.typeName());
+        RuntimeField foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("keyword", foo.fields().get(0).typeName());
     }
 
     public void testDynamicRuntimeBooleanArray() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value(true).value(false).endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
-        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
-        assertEquals("boolean", foo.typeName());
+        RuntimeField foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("boolean", foo.fields().get(0).typeName());
     }
 
     public void testDynamicRuntimeDateArray() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("dynamic", "runtime")));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("2020-12-15").value("2020-12-09").endArray()));
         assertEquals(0, doc.rootDoc().getFields("foo").length);
-        RuntimeFieldType foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
-        assertEquals("date", foo.typeName());
+        RuntimeField foo = doc.dynamicMappingsUpdate().root.getRuntimeFieldType("foo");
+        assertEquals("date", foo.fields().get(0).typeName());
     }
 
     public void testMappedGeoPointArray() throws Exception {

@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
@@ -44,7 +44,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 /**
  * Abstract base {@linkplain MappedFieldType} for scripted fields.
  */
-abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
+abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeField.Simple {
     protected final Script script;
     private final TriFunction<String, Map<String, Object>, SearchLookup, LeafFactory> factory;
     private final CheckedBiConsumer<XContentBuilder, Boolean, IOException> toXContent;
@@ -188,7 +188,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         );
     }
 
-    protected final void checkAllowExpensiveQueries(QueryShardContext context) {
+    protected static final void checkAllowExpensiveQueries(QueryShardContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
@@ -211,7 +211,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
     private static final Script DEFAULT_SCRIPT = new Script("");
 
     /**
-     *  For runtime fields the {@link RuntimeFieldType.Parser} returns directly the {@link MappedFieldType}.
+     *  For runtime fields the {@link RuntimeField.Parser} returns directly the {@link MappedFieldType}.
      *  Internally we still create a {@link Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
      *  but {@link Builder#init(FieldMapper)} and {@link Builder#build(ContentPath)} are never called as
      *  {@link RuntimeFieldTypeParser#parse(String, Map, Mapper.TypeParser.ParserContext)} calls
@@ -281,7 +281,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         return mapper -> { throw new UnsupportedOperationException(); };
     }
 
-    static final class RuntimeFieldTypeParser implements RuntimeFieldType.Parser {
+    static final class RuntimeFieldTypeParser implements RuntimeField.Parser {
         private final BiFunction<String, Mapper.TypeParser.ParserContext, Builder> builderFunction;
 
         RuntimeFieldTypeParser(BiFunction<String, Mapper.TypeParser.ParserContext, Builder> builderFunction) {
@@ -289,7 +289,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends RuntimeFieldType {
         }
 
         @Override
-        public RuntimeFieldType parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
+        public RuntimeField parse(String name, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
             throws MapperParsingException {
 
             Builder builder = builderFunction.apply(name, parserContext);
