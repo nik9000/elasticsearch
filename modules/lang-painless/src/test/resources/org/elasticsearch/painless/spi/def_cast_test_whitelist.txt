@@ -1,0 +1,8 @@
+# whitelist for augmentation tests of the inject_script annotation
+
+class org.elasticsearch.painless.DefCastTests$GetterTestScript @no_import {
+}
+
+class org.elasticsearch.painless.DefCastTests$GetterTest {
+  double getD()
+}

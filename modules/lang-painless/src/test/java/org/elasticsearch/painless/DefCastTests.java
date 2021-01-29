@@ -19,7 +19,24 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.ScriptContext;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 public class DefCastTests extends ScriptTestCase {
+    @Override
+    protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
+        Map<ScriptContext<?>, List<Whitelist>> result = new HashMap<>(super.scriptContexts());
+        List<Whitelist> whitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        whitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "def_cast_test_whitelist.txt"));
+        result.put(GetterTestScript.CONTEXT, whitelists);
+        return result;
+    }
 
     public void testdefTobooleanImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; boolean b = d;"));
@@ -708,5 +725,50 @@ public class DefCastTests extends ScriptTestCase {
                 "t = y;" +
                 "return ChronoUnit.MILLIS.between(d, t);"
         ));
+    }
+
+    public void testDoubleSupplierToFloat() {
+        GetterTest t = new GetterTest(randomDouble());
+        GetterTestScript.Factory factory = scriptEngine.compile(
+            "test",
+            "float f = params.t.d; return f",
+            GetterTestScript.CONTEXT,
+            Map.of()
+        );
+        GetterTestScript script = factory.newInstance(Map.of("t", t));
+        expectScriptThrows(ClassCastException.class, script::execute);
+    }
+
+    public static abstract class GetterTestScript {
+        public static final String[] PARAMETERS = new String[0];
+        static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("test", Factory.class); 
+        
+        public static interface Factory {
+            GetterTestScript newInstance(Map<String, Object> params);
+        }
+
+        private final Map<String, Object> params;
+
+        public GetterTestScript(Map<String, Object> params) {
+            this.params = params;
+        }
+
+        public abstract Object execute();
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+    }
+
+    public static class GetterTest {
+        private final double d;
+
+        public GetterTest(double d) {
+            this.d = d;
+        }
+
+        public double getD() {
+            return d;
+        }
     }
 }
