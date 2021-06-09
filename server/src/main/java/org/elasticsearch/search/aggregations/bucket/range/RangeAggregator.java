@@ -293,21 +293,21 @@ public abstract class RangeAggregator extends BucketsAggregator {
         );
         Map<String, Object> filtersDebug = null;
         if (adapted != null) {
-            long maxEstimatedFiltersCost = context.searcher().getIndexReader().maxDoc();
-            long estimatedFiltersCost = adapted.estimateCost(maxEstimatedFiltersCost);
-            if (estimatedFiltersCost <= maxEstimatedFiltersCost) {
+//            long maxEstimatedFiltersCost = context.searcher().getIndexReader().maxDoc();
+//            long estimatedFiltersCost = adapted.estimateCost(maxEstimatedFiltersCost);
+//            if (estimatedFiltersCost <= maxEstimatedFiltersCost) {
                 return adapted;
-            }
+//            }
             /*
              * Looks like it'd be more expensive to use the filter-by-filter
              * aggregator. Oh well. Snapshot the the filter-by-filter
              * aggregator's debug information if we're profiling bececause it
              * is useful even if the aggregator isn't.
              */
-            if (context.profiling()) {
-                filtersDebug = new HashMap<>();
-                adapted.delegate().collectDebugInfo(filtersDebug::put);
-            }
+//            if (context.profiling()) {
+//                filtersDebug = new HashMap<>();
+//                adapted.delegate().collectDebugInfo(filtersDebug::put);
+//            }
         }
         return buildWithoutAttemptedToAdaptToFilters(
             name,

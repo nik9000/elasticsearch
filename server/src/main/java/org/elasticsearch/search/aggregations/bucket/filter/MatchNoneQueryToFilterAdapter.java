@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.FilterByFilter.CountCollectorSource;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -38,9 +39,10 @@ class MatchNoneQueryToFilterAdapter extends QueryToFilterAdapter<MatchNoDocsQuer
     }
 
     @Override
-    long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        return 0;
-    }
+    void collectOrRegisterUnion(LeafReaderContext ctx, CollectorSource collectorSource, Bits live) throws IOException {}
+
+    @Override
+    void countOrRegisterUnion(LeafReaderContext ctx, CountCollectorSource collectorSource, Bits live) throws IOException {}
 
     @Override
     long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {

@@ -14,6 +14,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.FilterByFilter.CountCollectorSource;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -40,12 +41,14 @@ class MatchAllQueryToFilterAdapter extends QueryToFilterAdapter<MatchAllDocsQuer
     }
 
     @Override
-    long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        if (countCanUseMetadata(counter, live)) {
+    void countOrRegisterUnion(LeafReaderContext ctx, CountCollectorSource collectorSource, Bits live) throws IOException {
+        if (collectorSource.canUseMetadata()) {
             resultsFromMetadata++;
-            return ctx.reader().maxDoc();  // TODO we could use numDocs even if live is not null because provides accurate numDocs.
+            // TODO we could use numDocs even if live is not null because provides accurate numDocs.
+            collectorSource.count(ctx.reader().maxDoc());
+        } else {
+            super.countOrRegisterUnion(ctx, collectorSource, live);
         }
-        return super.count(ctx, counter, live);
     }
 
     @Override

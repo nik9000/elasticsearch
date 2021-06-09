@@ -10,8 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -24,6 +22,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
@@ -31,7 +30,9 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.FilterByFilter.CountCollectorSource;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -163,7 +164,6 @@ public class QueryToFilterAdapter<Q extends Query> {
          * here at all. We know which queries its worth spending time to
          * optimize because we know which aggs rewrite into this one.
          */
-        extraQuery = searcher().rewrite(extraQuery);
         if (extraQuery instanceof MatchAllDocsQuery) {
             return this;
         }
@@ -172,14 +172,18 @@ public class QueryToFilterAdapter<Q extends Query> {
         if (unwrappedQuery instanceof PointRangeQuery && unwrappedExtraQuery instanceof PointRangeQuery) {
             Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedQuery, (PointRangeQuery) unwrappedExtraQuery);
             if (merged != null) {
-                // Should we rewrap here?
                 return new QueryToFilterAdapter<>(searcher(), key(), merged);
             }
         }
-        BooleanQuery.Builder builder = new BooleanQuery.Builder();
-        builder.add(query, BooleanClause.Occur.MUST);
-        builder.add(extraQuery, BooleanClause.Occur.MUST);
-        return new QueryToFilterAdapter<>(searcher(), key(), builder.build());
+        return new UnionQueryToFilterAdapter(searcher, key, query);
+//        if (fasterToUnionThanCache(extraQuery)) {
+//            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+//            builder.add(query, BooleanClause.Occur.MUST);
+//            builder.add(extraQuery, BooleanClause.Occur.MUST);
+//            return new QueryToFilterAdapter<>(searcher(), key(), builder.build());
+//        }
+        // TODO double check that we don't try to cache stuff like runtime fields queries up front.
+        // NOCOMMIT we should try and collect these in parallel somehow
     }
 
     private static Query unwrap(Query query) {
@@ -200,6 +204,13 @@ public class QueryToFilterAdapter<Q extends Query> {
         }
     }
 
+    private boolean fasterToUnionThanCache(Query query) {
+        return query instanceof TermQuery
+            || query instanceof DocValuesFieldExistsQuery
+            || query instanceof MatchAllDocsQuery
+            || query instanceof MatchNoDocsQuery;
+    }
+
     /**
      * Build a predicate that the "compatible" implementation of the
      * {@link FiltersAggregator} will use to figure out if the filter matches.
@@ -216,14 +227,8 @@ public class QueryToFilterAdapter<Q extends Query> {
     /**
      * Count the number of documents that match this filter in a leaf.
      */
-    long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        BulkScorer scorer = bulkScorer(ctx, () -> {});
-        if (scorer == null) {
-            // No hits in this segment.
-            return 0;
-        }
-        scorer.score(counter, live);
-        return counter.readAndReset(ctx);
+    void countOrRegisterUnion(LeafReaderContext ctx, CountCollectorSource collectorSource, Bits live) throws IOException {
+        collectOrRegisterUnion(ctx, collectorSource, live);
     }
 
     /**
@@ -233,16 +238,27 @@ public class QueryToFilterAdapter<Q extends Query> {
         return estimateCollectCost(ctx);
     }
 
+    interface CollectorSource {
+        ReleasableLeafCollector filterByFilterCollector() throws IOException;
+        void addToUnion(Scorer scorer);
+    }
+
+    interface ReleasableLeafCollector extends LeafCollector, Releasable {}
+
     /**
-     * Collect all documents that match this filter in this leaf.
+     * Collect all documents that match this filter in this leaf immediately
+     * or register a union.
      */
-    void collect(LeafReaderContext ctx, LeafCollector collector, Bits live) throws IOException {
+    void collectOrRegisterUnion(LeafReaderContext ctx, CollectorSource collectorSource, Bits live) throws IOException {
         BulkScorer scorer = bulkScorer(ctx, () -> {});
         if (scorer == null) {
             // No hits in this segment.
             return;
         }
-        scorer.score(collector, live);
+        try (ReleasableLeafCollector collector = collectorSource.filterByFilterCollector()) {
+            scorer.score(collector, live);
+        }
+        return;
     }
 
     /**
@@ -284,7 +300,7 @@ public class QueryToFilterAdapter<Q extends Query> {
         return bulkScorers[ctx.ord];
     }
 
-    private Weight weight() throws IOException {
+    Weight weight() throws IOException {
         if (weight == null) {
             weight = searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         }

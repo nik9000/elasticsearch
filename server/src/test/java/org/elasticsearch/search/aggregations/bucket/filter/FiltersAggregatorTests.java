@@ -23,6 +23,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -43,8 +44,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -77,6 +81,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
@@ -887,6 +892,200 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     public void testDocValuesFieldExistsForKeywordWithoutData() throws IOException {
         docValuesFieldExistsNoDataTestCase(new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of()));
     }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case where the top level query
+     * doesn't have a two phase iterator and the filters don't overlap.
+     */
+    public void testTopLevelDisjointNoOverlap() throws IOException {
+        // NOCOMMIT add tests for many filters
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("1-2", new RangeQueryBuilder("a").gte(1).lte(2)),
+            new KeyedFilter("5-7", new RangeQueryBuilder("a").gte(5).lte(7))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, LongPoint.newRangeQuery("b", 4, 8), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("1-2").getDocCount(), equalTo(10L));
+            InternalMax max = result.getBucketByKey("1-2").getAggregations().get("m");
+            assertThat(max.value(), equalTo(2.0));
+            assertThat(result.getBucketByKey("5-7").getDocCount(), equalTo(15L));
+            max = result.getBucketByKey("5-7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(7.0));
+        });
+    }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case where the top level query
+     * doesn't have a two phase iterator and the filters <strong>do<strong> overlap.
+     */
+    public void testTopLevelDisjointOverlap() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("1-5", new RangeQueryBuilder("a").gte(1).lte(5)),
+            new KeyedFilter("5-7", new RangeQueryBuilder("a").gte(5).lte(7))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, LongPoint.newRangeQuery("b", 4, 8), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("1-5").getDocCount(), equalTo(25L));
+            InternalMax max = result.getBucketByKey("1-5").getAggregations().get("m");
+            assertThat(max.value(), equalTo(5.0));
+            assertThat(result.getBucketByKey("5-7").getDocCount(), equalTo(15L));
+            max = result.getBucketByKey("5-7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(7.0));
+        });
+    }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case where the top level query
+     * <strong>has</strong> a two phase iterator but none of the
+     * filters do.
+     */
+    public void testTopLevelDisjointTopTwoPhase() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("1-2", new RangeQueryBuilder("a").gte(1).lte(2)),
+            new KeyedFilter("5-7", new RangeQueryBuilder("a").gte(5).lte(7))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, new PhraseQuery("b.words", "3", "some", "words"), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("1-2").getDocCount(), equalTo(2L));
+            InternalMax max = result.getBucketByKey("1-2").getAggregations().get("m");
+            assertThat(max.value(), equalTo(2.0));
+            assertThat(result.getBucketByKey("5-7").getDocCount(), equalTo(3L));
+            max = result.getBucketByKey("5-7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(7.0));
+        });
+    }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case where the top level query
+     * <strong>has</strong> a two phase iterator but none of the
+     * filters do.
+     */
+    public void testTopLevelDisjointFilterTwoPhase() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("2", new MatchPhraseQueryBuilder("a.words", "2 some words")),
+            new KeyedFilter("7", new MatchPhraseQueryBuilder("a.words", "7 some words"))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, LongPoint.newRangeQuery("b", 4, 8), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("2").getDocCount(), equalTo(5L));
+            InternalMax max = result.getBucketByKey("2").getAggregations().get("m");
+            assertThat(max.value(), equalTo(2.0));
+            assertThat(result.getBucketByKey("7").getDocCount(), equalTo(5L));
+            max = result.getBucketByKey("7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(7.0));
+        });
+    }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case where the top level query
+     * <strong>has</strong> a two phase iterator but none of the
+     * filters do.
+     */
+    public void testTopLevelDisjointAllTwoPhase() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("2", new MatchPhraseQueryBuilder("a.words", "2 some words")),
+            new KeyedFilter("7", new MatchPhraseQueryBuilder("a.words", "7 some words"))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, new PhraseQuery("b.words", "3", "some", "words"), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("2").getDocCount(), equalTo(1L));
+            InternalMax max = result.getBucketByKey("2").getAggregations().get("m");
+            assertThat(max.value(), equalTo(2.0));
+            assertThat(result.getBucketByKey("7").getDocCount(), equalTo(1L));
+            max = result.getBucketByKey("7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(7.0));
+        });
+    }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case where a filter can't match
+     * any documents in segment.
+     */
+    public void testTopLevelDisjointFilterCantMatch() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("nomatch", new MatchPhraseQueryBuilder("a.words", "termthatisnotinthedictionary")),
+            new KeyedFilter("5-7", new RangeQueryBuilder("a").gte(5).lte(7))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, LongPoint.newRangeQuery("b", 4, 8), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("nomatch").getDocCount(), equalTo(0L));
+            InternalMax max = result.getBucketByKey("nomatch").getAggregations().get("m");
+            assertThat(max.getValueAsString(), equalTo("-Infinity"));
+            assertThat(result.getBucketByKey("5-7").getDocCount(), equalTo(15L));
+            max = result.getBucketByKey("5-7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(7.0));
+        });
+    }
+
+    /**
+     * Test for when the top level query can't be merged with all of the
+     * filters so we fall back to a more complex collector. This
+     * specifically covers the case when we <strong>can</strong>
+     * merge some filters but not others.
+     */
+    public void testTopLevelDisjointSomeFilterCanMerge() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("a1-2", new RangeQueryBuilder("a").gte(1).lte(2)),
+            new KeyedFilter("b5-7", new RangeQueryBuilder("b").gte(5).lte(7))
+        ).subAggregation(new MaxAggregationBuilder("m").field("a"));
+        topLevelDisjointTestCase(builder, LongPoint.newRangeQuery("b", 4, 8), (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(2));
+            assertThat(result.getBucketByKey("a1-2").getDocCount(), equalTo(10L));
+            InternalMax max = result.getBucketByKey("a1-2").getAggregations().get("m");
+            assertThat(max.value(), equalTo(2.0));
+            assertThat(result.getBucketByKey("b5-7").getDocCount(), equalTo(30L));
+            max = result.getBucketByKey("b5-7").getAggregations().get("m");
+            assertThat(max.value(), equalTo(9.0));
+        });
+    }
+
+    private void topLevelDisjointTestCase(AggregationBuilder builder, Query topLevelQuery, Consumer<InternalFilters> check)
+        throws IOException {
+        MappedFieldType aft = new NumberFieldMapper.NumberFieldType("a", NumberType.LONG);
+        MappedFieldType bft = new NumberFieldMapper.NumberFieldType("b", NumberType.LONG);
+        MappedFieldType aWordsFt = new TextFieldType("a.words");
+        MappedFieldType bWordsFt = new TextFieldType("b.words");
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int a = 0; a < 10; a++) {
+                for (int b = 0; b < 10; b++) {
+                    String aWords = a + " some words";
+                    String bWords = b + " some words";
+                    iw.addDocument(
+                        List.of(
+                            new LongPoint("a", a),
+                            new NumericDocValuesField("a", a),
+                            new Field("a.words", aWords, TextFieldMapper.Defaults.FIELD_TYPE),
+                            new LongPoint("b", b),
+                            new NumericDocValuesField("b", b),
+                            new Field("b.words", bWords, TextFieldMapper.Defaults.FIELD_TYPE)
+                        )
+                    );
+                }
+            }
+        };
+        testCase(builder, topLevelQuery, buildIndex, check, aft, bft, aWordsFt, bWordsFt);
+        // NOCOMMIT debugTestCase to assert we're taking the fast path
+    }
+
 
     private void docValuesFieldExistsTestCase(
         QueryBuilder exists,

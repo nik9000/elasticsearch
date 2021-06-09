@@ -8,15 +8,20 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -29,6 +34,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
+import org.elasticsearch.search.aggregations.bucket.filter.QueryToFilterAdapter.ReleasableLeafCollector;
+import org.elasticsearch.search.aggregations.bucket.filter.UnionQueryToFilterAdapter.UnionFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -204,8 +211,9 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             throw new IllegalStateException("Can't execute filter-by-filter");
         }
         List<QueryToFilterAdapter<?>> filtersWithTopLevel = new ArrayList<>(filters.size());
+        Query topLevel = context.searcher().rewrite(context.query());
         for (QueryToFilterAdapter<?> f : filters) {
-            filtersWithTopLevel.add(f.union(context.query()));
+            filtersWithTopLevel.add(f.union(topLevel));
         }
         return new FiltersAggregator.FilterByFilter(
             name,
@@ -300,6 +308,11 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         private int segmentsWithDocCountField;
         private int segmentsCollected;
         private int segmentsCounted;
+
+        /**
+         * The weight of the top level query.
+         */
+        private Weight topLevelWeight;
 
         private FilterByFilter(
             String name,
@@ -405,9 +418,103 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          * all opt out of needing any sort of collection.
          */
         private void collectCount(LeafReaderContext ctx, Bits live) throws IOException {
-            Counter counter = new Counter(docCountProvider);
-            for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                incrementBucketDocCount(filterOrd, filters().get(filterOrd).count(ctx, counter, live));
+            CountCollectorSource collectorSource = new CountCollectorSource(ctx, live);
+            while (collectorSource.filterOrd < filters().size()) {
+                filters().get(collectorSource.filterOrd).countOrRegisterUnion(ctx, collectorSource, live);
+                collectorSource.filterOrd++;
+            }
+            collectorSource.collectUnions(live);
+        }
+
+        class CountCollectorSource implements QueryToFilterAdapter.CollectorSource {
+            private final LeafReaderContext ctx;
+            private final Bits live;
+            private int filterOrd;
+            private List<UnionFilter> unionFilters;
+
+            private CountCollectorSource(LeafReaderContext ctx, Bits live) {
+                this.ctx = ctx;
+                this.live = live;
+            }
+
+            void count(long count) {
+                incrementBucketDocCount(filterOrd, count);
+            }
+
+            @Override
+            public ReleasableLeafCollector filterByFilterCollector() throws IOException {
+                docCountProvider.setLeafReaderContext(ctx);
+                return countCollector();
+            }
+
+            @Override
+            public void addToUnion(Scorer scorer) {
+                if (unionFilters == null) {
+                    unionFilters = new ArrayList<>(filters().size() - filterOrd);
+                }
+                unionFilters.add(new UnionFilter(scorer, countCollector()));
+            }
+
+            private ReleasableLeafCollector countCollector() {
+                return new ReleasableLeafCollector() {
+                    private final long filterOrd = CountCollectorSource.this.filterOrd;
+                    long count;
+
+                    @Override
+                    public void collect(int doc) throws IOException {
+                        count += docCountProvider.getDocCount(doc);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {
+                    }
+
+                    @Override
+                    public void close() {
+                        incrementBucketDocCount(filterOrd, count);
+                    }
+                };
+            }
+
+            /**
+             * Would using index metadata like {@link IndexReader#docFreq}
+             * or {@link IndexReader#maxDoc} to count the number of matching documents
+             * produce the same answer as collecting the results with a sequence like
+             * {@code searcher.collect(counter); return counter.readAndReset();}?
+             */
+            final boolean canUseMetadata() {
+                if (live != null) {
+                    /*
+                     * We can only use metadata if all of the documents in the reader
+                     * are visible. This is done by returning a null `live` bits. The
+                     * name `live` is traditional because most of the time a non-null
+                     * `live` bits means that there are deleted documents. But `live`
+                     * might also be non-null if document level security is enabled.
+                     */
+                    return false;
+                }
+                /*
+                 * We can only use metadata if we're not using the special docCount
+                 * field. Otherwise we wouldn't know how many documents each lucene
+                 * document represents.
+                 */
+                return docCountProvider.alwaysOne();
+            }
+
+            void collectUnions(Bits live) throws IOException {
+                if (unionFilters == null) {
+                    return;
+                }
+                if (topLevelWeight == null) {
+                    topLevelWeight = topLevelQuery().createWeight(searcher(), ScoreMode.COMPLETE_NO_SCORES, 1.0F);
+                }
+                Scorer topLevelScorer = topLevelWeight.scorer(ctx);
+                if (topLevelScorer == null) {
+                    // Scorer can't match anything, nothing to collect.
+                    return;
+                }
+                docCountProvider.setLeafReaderContext(ctx);
+                UnionQueryToFilterAdapter.collectUnion(unionFilters, topLevelScorer.iterator(), live);
             }
         }
 
@@ -419,36 +526,98 @@ public abstract class FiltersAggregator extends BucketsAggregator {
          * This collects each filter one at a time, resetting the
          * sub-aggregators between each filter as though they were hitting
          * a fresh segment.
-         * <p>
-         * It's <strong>very</strong> tempting to try and collect the
-         * filters into blocks of matches and then reply the whole block
-         * into ascending order without the resetting. That'd probably
-         * work better if the disk was very, very slow and we didn't have
-         * any kind of disk caching. But with disk caching its about twice
-         * as fast to collect each filter one by one like this. And it uses
-         * less memory because there isn't a need to buffer a block of matches.
-         * And its a hell of a lot less code.
          */
         private void collectSubs(LeafReaderContext ctx, Bits live, LeafBucketCollector sub) throws IOException {
-            class MatchCollector implements LeafCollector {
-                LeafBucketCollector subCollector = sub;
-                int filterOrd;
-
-                @Override
-                public void collect(int docId) throws IOException {
-                    collectBucket(subCollector, docId, filterOrd);
-                }
-
-                @Override
-                public void setScorer(Scorable scorer) throws IOException {
-                }
+            SubsCollectorSource collectorSource = new SubsCollectorSource(ctx, sub);
+            while (collectorSource.filterOrd < filters().size()) {
+                filters().get(collectorSource.filterOrd).collectOrRegisterUnion(ctx, collectorSource, live);
+                collectorSource.filterOrd++;
             }
-            MatchCollector collector = new MatchCollector();
-            filters().get(0).collect(ctx, collector, live);
-            for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
-                collector.subCollector = collectableSubAggregators.getLeafCollector(ctx);
-                collector.filterOrd = filterOrd;
-                filters().get(filterOrd).collect(ctx, collector, live);
+            collectorSource.collectUnions(live);
+        }
+
+        /**
+         * Vendor for single filter collectors that uses the prebuilt collector
+         * once then builds new ones on the fly.
+         */
+        class SubsCollectorSource implements QueryToFilterAdapter.CollectorSource {
+            private final LeafReaderContext ctx;
+            private LeafBucketCollector prebuilt;
+            private int filterOrd;
+            private List<UnionFilter> unionFilters;
+            private LeafBucketCollector unionSub;
+
+            private SubsCollectorSource(LeafReaderContext ctx, LeafBucketCollector prebuilt) {
+                this.ctx = ctx;
+                this.prebuilt = prebuilt;
+            }
+
+            @Override
+            public ReleasableLeafCollector filterByFilterCollector() throws IOException {
+                return new ReleasableLeafCollector() {
+                    private final LeafBucketCollector sub = nextSub();
+
+                    @Override
+                    public void collect(int doc) throws IOException {
+                        collectBucket(sub, doc, filterOrd);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {
+                        sub.setScorer(scorer);
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            LeafBucketCollector nextSub() throws IOException {
+                if (prebuilt == null) {
+                    return collectableSubAggregators.getLeafCollector(ctx);
+                }
+                LeafBucketCollector sub = prebuilt;
+                prebuilt = null;
+                return sub;
+            }
+
+            @Override
+            public void addToUnion(Scorer scorer) {
+                if (unionFilters == null) {
+                    unionFilters = new ArrayList<>(filters().size() - filterOrd);
+                }
+                unionFilters.add(new UnionFilter(scorer, new ReleasableLeafCollector() {
+                    private final int filterOrd = SubsCollectorSource.this.filterOrd;
+
+                    @Override
+                    public void collect(int doc) throws IOException {
+                        collectBucket(unionSub, doc, filterOrd);
+                    }
+
+                    @Override
+                    public void setScorer(Scorable scorer) throws IOException {
+                        unionSub.setScorer(scorer);
+                    }
+
+                    @Override
+                    public void close() {}
+                }));
+            }
+
+            void collectUnions(Bits live) throws IOException {
+                if (unionFilters == null) {
+                    return;
+                }
+                if (topLevelWeight == null) {
+                    topLevelWeight = topLevelQuery().createWeight(searcher(), ScoreMode.COMPLETE_NO_SCORES, 1.0F);
+                }
+                Scorer topLevelScorer = topLevelWeight.scorer(ctx);
+                if (topLevelScorer == null) {
+                    // Scorer can't match anything, nothing to collect.
+                    return;
+                }
+                unionSub = nextSub();
+                UnionQueryToFilterAdapter.collectUnion(unionFilters, topLevelScorer.iterator(), live);
             }
         }
 
