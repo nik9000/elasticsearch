@@ -22,7 +22,9 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -32,6 +34,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -69,6 +72,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
+
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class KeywordField extends Field {
@@ -95,7 +100,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> eagerGlobalOrdinals
             = Parameter.boolParam("eager_global_ordinals", true, m -> toType(m).eagerGlobalOrdinals, false);
         private final Parameter<Integer> ignoreAbove
-            = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE);
+            = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Defaults.IGNORE_ABOVE);
 
         private final Parameter<String> indexOptions
             = Parameter.restrictedStringParam("index_options", false, m -> toType(m).indexOptions, "docs", "freqs");
@@ -126,8 +131,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
                 .setValidator(v -> {
-                    if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
+                    if (false == v) {
+                        return;
+                    }
+                    if (ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
                         throw new IllegalArgumentException("Field [ignore_above] cannot be set in conjunction with field [dimension]");
+                    }
+                    if (normalizer.get() != null) {
+                        throw new IllegalArgumentException("Field [normalizer] cannot be set in conjunction with field [dimension]");
                     }
                 });
         }
@@ -477,15 +488,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value;
-        XContentParser parser = context.parser();
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            value = nullValue;
-        } else {
-            value = parser.textOrNull();
-        }
+        indexValue(context, value(context.parser(), nullValue));
+    }
 
-        indexValue(context, value);
+    private static String value(XContentParser parser, String nullValue) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return nullValue;
+        }
+        return parser.textOrNull();
     }
 
     @Override
@@ -559,4 +569,54 @@ public final class KeywordFieldMapper extends FieldMapper {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
 
+    @Override
+    protected TimeSeriesIdGenerator.Component selectTimeSeriesIdComponents() {
+        if (false == dimension) {
+            return null;
+        }
+        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+            throw new IllegalArgumentException("[ignore_above] not supported by dimensions");
+        }
+        if (normalizerName != null) {
+            throw new IllegalArgumentException("[normalizer] not supported by dimensions");
+        }
+        return new KeywordTsidGen(nullValue);
+    }
+
+    public static TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(String nullValue) {
+        if (nullValue == null) {
+            return KeywordTsidGen.DEFAULT;
+        }
+        return new KeywordTsidGen(nullValue);
+    }
+    private static class KeywordTsidGen extends TimeSeriesIdGenerator.StringLeaf implements Accountable {
+        private static final KeywordTsidGen DEFAULT = new KeywordTsidGen(null) {
+            @Override
+            public long ramBytesUsed() {
+                return 0; // shared
+            }
+        };
+
+        private final String nullValue;
+
+        KeywordTsidGen(String nullValue) {
+            this.nullValue = nullValue;
+        }
+
+        @Override
+        protected String extractString(XContentParser parser) throws IOException {
+            return value(parser, nullValue);
+        }
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(KeywordTsidGen.class);
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.alignObjectSize(SHALLOW_SIZE + RamUsageEstimator.sizeOf(nullValue));
+        }
+
+        @Override
+        public String toString() {
+            return "kwd[" + nullValue + "]";
+        }
+    }
 }

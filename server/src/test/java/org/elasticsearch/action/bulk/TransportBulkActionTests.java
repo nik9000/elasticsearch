@@ -30,12 +30,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -59,6 +60,8 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
 
@@ -66,6 +69,7 @@ public class TransportBulkActionTests extends ESTestCase {
     private TransportService transportService;
     private ClusterService clusterService;
     private TestThreadPool threadPool;
+    private IndicesService indicesService; // NOCOMMIT test that we use the lookup
 
     private TestTransportBulkAction bulkAction;
 
@@ -77,7 +81,7 @@ public class TransportBulkActionTests extends ESTestCase {
         TestTransportBulkAction() {
             super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+                    new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE, indicesService);
         }
 
         @Override
@@ -105,6 +109,8 @@ public class TransportBulkActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         bulkAction = new TestTransportBulkAction();
+        indicesService = mock(IndicesService.class);
+        when(indicesService.getTimeSeriesGeneratorLookup()).thenReturn(meta -> null);
     }
 
     @After

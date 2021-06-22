@@ -24,8 +24,10 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -264,6 +267,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                throw new IllegalArgumentException("[half_float] is not a valid dimension");
+            }
+
             private void validateParsed(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
@@ -360,6 +368,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                throw new IllegalArgumentException("[float] is not a valid dimension");
+            }
+
             private void validateParsed(float value) {
                 if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
@@ -440,6 +453,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                throw new IllegalArgumentException("[double] is not a valid dimension");
+            }
+
             private void validateParsed(double value) {
                 if (Double.isFinite(value) == false) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
@@ -506,6 +524,14 @@ public class NumberFieldMapper extends FieldMapper {
             Number valueForSearch(Number value) {
                 return value.byteValue();
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce == false) {
+                    return SharedWholeNumberTsidGen.BYTE;
+                }
+                return new WholeNumberTsidGen(BYTE, nullValue, coerce);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -562,6 +588,14 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             Number valueForSearch(Number value) {
                 return value.shortValue();
+            }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce == false) {
+                    return SharedWholeNumberTsidGen.SHORT;
+                }
+                return new WholeNumberTsidGen(SHORT, nullValue, coerce);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -681,6 +715,14 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce == false) {
+                    return SharedWholeNumberTsidGen.INTEGER;
+                }
+                return new WholeNumberTsidGen(INTEGER, nullValue, coerce);
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -768,6 +810,14 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce == false) {
+                    return SharedWholeNumberTsidGen.LONG;
+                }
+                return new WholeNumberTsidGen(LONG, nullValue, coerce);
+            }
         };
 
         private final String name;
@@ -801,6 +851,7 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parsePoint(byte[] value);
         public abstract List<Field> createFields(String name, Number value, boolean indexed,
                                                  boolean docValued, boolean stored);
+        public abstract TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce);
 
         public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
             // only implemented for long and double fields
@@ -1140,7 +1191,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {
-            value = value(context.parser(), type, nullValue, coerce.value());
+            value = value(context.parser(), type, nullValue, coerce());
         } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -1192,5 +1243,64 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, builder.scriptCompiler, ignoreMalformedByDefault, coerceByDefault)
             .dimension(dimension).init(this);
+    }
+
+    @Override
+    protected TimeSeriesIdGenerator.LeafComponent selectTimeSeriesIdComponents() {
+        if (false == dimension) {
+            return null;
+        }
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException("Dimensions can not ignore_malformed");
+        }
+        return type.timeSeriesIdGenerator(nullValue, coerce.value());
+    }
+
+    private static class WholeNumberTsidGen extends TimeSeriesIdGenerator.LongLeaf implements Accountable {
+        private final NumberType numberType;
+        private final Number nullValue;
+        private final boolean coerce;
+
+        WholeNumberTsidGen(NumberType numberType, Number nullValue, boolean coerce) {
+            this.numberType = numberType;
+            this.nullValue = nullValue;
+            this.coerce = coerce;
+        }
+
+        @Override
+        protected long extractLong(XContentParser parser) throws IOException {
+            Number value = value(parser, numberType, nullValue, coerce);
+            if (value == null) {
+                throw new IllegalArgumentException("null dimensions not allowed"); // NOCOMMIT error message
+            }
+            return value.longValue();
+        }
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(WholeNumberTsidGen.class);
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.alignObjectSize(SHALLOW_SIZE + RamUsageEstimator.sizeOfObject(nullValue));
+        }
+
+        @Override
+        public String toString() {
+            return numberType + "[" + nullValue + "," + coerce + "]";
+        }
+    }
+
+    private static class SharedWholeNumberTsidGen extends WholeNumberTsidGen {
+        private static final SharedWholeNumberTsidGen BYTE = new SharedWholeNumberTsidGen(NumberType.BYTE);
+        private static final SharedWholeNumberTsidGen SHORT = new SharedWholeNumberTsidGen(NumberType.SHORT);
+        private static final SharedWholeNumberTsidGen INTEGER = new SharedWholeNumberTsidGen(NumberType.INTEGER);
+        private static final SharedWholeNumberTsidGen LONG = new SharedWholeNumberTsidGen(NumberType.LONG);
+
+        SharedWholeNumberTsidGen(NumberType numberType) {
+            super(numberType, null, false);
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0; // Shared
+        }
     }
 }

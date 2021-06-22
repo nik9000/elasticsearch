@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -188,5 +189,9 @@ public final class Mapping implements ToXContentFragment {
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);
         }
+    }
+
+    TimeSeriesIdGenerator buildTimeSeriesIdGenerator() {
+        return new TimeSeriesIdGenerator(root.selectTimeSeriesIdComponents());
     }
 }

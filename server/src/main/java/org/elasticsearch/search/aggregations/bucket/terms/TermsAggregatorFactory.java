@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -360,7 +361,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
                 long maxOrd = values.getValueCount();
-                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter()) {
+                if (maxOrd > 0
+                    // tsid looks like a keyword but it can't make a query
+                    && valuesSourceConfig.fieldType() instanceof TimeSeriesIdFieldType == false // NOCOMMIT this seems janky
+                    && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
+                    && context.enableRewriteToFilterByFilter()) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,

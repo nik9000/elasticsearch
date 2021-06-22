@@ -102,6 +102,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
+        if (context.indexSettings().inTimeSeriesMode()) {
+            // NOCOMMIT seems sneaky
+            return;
+        }
         if (routing != null) {
             context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
             context.addToFieldNames(fieldType().name());

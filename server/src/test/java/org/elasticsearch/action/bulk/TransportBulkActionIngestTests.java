@@ -41,6 +41,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
@@ -94,6 +95,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     ClusterService clusterService;
     IngestService ingestService;
     ThreadPool threadPool;
+    IndicesService indicesService;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
     @Captor
@@ -132,7 +134,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 null, new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                indicesService
             );
         }
 
@@ -163,6 +166,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        indicesService = mock(IndicesService.class);
+        when(indicesService.getTimeSeriesGeneratorLookup()).thenReturn(meta -> null);
+
         MockitoAnnotations.initMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);

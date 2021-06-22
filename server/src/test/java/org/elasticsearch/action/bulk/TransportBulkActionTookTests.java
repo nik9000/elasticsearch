@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -56,6 +57,8 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
@@ -96,6 +99,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
+        IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.getTimeSeriesGeneratorLookup()).thenReturn(meta -> null);
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
@@ -114,6 +119,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     client,
                     actionFilters,
                     resolver,
+                    indicesService,
                     expected::get) {
 
                 @Override
@@ -136,6 +142,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     client,
                     actionFilters,
                     resolver,
+                    indicesService,
                     System::nanoTime) {
 
                 @Override
@@ -215,6 +222,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 NodeClient client,
                 ActionFilters actionFilters,
                 IndexNameExpressionResolver indexNameExpressionResolver,
+                IndicesService indicesService,
                 LongSupplier relativeTimeProvider) {
             super(
                     threadPool,
@@ -226,6 +234,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     indexNameExpressionResolver,
                     new IndexingPressure(Settings.EMPTY),
                     EmptySystemIndices.INSTANCE,
+                    indicesService,
                     relativeTimeProvider);
         }
     }

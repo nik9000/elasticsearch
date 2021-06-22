@@ -136,6 +136,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
             IndexSettings.INDEX_SEARCH_IDLE_AFTER,
             IndexSettings.INDEX_SEARCH_THROTTLED,
+            IndexSettings.TIME_SERIES_MODE,
             IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
             FieldMapper.IGNORE_MALFORMED_SETTING,
             FieldMapper.COERCE_SETTING,

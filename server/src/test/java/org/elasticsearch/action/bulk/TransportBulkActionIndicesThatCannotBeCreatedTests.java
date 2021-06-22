@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -106,6 +107,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
+        IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.getTimeSeriesGeneratorLookup()).thenReturn(meta -> null);
+
         final IndexNameExpressionResolver indexNameExpressionResolver =
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
                 @Override
@@ -116,7 +120,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
         TransportBulkAction action = new TransportBulkAction(threadPool, mock(TransportService.class), clusterService,
             null, null, mock(ActionFilters.class), indexNameExpressionResolver,
-            new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE) {
+            new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE, indicesService) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,
                     AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {

@@ -316,6 +316,8 @@ public final class IndexSettings {
     public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
         = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
 
+    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("index.time_series_mode", false, Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -393,6 +395,8 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+
+    private final boolean timeSeriesMode;
 
     /**
      * Returns the default search fields for this index.
@@ -495,6 +499,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        timeSeriesMode = scopedSettings.get(TIME_SERIES_MODE);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1020,5 +1025,9 @@ public final class IndexSettings {
 
     private void setMappingFieldNameLengthLimit(long value) {
         this.mappingFieldNameLengthLimit = value;
+    }
+
+    public boolean inTimeSeriesMode() {
+        return timeSeriesMode;
     }
 }
