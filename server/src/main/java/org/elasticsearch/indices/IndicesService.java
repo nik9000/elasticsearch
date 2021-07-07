@@ -34,8 +34,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -234,15 +232,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     private final TimeSeriesIdGeneratorService timeSeriesIdGeneratorService;
 
-    @Override
-    protected void doStart() {
-        // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
-
-        // Start watching for timestamp fields
-        clusterService.addStateApplier(timestampFieldMapperService);
-    }
-
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry, ThreadPool threadPool,
@@ -340,7 +329,17 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
-        this.timeSeriesIdGeneratorService = new TimeSeriesIdGeneratorService(settings, this);
+        this.timeSeriesIdGeneratorService = TimeSeriesIdGeneratorService.build(settings, threadPool, this);
+    }
+
+    @Override
+    protected void doStart() {
+        // Start thread that will manage cleaning the field data cache periodically
+        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
+
+        // Start watching for mapping changes
+        clusterService.addStateApplier(timestampFieldMapperService);
+        clusterService.addStateApplier(timeSeriesIdGeneratorService);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -353,6 +352,8 @@ public class IndicesService extends AbstractLifecycleComponent
     protected void doStop() {
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
+        clusterService.removeApplier(timeSeriesIdGeneratorService);
+        timeSeriesIdGeneratorService.doStop();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 

@@ -1,117 +1,378 @@
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.ExecutionException;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
 /**
  * Looks up the {@link TimeSeriesIdGenerator} for an index. If the index is
  * local we read from the local metadata. If the index isn't local we parse
  * the mapping, read it, and cache it.
  */
-class TimeSeriesIdGeneratorService implements Function<IndexMetadata, TimeSeriesIdGenerator> {
-    public static final Setting<ByteSizeValue> CACHE_SIZE = Setting.memorySizeSetting(
-        "indices.time_series.generator.cache.size",
-        "0.1%", // 512k - 30mb
-        Property.NodeScope
-    );
-    public static final Setting<TimeValue> CACHE_EXPIRE = Setting.positiveTimeSetting(
-        "indices.time_series.generator.cache.expire",
-        new TimeValue(0),
-        Property.NodeScope
-    );
+class TimeSeriesIdGeneratorService extends AbstractLifecycleComponent
+    implements
+        ClusterStateApplier,
+        Function<IndexMetadata, TimeSeriesIdGenerator> {
+    private static final Logger logger = LogManager.getLogger(TimeSeriesIdGeneratorService.class);
 
-    private final Cache<Key, TimeSeriesIdGenerator> nonLocalGeneratorCache;
-    private final IndicesService indicesService;
+    public interface LocalIndex {
+        long metadataVersion();
 
-    TimeSeriesIdGeneratorService(Settings nodeSettings, IndicesService indicesService) {
-        CacheBuilder<Key, TimeSeriesIdGenerator> cacheBuilder = CacheBuilder.<Key, TimeSeriesIdGenerator>builder();
-        cacheBuilder.weigher((key, gen) -> key.ramBytesUsed() + gen.ramBytesUsed());
-        cacheBuilder.setMaximumWeight(CACHE_SIZE.get(nodeSettings).getBytes());
-        TimeValue expire = CACHE_EXPIRE.get(nodeSettings);
-        if (false == expire.equals(TimeValue.ZERO)) {
-            cacheBuilder.setExpireAfterAccess(expire);
-        }
-        nonLocalGeneratorCache = cacheBuilder.build();
-
-        this.indicesService = indicesService;
+        TimeSeriesIdGenerator generator();
     }
+
+    private final Function<Index, LocalIndex> lookupLocalIndex;
+    private final Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriedIdGenerator;
+    private final ExecutorService executor; // single thread to construct mapper services async as needed
+    private final Map<Index, Value> byIndex = ConcurrentCollections.newConcurrentMap();
+
+    static TimeSeriesIdGeneratorService build(Settings nodeSettings, ThreadPool threadPool, IndicesService indicesService) {
+        String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(nodeSettings));
+        String threadName = String.format(Locale.ROOT, "%s/%s#updateTask", nodeName, TimeSeriesIdGeneratorService.class.getSimpleName());
+        ExecutorService executor = EsExecutors.newScaling(
+            threadName,
+            0,
+            1,
+            0,
+            TimeUnit.MILLISECONDS,
+            daemonThreadFactory(nodeName, threadName),
+            threadPool.getThreadContext()
+        );
+
+        Function<Index, LocalIndex> lookupLocalIndex = index -> {
+            IndexService local = indicesService.indexService(index);
+            return local == null ? null : new LocalIndex() {
+                @Override
+                public long metadataVersion() {
+                    return local.getMetadata().getVersion();
+                }
+
+                @Override
+                public TimeSeriesIdGenerator generator() {
+                    return local.mapperService().documentMapper().getTimeSeriesIdGenerator();
+                }
+            };
+        };
+
+        Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriedIdGenerator = indexMetadata -> {
+            ClusterApplierService.assertNotClusterStateUpdateThread("decompressed the mapping of many indices");
+            try {
+                try (MapperService tmp = indicesService.createIndexMapperService(indexMetadata)) {
+                    tmp.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
+                    TimeSeriesIdGenerator gen = tmp.documentMapper().getTimeSeriesIdGenerator();
+                    logger.trace("computed timeseries id generator for {}", indexMetadata.getIndex());
+                    return gen;
+                }
+            } catch (IOException e) {
+                // Whatever happened here is unrecoverable and likely a bug so IllegalStateException which'll turn into HTTP 500
+                throw new IllegalStateException("error building time series id generator: " + e.getMessage(), e);
+            }
+        };
+
+        return new TimeSeriesIdGeneratorService(executor, lookupLocalIndex, buildTimeSeriedIdGenerator);
+    }
+
+    TimeSeriesIdGeneratorService(
+        ExecutorService executor,
+        Function<Index, LocalIndex> lookupLocalIndex,
+        Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriedIdGenerator
+    ) {
+        this.executor = executor;
+        this.lookupLocalIndex = lookupLocalIndex;
+        this.buildTimeSeriedIdGenerator = buildTimeSeriedIdGenerator;
+    }
+
+    @Override
+    protected void doStart() {}
+
+    @Override
+    protected void doStop() {
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected void doClose() {}
 
     @Override
     public TimeSeriesIdGenerator apply(IndexMetadata meta) {
         if (false == meta.inTimeSeriesMode()) {
             return null;
         }
+        Value v = byIndex.get(meta.getIndex());
         /*
-         * If we have the index locally we can just grab the time series
-         * generator with two volatile reads.
+         * v is rebuilt in applyClusterState which should have happened-before
+         * whatever made meta available to the rest of the system. So the if
+         * statement below really shouldn't fail.
          */
-        IndexService localIndex = indicesService.indexService(meta.getIndex());
-        if (localIndex != null) {
-            return localIndex.mapperService().documentMapper().getTimeSeriesIdGenerator();
+        if (meta.getMappingVersion() > v.mappingVersion) {
+            throw new IllegalStateException(
+                "Got a newer version fo the index than the time series id generator ["
+                    + meta.getMappingVersion()
+                    + "] vs ["
+                    + v.mappingVersion
+                    + "]"
+            );
         }
-        // We don't have a local copy. Go to the cache.
-        try {
-            return nonLocalGeneratorCache.computeIfAbsent(new Key(meta.getIndex(), meta.getMappingVersion()), source -> {
-                try (MapperService tmp = indicesService.createIndexMapperService(meta)) {
-                    return tmp.documentMapper().getTimeSeriesIdGenerator();
-                }
-            });
-        } catch (ExecutionException e) {
-            throw new RuntimeException("oh no", e); // NOCOMMIT error message
+        /*
+         * Because TimeSeriesIdGenerators only "get bigger" it should be safe
+         * to use whatever is in the map, even if it is for a newer version of
+         * index.
+         */
+        return v.generator();
+    }
+
+    @Override
+    public void applyClusterState(ClusterChangedEvent event) {
+        applyClusterState(event.state().metadata());
+    }
+
+    void applyClusterState(Metadata metadata) {
+        /*
+         * Update the "byIndex" map containing the generators in three phases:
+         * 1. Remove any deletes indices.
+         * 2. Update any indices hosted on this node or who's mapping hasn't
+         *    changed.
+         * 3. Update remaining indices. These are slower but we can reuse any
+         *    generators built for indices with the same mapping.
+         */
+        byIndex.keySet().removeIf(index -> metadata.index(index) == null);
+
+        Map<DedupeKey, Value> dedupe = new HashMap<>();
+
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+            IndexMetadata indexMetadata = cursor.value;
+            if (false == indexMetadata.inTimeSeriesMode()) {
+                continue;
+            }
+            Index index = indexMetadata.getIndex();
+            DedupeKey key = new DedupeKey(indexMetadata);
+
+            /*
+             * Find indices who's mapping hasn't changed.
+             */
+            Value old = byIndex.get(index);
+            if (old != null && old.mappingVersion == indexMetadata.getMappingVersion()) {
+                logger.trace("reusing previous timeseries id generator for {}", index);
+                dedupe.put(key, old);
+                continue;
+            }
+
+            /*
+             * Check if the mapping is the same as something we've already seen.
+             */
+            Value value = dedupe.get(key);
+            if (value != null) {
+                logger.trace("reusing timeseries id from another index for {}", index);
+                byIndex.put(index, value.withMappingVersion(indexMetadata.getMappingVersion()));
+                continue;
+            }
+
+            /*
+             * Find indices that we're hosting locally. In production this
+             * looks up against IndicesService which is a "high priority"
+             * update consumer so it's cluster state updates
+             * "happen-before" this one.
+             */
+            LocalIndex localIndex = lookupLocalIndex.apply(index);
+            if (localIndex == null) {
+                logger.trace("timeseries id for {} is not available locally", index);
+                continue;
+            }
+            logger.trace("computing timeseries id generator for {} using local index service", index);
+            if (localIndex.metadataVersion() < indexMetadata.getVersion()) {
+                throw new IllegalStateException(
+                    "Trying to update timeseries id with an older version of the metadata ["
+                        + localIndex.metadataVersion()
+                        + "] vs ["
+                        + indexMetadata.getVersion()
+                        + "]"
+                );
+            }
+            value = new PreBuiltValue(indexMetadata.getMappingVersion(), localIndex.generator());
+            byIndex.put(index, value);
+            dedupe.put(key, value);
+        }
+
+        /*
+         * Update the remaining indices.
+         */
+        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
+            IndexMetadata indexMetadata = cursor.value;
+            if (false == indexMetadata.inTimeSeriesMode()) {
+                continue;
+            }
+            Index index = indexMetadata.getIndex();
+
+            Value old = byIndex.get(index);
+            if (old != null && old.mappingVersion == indexMetadata.getMappingVersion()) {
+                // We already updated the generator in the first pass
+                continue;
+            }
+
+            DedupeKey key = new DedupeKey(indexMetadata);
+            Value value = dedupe.get(key);
+            if (value == null) {
+                logger.trace("computing timeseries id generator for {} async", index);
+                value = new AsyncValue(indexMetadata.getMappingVersion(), buildTimeSeriedIdGenerator, executor, indexMetadata);
+            } else {
+                logger.trace("reusing timeseries id from another index for {}", index);
+                value = value.withMappingVersion(indexMetadata.getMappingVersion());
+            }
+            byIndex.put(index, value);
         }
     }
 
-    private static class Key implements Accountable {
-        private final String name;
-        private final String uuid;
+    private abstract static class Value {
         private final long mappingVersion;
 
-        Key(Index index, long mappingVersion) {
-            this.name = index.getName();
-            this.uuid = index.getUUID();
+        protected Value(long mappingVersion) {
             this.mappingVersion = mappingVersion;
         }
 
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Key.class);
+        abstract TimeSeriesIdGenerator generator();
+
+        abstract Value withMappingVersion(long newMappingVersion);
+    }
+
+    private static class PreBuiltValue extends Value {
+        private final TimeSeriesIdGenerator generator;
+
+        PreBuiltValue(long mappingVersion, TimeSeriesIdGenerator generator) {
+            super(mappingVersion);
+            this.generator = generator;
+        }
 
         @Override
-        public long ramBytesUsed() {
-            return RamUsageEstimator.alignObjectSize(SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(uuid));
+        TimeSeriesIdGenerator generator() {
+            return generator;
+        }
+
+        @Override
+        Value withMappingVersion(long newMappingVersion) {
+            return new PreBuiltValue(newMappingVersion, generator);
+        }
+    }
+
+    /**
+     * Build the {@link TimeSeriesIdGenerator} async from the cluster state
+     * update thread. Creating this will queue a task to build the generator
+     * on the separate thread but return immediately. Callers to
+     * {@link #generator()} race that queued task. If they win they will
+     * build the {@link TimeSeriesIdGenerator} and if they lose they'll return
+     * a cached copy.
+     */
+    private static class AsyncValue extends Value {
+        private final LazyInitializable<TimeSeriesIdGenerator, RuntimeException> lazy;
+
+        private AsyncValue(long mappingVersion, LazyInitializable<TimeSeriesIdGenerator, RuntimeException> lazy) {
+            super(mappingVersion);
+            this.lazy = lazy;
+        }
+
+        AsyncValue(
+            long mappingVersion,
+            Function<IndexMetadata, TimeSeriesIdGenerator> buildTimeSeriesIdGenerator,
+            ExecutorService executor,
+            IndexMetadata indexMetadata
+        ) {
+            /*
+             * This closes over indexMetadata and keeps a reference to it
+             * for as long as the AsyncValue lives which is ok. It isn't the
+             * only thing with such a reference.
+             */
+            this(mappingVersion, new LazyInitializable<>(() -> buildTimeSeriesIdGenerator.apply(indexMetadata)));
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() throws Exception {
+                    generator();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    /*
+                     * We failed to build the time series id generator which sad,
+                     * but we don't have to make a ton of noise about it because
+                     * when someone goes to use it they'll attempt to build it
+                     * again. If *they* fail then it'll throw an exception to
+                     * the caller which'll get reported back over http.
+                     */
+                    logger.debug(
+                        new ParameterizedMessage("error building timeseries id generator for {} async", indexMetadata.getIndex()),
+                        e
+                    );
+                }
+            });
+        }
+
+        @Override
+        TimeSeriesIdGenerator generator() {
+            return lazy.getOrCompute();
+        }
+
+        @Override
+        Value withMappingVersion(long newMappingVersion) {
+            return new AsyncValue(newMappingVersion, lazy);
+        }
+    }
+
+    /**
+     * Key for deduplicating mappings. In an ideal world we'd just use the
+     * mapping's {@link CompressedXContent} but {@link CompressedXContent#equals(Object)}
+     * will try to decompress the mapping if the crc matches but the compressed bytes
+     * don't. That's wasteful for us - probably for everyone. If the crc and compressed
+     * bytes match that's a match.
+     */
+    private static class DedupeKey {  // TODO Just use CompressedXContent and remove unzipping
+        private final CompressedXContent mapping;
+
+        DedupeKey(IndexMetadata meta) {
+            this.mapping = meta.mapping().source();
         }
 
         @Override
         public int hashCode() {
-            int hash = name.hashCode();
-            hash = 31 * hash + uuid.hashCode();
-            hash = 31 * hash + Long.hashCode(mappingVersion);
-            return hash;
+            return mapping.hashCode();
         }
 
         @Override
         public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
             if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            Key that = (Key) obj;
-            return name.equals(that.name) && uuid.equals(that.uuid) && mappingVersion == that.mappingVersion;
+            DedupeKey other = (DedupeKey) obj;
+            return mapping.hashCode() == other.mapping.hashCode() && Arrays.equals(mapping.compressed(), other.mapping.compressed());
         }
     }
 }
