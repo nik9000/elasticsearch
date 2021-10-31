@@ -60,6 +60,12 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
 
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+
+        default QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
+            // emit(doc.passenger_count.value + 1)
+            return lookup.apply("passenger_count").add(QueryableExpression.constant(1));
+            // return EmitExpression.UNKNOWN;
+        }
     }
 
     public interface LeafFactory {
