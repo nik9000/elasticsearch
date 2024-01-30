@@ -56,6 +56,15 @@ public enum SpatialCoordinateTypes {
             final long yi = XYEncodingUtils.encode((float) y);
             return (yi & 0xFFFFFFFFL) | xi << 32;
         }
+    },
+    UNSPECIFIED {
+        public Point longAsPoint(long encoded) {
+            throw new UnsupportedOperationException("Cannot convert long to point without specifying coordinate type");
+        }
+
+        public long pointAsLong(double x, double y) {
+            throw new UnsupportedOperationException("Cannot convert point to long without specifying coordinate type");
+        }
     };
 
     public abstract Point longAsPoint(long encoded);
@@ -94,7 +103,19 @@ public enum SpatialCoordinateTypes {
         }
     }
 
+    public Geometry wktToGeometry(String wkt) {
+        try {
+            return WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse WKT: " + e.getMessage(), e);
+        }
+    }
+
     public String wkbToWkt(BytesRef wkb) {
         return WellKnownText.fromWKB(wkb.bytes, wkb.offset, wkb.length);
+    }
+
+    public Geometry wkbToGeometry(BytesRef wkb) {
+        return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
     }
 }

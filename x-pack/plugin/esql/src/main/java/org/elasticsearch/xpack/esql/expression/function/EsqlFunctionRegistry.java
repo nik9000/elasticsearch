@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -173,7 +174,10 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(Now.class, Now::new, "now") },
             // spatial
-            new FunctionDefinition[] { def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid") },
+            // spatial
+            new FunctionDefinition[] {
+                def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
+                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid") },
             // conditional
             new FunctionDefinition[] { def(Case.class, Case::new, "case") },
             // null
