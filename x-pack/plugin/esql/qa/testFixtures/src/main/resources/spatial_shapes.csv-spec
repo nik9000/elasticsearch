@@ -146,7 +146,6 @@ intersects:boolean
 true
 ;
 
-
 geo_shapeEquals#[skip:-8.12.99, reason: spatial type geo_shape only added in 8.13]
 ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
