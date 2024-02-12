@@ -12,8 +12,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -302,7 +302,7 @@ public final class EsqlExpressionTranslators {
             try {
                 Geometry shape = bc.makeGeometryFromLiteral(constantExpression);
                 return new SpatialRelatesQuery(bc.source(), name, bc.queryRelation(), shape, attribute.dataType());
-            } catch (IllegalArgumentException | IOException | ParseException e) {
+            } catch (IOException | ParseException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
         }
