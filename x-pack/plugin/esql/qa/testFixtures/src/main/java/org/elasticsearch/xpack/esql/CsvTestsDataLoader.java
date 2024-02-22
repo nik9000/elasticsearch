@@ -68,6 +68,11 @@ public class CsvTestsDataLoader {
         "mapping-countries_bbox_web.json",
         "countries_bbox_web.csv"
     );
+    private static final TestsDataset AIRPORT_CITY_BOUNDARIES = new TestsDataset(
+        "airport_city_boundaries",
+        "mapping-airport_city_boundaries.json",
+        "airport_city_boundaries.csv"
+    );
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -80,14 +85,16 @@ public class CsvTestsDataLoader {
         Map.entry(AIRPORTS.indexName, AIRPORTS),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
-        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB)
+        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
+        Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
+    private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
 
-    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH);
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips", "airport_city_boundaries");
+    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH, CITY_NAMES_ENRICH);
 
     /**
      * <p>
@@ -244,6 +251,7 @@ public class CsvTestsDataLoader {
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
+        ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
             String line;
@@ -359,17 +367,24 @@ public class CsvTestsDataLoader {
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
-                    sendBulkRequest(indexName, builder, client, logger);
+                    sendBulkRequest(indexName, builder, client, logger, failures);
                     builder.setLength(0);
                 }
             }
         }
         if (builder.length() > 0) {
-            sendBulkRequest(indexName, builder, client, logger);
+            sendBulkRequest(indexName, builder, client, logger, failures);
+        }
+        if (failures.size() > 0) {
+            for (String failure : failures) {
+                logger.error(failure);
+            }
+            throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
     }
 
-    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger) throws IOException {
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
+        throws IOException {
         // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         builder.append("\n");
         logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
@@ -386,12 +401,24 @@ public class CsvTestsDataLoader {
                 if (Boolean.FALSE.equals(errors)) {
                     logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
                 } else {
-                    throw new IOException("Data loading of [" + indexName + "] failed with errors: " + errors);
+                    addError(failures, indexName, builder, "errors: " + result);
                 }
             }
         } else {
-            throw new IOException("Data loading of [" + indexName + "] failed with status: " + response.getStatusLine());
+            addError(failures, indexName, builder, "status: " + response.getStatusLine());
         }
+    }
+
+    private static void addError(List<String> failures, String indexName, StringBuilder builder, String message) {
+        failures.add(
+            format(
+                "Data loading of [{}] bytes into [{}] failed with {}: Data [{}...]",
+                builder.length(),
+                indexName,
+                message,
+                builder.substring(0, 100)
+            )
+        );
     }
 
     private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {
