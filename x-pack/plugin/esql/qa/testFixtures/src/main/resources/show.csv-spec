@@ -218,7 +218,7 @@ sinh                     | "double sinh(n:double|integer|long|unsigned_long)"   
 
 
 // see https://github.com/elastic/elasticsearch/issues/102120
-countFunctions#[skip:-8.12.99]
+countFunctions#[skip:-8.13.99]
 show functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
