@@ -93,7 +93,7 @@ public class CsvTestsDataLoader {
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
     private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
 
-    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips", "airport_city_boundaries");
+    public static final List<String> ENRICH_SOURCE_INDICES = List.of("languages", "clientips");
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(LANGUAGES_ENRICH, CLIENT_IPS_ENRICH, CITY_NAMES_ENRICH);
 
     /**
