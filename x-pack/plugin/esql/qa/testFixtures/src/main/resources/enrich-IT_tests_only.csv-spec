@@ -143,7 +143,7 @@ a:keyword   | a_lang:keyword
 ;
 
 
-spatialEnrichmentKeywordMatch#[skip:-8.13.99, reason:st_intersects added in 8.14]
+spatialEnrichmentKeywordMatch#[skip:-8.99.99, reason:ENRICH test framework has issues with enrich indices]
 FROM airports
 | WHERE abbrev == "CPH"
 | ENRICH city_names ON city WITH airport, region, city_boundary
