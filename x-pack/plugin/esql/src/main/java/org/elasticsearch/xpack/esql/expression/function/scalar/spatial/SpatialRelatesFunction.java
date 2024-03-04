@@ -73,7 +73,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     }
 
     @Override
-    protected TypeResolution resolveType() {
+    protected final TypeResolution resolveType() {
         // We determine the spatial data type first, then check if the other expression is of the same type or a string.
         TypeResolution leftResolution = isSpatial(left(), sourceText(), FIRST);
         TypeResolution rightResolution = isSpatial(right(), sourceText(), SECOND);
@@ -121,6 +121,39 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         return TypeResolution.TYPE_RESOLVED;
     }
 
+    @Override
+    public final EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+    ) {
+        EvalOperator.ExpressionEvaluator.Factory lhs = PointToGeometry.promote(
+            left().source(),
+            useDocValues,
+            left().dataType(),
+            toEvaluator.apply(left())
+        );
+        EvalOperator.ExpressionEvaluator.Factory rhs = PointToGeometry.promote(
+            right().source(),
+            useDocValues,
+            right().dataType(),
+            toEvaluator.apply(right())
+        );
+        return switch (crsType()) {
+            case CARTESIAN -> cartesianEvaluator(lhs, rhs);
+            case GEO -> geoEvaluator(lhs, rhs);
+            default -> throw new UnsupportedOperationException("not supported by [" + dataType() + "]");
+        };
+    }
+
+    protected abstract EvalOperator.ExpressionEvaluator.Factory cartesianEvaluator(
+        EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs
+    );
+
+    protected abstract EvalOperator.ExpressionEvaluator.Factory geoEvaluator(
+        EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs
+    );
+
     public static TypeResolution isSameSpatialType(
         DataType spatialDataType,
         Expression expression,
@@ -144,6 +177,11 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     @Override
     public boolean foldable() {
         return left().foldable() && right().foldable();
+    }
+
+    @Override
+    public final Object fold() {
+        return EvaluatorMapper.super.fold();
     }
 
     public abstract SpatialRelatesFunction withDocValues();
@@ -184,18 +222,6 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
 
     public boolean useDocValues() {
         return useDocValues;
-    }
-
-    /**
-     * Produce a map of rules defining combinations of incoming types to the evaluator factory that should be used.
-     */
-    protected abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
-
-    @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
-        return SpatialEvaluatorFactory.makeSpatialEvaluator(this, evaluatorRules(), toEvaluator);
     }
 
     /**

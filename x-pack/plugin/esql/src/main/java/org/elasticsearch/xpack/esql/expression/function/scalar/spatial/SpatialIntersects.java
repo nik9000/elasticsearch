@@ -8,35 +8,22 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import java.util.function.Function;
 
 public class SpatialIntersects extends SpatialRelatesFunction {
     protected static final SpatialRelations GEO = new SpatialRelations(
@@ -94,128 +81,28 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold() {
-        try {
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
-            Component2D component2D = asLuceneComponent2D(crsType, right());
-            return (crsType == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
-                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
-        }
+    protected EvalOperator.ExpressionEvaluator.Factory geoEvaluator(
+        EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs
+    ) {
+        return new SpatialIntersectsGeoEvaluator.Factory(source(), lhs, rhs);
     }
 
     @Override
-    protected Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
-        return evaluatorMap;
+    protected EvalOperator.ExpressionEvaluator.Factory cartesianEvaluator(
+        EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs
+    ) {
+        return new SpatialIntersectsCartesianEvaluator.Factory(source(), lhs, rhs);
     }
 
-    private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();
-
-    static {
-        // Support geo_point and geo_shape from source and constant combinations
-        for (DataType spatialType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
-            for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
-                evaluatorMap.put(
-                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialIntersectsGeoSourceAndSourceEvaluator.Factory::new)
-                );
-                evaluatorMap.put(
-                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                        SpatialIntersectsGeoSourceAndConstantEvaluator.Factory::new
-                    )
-                );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
-                    evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialIntersectsGeoPointDocValuesAndSourceEvaluator.Factory::new
-                        )
-                    );
-                    evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                            SpatialIntersectsGeoPointDocValuesAndConstantEvaluator.Factory::new
-                        )
-                    );
-                }
-            }
-        }
-
-        // Support cartesian_point and cartesian_shape from source and constant combinations
-        for (DataType spatialType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
-            for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
-                evaluatorMap.put(
-                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                        SpatialIntersectsCartesianSourceAndSourceEvaluator.Factory::new
-                    )
-                );
-                evaluatorMap.put(
-                    SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                        SpatialIntersectsCartesianSourceAndConstantEvaluator.Factory::new
-                    )
-                );
-                if (EsqlDataTypes.isSpatialPoint(spatialType)) {
-                    evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator.Factory::new
-                        )
-                    );
-                    evaluatorMap.put(
-                        SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
-                            SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator.Factory::new
-                        )
-                    );
-                }
-            }
-        }
+    @Evaluator(extraName = "Geo", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static boolean processGeo(BytesRef lhs, BytesRef rhs) throws IOException {
+        return GEO.geometryRelatesGeometry(lhs, rhs);
     }
 
-    @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
-        return GEO.pointRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return GEO.pointRelatesGeometry(leftValue, geometry);
-    }
-
-    @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
-        return CARTESIAN.pointRelatesGeometry(leftValue, rightValue);
-    }
-
-    @Evaluator(extraName = "CartesianPointDocValuesAndSource")
-    static boolean processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return CARTESIAN.pointRelatesGeometry(leftValue, geometry);
+    @Evaluator(extraName = "Cartesian", warnExceptions = { IllegalArgumentException.class, IOException.class })
+    static boolean processCartesian(BytesRef lhs, BytesRef rhs) throws IOException {
+        return CARTESIAN.geometryRelatesGeometry(lhs, rhs);
     }
 }

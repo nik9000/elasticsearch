@@ -32,8 +32,8 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
 
-public class SpatialintersectsTests extends AbstractFunctionTestCase {
-    public SpatialintersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class SpatialIntersectsTests extends AbstractFunctionTestCase {
+    public SpatialIntersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -45,7 +45,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
         DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialintersectsTests::typeErrorMessage)
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialIntersectsTests::typeErrorMessage)
         );
     }
 
@@ -64,7 +64,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
                         TestCaseSupplier.testCaseSupplier(
                             leftDataSupplier,
                             rightDataSupplier,
-                            SpatialintersectsTests::spatialEvaluatorString,
+                            SpatialIntersectsTests::spatialEvaluatorString,
                             DataTypes.BOOLEAN,
                             (l, r) -> expected(l, leftType, r, rightType)
                         )
@@ -188,7 +188,7 @@ public class SpatialintersectsTests extends AbstractFunctionTestCase {
 
     private static String spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
-        return "SpatialIntersects" + crsType + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]";
+        return "SpatialIntersects" + crsType + "Evaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]";
     }
 
     private static int countGeo(DataType... types) {
