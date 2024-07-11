@@ -4,12 +4,11 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.querydsl.container;
+package org.elasticsearch.xpack.esql.querydsl.container;
 
 import org.elasticsearch.search.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.esql.core.expression.Order.NullsPosition;
-import org.elasticsearch.xpack.esql.core.expression.Order.OrderDirection;
+import org.elasticsearch.xpack.esql.expression.Order;
 
 public abstract class Sort {
 
@@ -17,8 +16,8 @@ public abstract class Sort {
         ASC,
         DESC;
 
-        public static Direction from(OrderDirection dir) {
-            return dir == null || dir == OrderDirection.ASC ? ASC : DESC;
+        public static Direction from(Order.OrderDirection dir) {
+            return dir == null || dir == Order.OrderDirection.ASC ? ASC : DESC;
         }
 
         public SortOrder asOrder() {
@@ -45,7 +44,7 @@ public abstract class Sort {
             this.aggregationOrder = aggregationOrder;
         }
 
-        public static Missing from(NullsPosition pos) {
+        public static Missing from(Order.NullsPosition pos) {
             return switch (pos) {
                 case FIRST -> FIRST;
                 case LAST -> LAST;
