@@ -9,6 +9,7 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -16,7 +17,7 @@ import org.elasticsearch.core.Releasables;
  * needs to map values to dense ords. This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-abstract class AbstractHash extends AbstractPagedHashMap {
+abstract class AbstractHash extends AbstractPagedHashMap implements Accountable {
 
     LongArray ids;
 

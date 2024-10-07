@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -22,6 +23,8 @@ import org.elasticsearch.core.Releasables;
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class Int3Hash extends AbstractHash {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Int3Hash.class);
+
     private IntArray keys;
 
     // Constructor with configurable capacity and default maximum load factor.
@@ -143,5 +146,10 @@ public final class Int3Hash extends AbstractHash {
 
     static long hash(long key1, long key2, long key3) {
         return 31L * (31L * BitMixer.mix(key1) + BitMixer.mix(key2)) + BitMixer.mix(key3);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + keys.ramBytesUsed() + ids.ramBytesUsed();
     }
 }

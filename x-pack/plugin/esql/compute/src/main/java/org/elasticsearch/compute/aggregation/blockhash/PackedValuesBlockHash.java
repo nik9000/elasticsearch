@@ -9,6 +9,9 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -26,7 +29,9 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -66,6 +71,9 @@ final class PackedValuesBlockHash extends BlockHash {
     private final BytesRefBuilder bytes = new BytesRefBuilder();
     private final List<GroupSpec> specs;
 
+    private long processedPositions;
+    private int processedBlocks;
+
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
         super(blockFactory);
         this.specs = specs;
@@ -81,6 +89,8 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
+        processedPositions += page.getPositionCount();
+        processedBlocks++;
         try (AddWork work = new AddWork(page, addInput, batchSize)) {
             work.add();
         }
@@ -419,8 +429,7 @@ final class PackedValuesBlockHash extends BlockHash {
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
-        b.append("PackedValuesBlockHash{groups=[");
-        boolean first = true;
+        b.append("PackedValuesBlockHash[");
         for (int i = 0; i < specs.size(); i++) {
             if (i > 0) {
                 b.append(", ");
@@ -428,8 +437,51 @@ final class PackedValuesBlockHash extends BlockHash {
             GroupSpec spec = specs.get(i);
             b.append(spec.channel()).append(':').append(spec.elementType());
         }
-        b.append("], entries=").append(bytesRefHash.size());
-        b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));
-        return b.append("}").toString();
+        return b.append("]").toString();
+    }
+
+    @Override
+    public Status status() {
+        return new Status(
+            (int) bytesRefHash.size(),
+            ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()),
+            processedBlocks,
+            processedPositions
+        );
+    }
+
+    public record Status(int entries, ByteSizeValue size, int processedBlocks, long processedBlockPositions) implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            BlockHash.Status.class,
+            "PackedValues",
+            Status::new
+        );
+
+        private Status(StreamInput in) throws IOException {
+            this(in.readVInt(), ByteSizeValue.readFrom(in), in.readVInt(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(entries);
+            size.writeTo(out);
+            out.writeVInt(processedBlocks);
+            out.writeVLong(processedBlockPositions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("seen").field("entries", entries).endObject();
+            builder.field("size", size);
+            builder.startObject("processed").field("blocks", processedBlocks).field("block_positions", processedBlockPositions).endObject();
+            return builder.endObject();
+        }
     }
 }

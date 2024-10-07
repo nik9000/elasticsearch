@@ -43,6 +43,12 @@ final class DoubleBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
+    private int processedVectors;
+    private long processedVectorPositions;
+    private int processedBlocks;
+    private long processedBlockPositions;
+    private int processedAllNulls;
+    private long processedAllNullPositions;
     DoubleBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
@@ -51,29 +57,29 @@ final class DoubleBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        // TODO track raw counts and which implementation we pick for the profiler - #114008
-        var block = page.getBlock(channel);
-        if (block.areAllValuesNull()) {
-            seenNull = true;
-            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
-                addInput.add(0, groupIds);
-            }
-            return;
-        }
-        DoubleBlock castBlock = (DoubleBlock) block;
-        DoubleVector vector = castBlock.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(castBlock)) {
-                addInput.add(0, groupIds);
-            }
-            return;
-        }
-        try (IntVector groupIds = add(vector)) {
+        try (IntBlock groupIds = addAndFetch(page.getBlock(channel))) {
             addInput.add(0, groupIds);
         }
     }
 
-    IntVector add(DoubleVector vector) {
+    IntBlock addAndFetch(Block block) {
+        if (block.areAllValuesNull()) {
+            processedAllNulls++;
+            processedAllNullPositions += block.getPositionCount();
+            seenNull = true;
+            return blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock();
+        }
+        DoubleBlock castBlock = (DoubleBlock) block;
+        DoubleVector vector = castBlock.asVector();
+        if (vector == null) {
+            return add(castBlock);
+        }
+        return add(vector).asBlock();
+    }
+
+    private IntVector add(DoubleVector vector) {
+        processedVectors++;
+        processedVectorPositions += vector.getPositionCount();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -84,7 +90,9 @@ final class DoubleBlockHash extends BlockHash {
         }
     }
 
-    IntBlock add(DoubleBlock block) {
+    private IntBlock add(DoubleBlock block) {
+        processedBlocks++;
+        processedBlockPositions += block.getPositionCount();
         MultivalueDedupe.HashResult result = new MultivalueDedupeDouble(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
@@ -164,10 +172,21 @@ final class DoubleBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        StringBuilder b = new StringBuilder();
-        b.append("DoubleBlockHash{channel=").append(channel);
-        b.append(", entries=").append(hash.size());
-        b.append(", seenNull=").append(seenNull);
-        return b.append('}').toString();
+        return "DoubleBlockHash[" + channel + "]";
+    }
+
+    @Override
+    public BasicStatus status() {
+        return new BasicStatus(
+            seenNull,
+            (int) hash.size(),
+            ByteSizeValue.ofBytes(hash.ramBytesUsed()),
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions,
+            processedAllNulls,
+            processedAllNullPositions
+        );
     }
 }

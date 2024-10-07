@@ -8,6 +8,9 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -17,7 +20,6 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -26,6 +28,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.IntLongBlockAdd;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Maps a {@link LongBlock} column paired with a {@link BytesRefBlock} column to group ids.
@@ -37,6 +42,11 @@ final class BytesRefLongBlockHash extends BlockHash {
     private final int emitBatchSize;
     private final BytesRefBlockHash bytesHash;
     private final LongLongHash finalHash;
+
+    private int processedBlocks;
+    private long processedBlockPositions;
+    private int processedVectors;
+    private long processedVectorPositions;
 
     BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
         super(blockFactory);
@@ -66,14 +76,11 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
-        BytesRefVector bytesVector = bytesBlock.asVector();
-        if (bytesVector != null) {
-            try (IntVector bytesHashes = bytesHash.add(bytesVector)) {
-                add(page, bytesHashes, addInput);
-            }
-        } else {
-            try (IntBlock bytesHashes = bytesHash.add(bytesBlock)) {
+        try (IntBlock bytesHashes = bytesHash.addAndFetch(page.getBlock(bytesChannel))) {
+            IntVector bytesHashesVector = bytesHashes.asVector();
+            if (bytesHashesVector != null) {
+                add(page, bytesHashesVector, addInput);
+            } else {
                 add(bytesHashes, page.getBlock(longsChannel), addInput);
             }
         }
@@ -92,12 +99,16 @@ final class BytesRefLongBlockHash extends BlockHash {
     }
 
     public void add(IntBlock bytesHashes, LongBlock longsBlock, GroupingAggregatorFunction.AddInput addInput) {
+        processedBlocks++;
+        processedBlockPositions += longsBlock.getPositionCount();
         try (IntLongBlockAdd work = new IntLongBlockAdd(blockFactory, emitBatchSize, addInput, finalHash, bytesHashes, longsBlock)) {
             work.add();
         }
     }
 
     public IntVector add(IntVector bytesHashes, LongVector longsVector) {
+        processedVectors++;
+        processedVectorPositions += longsVector.getPositionCount();
         int positions = bytesHashes.getPositionCount();
         final int[] ords = new int[positions];
         for (int i = 0; i < positions; i++) {
@@ -156,14 +167,83 @@ final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "BytesRefLongBlockHash{keys=[BytesRefKey[channel="
-            + bytesChannel
-            + "], LongKey[channel="
-            + longsChannel
-            + "]], entries="
-            + finalHash.size()
-            + ", size="
-            + bytesHash.hash.ramBytesUsed()
-            + "b}";
+        return "BytesRefLongBlockHash[" + bytesChannel + "," + longsChannel + "]";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(
+            (int) finalHash.size(),
+            ByteSizeValue.ofBytes(finalHash.ramBytesUsed()),
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions,
+            bytesHash.status()
+        );
+    }
+
+    public record Status(
+        int finalEntries,
+        ByteSizeValue finalSize,
+        int finalProcessedBlocks,
+        long finalProcessedBlockPositions,
+        int finalProcessedVectors,
+        long finalProcessedVectorPositions,
+        BytesRefBlockHashStatus bytesStatus
+    ) implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            BlockHash.Status.class,
+            "BytesRefLong",
+            BytesRefLongBlockHash.Status::new
+        );
+
+        private Status(StreamInput in) throws IOException {
+            this(
+                in.readVInt(),
+                ByteSizeValue.readFrom(in),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVInt(),
+                in.readVLong(),
+                new BytesRefBlockHashStatus(in)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(finalEntries);
+            finalSize.writeTo(out);
+            out.writeVInt(finalProcessedBlocks);
+            out.writeVLong(finalProcessedBlockPositions);
+            out.writeVInt(finalProcessedVectors);
+            out.writeVLong(finalProcessedVectorPositions);
+            bytesStatus.writeTo(out);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("final");
+            {
+                builder.startObject("seen").field("entries", finalEntries).endObject();
+                builder.field("size", finalSize);
+                builder.startObject("processed")
+                    .field("blocks", finalProcessedBlocks)
+                    .field("block_positions", finalProcessedBlockPositions)
+                    .field("vectors", finalProcessedVectors)
+                    .field("vector_positions", finalProcessedVectorPositions)
+                    .endObject();
+            }
+            builder.endObject();
+            builder.field("bytes", bytesStatus);
+            return builder.endObject();
+        }
     }
 }

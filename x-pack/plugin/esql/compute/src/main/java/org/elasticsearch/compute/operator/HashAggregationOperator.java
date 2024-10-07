@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
@@ -157,7 +158,9 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             try (AddInput add = new AddInput()) {
-                checkState(needsInput(), "Operator is already finishing");
+                if (needsInput() == false) {
+                    throw new IllegalStateException("Operator is already finishing");
+                }
                 requireNonNull(page, "page is null");
 
                 for (int i = 0; i < prepared.length; i++) {
@@ -229,13 +232,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Operator.Status status() {
-        return new Status(hashNanos, aggregationNanos, pagesProcessed);
-    }
-
-    protected static void checkState(boolean condition, String msg) {
-        if (condition == false) {
-            throw new IllegalArgumentException(msg);
-        }
+        return new Status(hashNanos, blockHash.status(), aggregationNanos, pagesProcessed);
     }
 
     protected Page wrapPage(Page page) {
@@ -271,21 +268,30 @@ public class HashAggregationOperator implements Operator {
          * Count of pages this operator has processed.
          */
         private final int pagesProcessed;
+        /**
+         * Status of the {@link BlockHash}.
+         */
+        private final BlockHash.Status hashStatus;
 
         /**
          * Build.
          * @param hashNanos Nanoseconds this operator has spent hashing grouping keys.
+         * @param hashStatus Status of the {@link BlockHash}
          * @param aggregationNanos Nanoseconds this operator has spent running the aggregations.
          * @param pagesProcessed Count of pages this operator has processed.
          */
-        public Status(long hashNanos, long aggregationNanos, int pagesProcessed) {
+        public Status(long hashNanos, BlockHash.Status hashStatus, long aggregationNanos, int pagesProcessed) {
             this.hashNanos = hashNanos;
             this.aggregationNanos = aggregationNanos;
             this.pagesProcessed = pagesProcessed;
+            this.hashStatus = hashStatus;
         }
 
         protected Status(StreamInput in) throws IOException {
             hashNanos = in.readVLong();
+            hashStatus = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_BLOCK_HASH_STATUS)
+                ? in.readNamedWriteable(BlockHash.Status.class)
+                : new BlockHash.BasicStatus(false, 0, ByteSizeValue.ZERO, 0, 0, 0, 0, 0, 0);
             aggregationNanos = in.readVLong();
             pagesProcessed = in.readVInt();
         }
@@ -293,6 +299,9 @@ public class HashAggregationOperator implements Operator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(hashNanos);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_BLOCK_HASH_STATUS)) {
+                out.writeNamedWriteable(hashStatus);
+            }
             out.writeVLong(aggregationNanos);
             out.writeVInt(pagesProcessed);
         }
@@ -307,6 +316,13 @@ public class HashAggregationOperator implements Operator {
          */
         public long hashNanos() {
             return hashNanos;
+        }
+
+        /**
+         * Status of the {@link BlockHash}.
+         */
+        public BlockHash.Status hashStatus() {
+            return hashStatus;
         }
 
         /**
@@ -326,10 +342,15 @@ public class HashAggregationOperator implements Operator {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("hash_nanos", hashNanos);
-            if (builder.humanReadable()) {
-                builder.field("hash_time", TimeValue.timeValueNanos(hashNanos));
+            builder.startObject("hash");
+            {
+                builder.field("nanos", hashNanos);
+                if (builder.humanReadable()) {
+                    builder.field("time", TimeValue.timeValueNanos(hashNanos));
+                }
+                builder.field("status", hashStatus);
             }
+            builder.endObject();
             builder.field("aggregation_nanos", aggregationNanos);
             if (builder.humanReadable()) {
                 builder.field("aggregation_time", TimeValue.timeValueNanos(aggregationNanos));
@@ -344,12 +365,15 @@ public class HashAggregationOperator implements Operator {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Status status = (Status) o;
-            return hashNanos == status.hashNanos && aggregationNanos == status.aggregationNanos && pagesProcessed == status.pagesProcessed;
+            return hashNanos == status.hashNanos
+                && hashStatus.equals(status.hashStatus)
+                && aggregationNanos == status.aggregationNanos
+                && pagesProcessed == status.pagesProcessed;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hashNanos, aggregationNanos, pagesProcessed);
+            return Objects.hash(hashNanos, hashStatus, aggregationNanos, pagesProcessed);
         }
 
         @Override

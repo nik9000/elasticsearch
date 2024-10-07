@@ -11,7 +11,6 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasable;
@@ -24,7 +23,7 @@ import org.elasticsearch.core.Releasables;
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
  *  This class is not thread-safe.
  */
-public final class BytesRefHash extends AbstractHash implements Accountable {
+public final class BytesRefHash extends AbstractHash {
 
     // base size of the bytes ref hash
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefHash.class)

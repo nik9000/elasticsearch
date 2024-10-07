@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -23,6 +26,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.LongLongBlockAdd;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Maps two {@link LongBlock} columns to group ids.
@@ -32,6 +38,11 @@ final class LongLongBlockHash extends BlockHash {
     private final int channel2;
     private final int emitBatchSize;
     private final LongLongHash hash;
+
+    private int processedBlocks;
+    private long processedBlockPositions;
+    private int processedVectors;
+    private long processedVectorPositions;
 
     LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
         super(blockFactory);
@@ -53,10 +64,14 @@ final class LongLongBlockHash extends BlockHash {
         LongVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
+            processedVectors++;
+            processedVectorPositions += block1.getPositionCount();
             try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
                 addInput.add(0, groupIds.asVector());
             }
         } else {
+            processedBlocks++;
+            processedBlockPositions += block1.getPositionCount();
             try (var addBlock = new LongLongBlockAdd(blockFactory, emitBatchSize, addInput, hash, block1, block2)) {
                 addBlock.add();
             }
@@ -114,5 +129,62 @@ final class LongLongBlockHash extends BlockHash {
     @Override
     public String toString() {
         return "LongLongBlockHash{channels=[" + channel1 + "," + channel2 + "], entries=" + hash.size() + "}";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(
+            (int) hash.size(),
+            ByteSizeValue.ofBytes(hash.ramBytesUsed()),
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions
+        );
+    }
+
+    public record Status(
+        int entries,
+        ByteSizeValue size,
+        int processedBlocks,
+        long processedBlockPositions,
+        int processedVectors,
+        long processedVectorPositions
+    ) implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(BlockHash.Status.class, "LongLong", Status::new);
+
+        private Status(StreamInput in) throws IOException {
+            this(in.readVInt(), ByteSizeValue.readFrom(in), in.readVInt(), in.readVLong(), in.readVInt(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(entries);
+            size.writeTo(out);
+            out.writeVInt(processedBlocks);
+            out.writeVLong(processedBlockPositions);
+            out.writeVInt(processedVectors);
+            out.writeVLong(processedVectorPositions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("seen").field("entries", entries).endObject();
+            builder.field("size", size);
+            builder.startObject("processed")
+                .field("blocks", processedBlocks)
+                .field("block_positions", processedBlockPositions)
+                .field("vectors", processedVectors)
+                .field("vector_positions", processedVectorPositions)
+                .endObject();
+            return builder.endObject();
+        }
     }
 }

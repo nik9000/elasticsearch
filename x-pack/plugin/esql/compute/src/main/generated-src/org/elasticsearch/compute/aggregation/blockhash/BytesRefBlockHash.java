@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -44,6 +45,17 @@ final class BytesRefBlockHash extends BlockHash {
      */
     private boolean seenNull;
 
+    private int processedVectors;
+    private long processedVectorPositions;
+    private int processedBlocks;
+    private long processedBlockPositions;
+    private int processedAllNulls;
+    private long processedAllNullPositions;
+    private int processedOrdinalVectors;
+    private long processedOrdinalVectorPositions;
+    private int processedOrdinalBlocks;
+    private long processedOrdinalBlockPositions;
+
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
@@ -52,34 +64,34 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        // TODO track raw counts and which implementation we pick for the profiler - #114008
-        var block = page.getBlock(channel);
-        if (block.areAllValuesNull()) {
-            seenNull = true;
-            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
-                addInput.add(0, groupIds);
-            }
-            return;
-        }
-        BytesRefBlock castBlock = (BytesRefBlock) block;
-        BytesRefVector vector = castBlock.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(castBlock)) {
-                addInput.add(0, groupIds);
-            }
-            return;
-        }
-        try (IntVector groupIds = add(vector)) {
+        try (IntBlock groupIds = addAndFetch(page.getBlock(channel))) {
             addInput.add(0, groupIds);
         }
     }
 
-    IntVector add(BytesRefVector vector) {
+    IntBlock addAndFetch(Block block) {
+        if (block.areAllValuesNull()) {
+            processedAllNulls++;
+            processedAllNullPositions += block.getPositionCount();
+            seenNull = true;
+            return blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock();
+        }
+        BytesRefBlock castBlock = (BytesRefBlock) block;
+        BytesRefVector vector = castBlock.asVector();
+        if (vector == null) {
+            return add(castBlock);
+        }
+        return add(vector).asBlock();
+    }
+
+    private IntVector add(BytesRefVector vector) {
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
         }
         BytesRef scratch = new BytesRef();
+        processedVectors++;
+        processedVectorPositions += vector.getPositionCount();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -90,11 +102,13 @@ final class BytesRefBlockHash extends BlockHash {
         }
     }
 
-    IntBlock add(BytesRefBlock block) {
+    private IntBlock add(BytesRefBlock block) {
         var ordinals = block.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsBlock(ordinals);
         }
+        processedBlocks++;
+        processedBlockPositions += block.getPositionCount();
         MultivalueDedupe.HashResult result = new MultivalueDedupeBytesRef(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
@@ -116,11 +130,13 @@ final class BytesRefBlockHash extends BlockHash {
         return ReleasableIterator.single(lookup(vector));
     }
 
-    private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
-        IntVector inputOrds = inputBlock.getOrdinalsVector();
+    private IntVector addOrdinalsVector(OrdinalBytesRefVector inputVector) {
+        processedOrdinalVectors++;
+        processedOrdinalVectorPositions += inputVector.getPositionCount();
+        IntVector inputOrds = inputVector.getOrdinalsVector();
         try (
             var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount());
-            var hashOrds = add(inputBlock.getDictionaryVector())
+            var hashOrds = add(inputVector.getDictionaryVector())
         ) {
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int ord = hashOrds.getInt(inputOrds.getInt(p));
@@ -131,6 +147,8 @@ final class BytesRefBlockHash extends BlockHash {
     }
 
     private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        processedOrdinalBlocks++;
+        processedOrdinalBlockPositions += inputBlock.getPositionCount();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
             IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
@@ -227,11 +245,25 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        StringBuilder b = new StringBuilder();
-        b.append("BytesRefBlockHash{channel=").append(channel);
-        b.append(", entries=").append(hash.size());
-        b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
-        b.append(", seenNull=").append(seenNull);
-        return b.append('}').toString();
+        return "BytesRefBlockHash[" + channel + "]";
+    }
+
+    @Override
+    public BytesRefBlockHashStatus status() {
+        return new BytesRefBlockHashStatus(
+            seenNull,
+            (int) hash.size(),
+            ByteSizeValue.ofBytes(hash.ramBytesUsed()),
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions,
+            processedAllNulls,
+            processedAllNullPositions,
+            processedOrdinalBlocks,
+            processedOrdinalBlockPositions,
+            processedOrdinalVectors,
+            processedOrdinalVectorPositions
+        );
     }
 }

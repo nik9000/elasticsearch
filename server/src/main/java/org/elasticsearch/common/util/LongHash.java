@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -19,8 +21,8 @@ import org.elasticsearch.core.Releasable;
  * This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-public final class LongHash extends AbstractHash {
-
+public final class LongHash extends AbstractHash implements Accountable {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongHash.class);
     private LongArray keys;
 
     // Constructor with configurable capacity and default maximum load factor.
@@ -121,4 +123,8 @@ public final class LongHash extends AbstractHash {
         }
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + keys.ramBytesUsed() + ids.ramBytesUsed();
+    }
 }

@@ -16,8 +16,9 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Hash$;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
-$if(BytesRef)$
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+$if(BytesRef)$
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -25,20 +26,14 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 $elseif(double)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 $elseif(int)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 $elseif(long)$
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
@@ -74,6 +69,19 @@ final class $Type$BlockHash extends BlockHash {
      */
     private boolean seenNull;
 
+    private int processedVectors;
+    private long processedVectorPositions;
+    private int processedBlocks;
+    private long processedBlockPositions;
+    private int processedAllNulls;
+    private long processedAllNullPositions;
+$if(BytesRef)$
+    private int processedOrdinalVectors;
+    private long processedOrdinalVectorPositions;
+    private int processedOrdinalBlocks;
+    private long processedOrdinalBlockPositions;
+$endif$
+
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
@@ -82,29 +90,27 @@ final class $Type$BlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        // TODO track raw counts and which implementation we pick for the profiler - #114008
-        var block = page.getBlock(channel);
-        if (block.areAllValuesNull()) {
-            seenNull = true;
-            try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
-                addInput.add(0, groupIds);
-            }
-            return;
-        }
-        $Type$Block castBlock = ($Type$Block) block;
-        $Type$Vector vector = castBlock.asVector();
-        if (vector == null) {
-            try (IntBlock groupIds = add(castBlock)) {
-                addInput.add(0, groupIds);
-            }
-            return;
-        }
-        try (IntVector groupIds = add(vector)) {
+        try (IntBlock groupIds = addAndFetch(page.getBlock(channel))) {
             addInput.add(0, groupIds);
         }
     }
 
-    IntVector add($Type$Vector vector) {
+    IntBlock addAndFetch(Block block) {
+        if (block.areAllValuesNull()) {
+            processedAllNulls++;
+            processedAllNullPositions += block.getPositionCount();
+            seenNull = true;
+            return blockFactory.newConstantIntVector(0, block.getPositionCount()).asBlock();
+        }
+        $Type$Block castBlock = ($Type$Block) block;
+        $Type$Vector vector = castBlock.asVector();
+        if (vector == null) {
+            return add(castBlock);
+        }
+        return add(vector).asBlock();
+    }
+
+    private IntVector add($Type$Vector vector) {
 $if(BytesRef)$
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
@@ -112,6 +118,8 @@ $if(BytesRef)$
         }
         BytesRef scratch = new BytesRef();
 $endif$
+        processedVectors++;
+        processedVectorPositions += vector.getPositionCount();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -128,13 +136,15 @@ $endif$
         }
     }
 
-    IntBlock add($Type$Block block) {
+    private IntBlock add($Type$Block block) {
 $if(BytesRef)$
         var ordinals = block.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsBlock(ordinals);
         }
 $endif$
+        processedBlocks++;
+        processedBlockPositions += block.getPositionCount();
         MultivalueDedupe.HashResult result = new MultivalueDedupe$Type$(block).hashAdd(blockFactory, hash);
         seenNull |= result.sawNull();
         return result.ords();
@@ -157,11 +167,13 @@ $endif$
     }
 
 $if(BytesRef)$
-    private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
-        IntVector inputOrds = inputBlock.getOrdinalsVector();
+    private IntVector addOrdinalsVector(OrdinalBytesRefVector inputVector) {
+        processedOrdinalVectors++;
+        processedOrdinalVectorPositions += inputVector.getPositionCount();
+        IntVector inputOrds = inputVector.getOrdinalsVector();
         try (
             var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount());
-            var hashOrds = add(inputBlock.getDictionaryVector())
+            var hashOrds = add(inputVector.getDictionaryVector())
         ) {
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int ord = hashOrds.getInt(inputOrds.getInt(p));
@@ -172,6 +184,8 @@ $if(BytesRef)$
     }
 
     private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        processedOrdinalBlocks++;
+        processedOrdinalBlockPositions += inputBlock.getPositionCount();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
             IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
@@ -313,13 +327,41 @@ $endif$
 
     @Override
     public String toString() {
-        StringBuilder b = new StringBuilder();
-        b.append("$Type$BlockHash{channel=").append(channel);
-        b.append(", entries=").append(hash.size());
+        return "$Type$BlockHash[" + channel + "]";
+    }
+
 $if(BytesRef)$
-        b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
+    @Override
+    public BytesRefBlockHashStatus status() {
+        return new BytesRefBlockHashStatus(
+            seenNull,
+            (int) hash.size(),
+            ByteSizeValue.ofBytes(hash.ramBytesUsed()),
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions,
+            processedAllNulls,
+            processedAllNullPositions,
+            processedOrdinalBlocks,
+            processedOrdinalBlockPositions,
+            processedOrdinalVectors,
+            processedOrdinalVectorPositions
+        );
+$else$
+    @Override
+    public BasicStatus status() {
+        return new BasicStatus(
+            seenNull,
+            (int) hash.size(),
+            ByteSizeValue.ofBytes(hash.ramBytesUsed()),
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions,
+            processedAllNulls,
+            processedAllNullPositions
+        );
 $endif$
-        b.append(", seenNull=").append(seenNull);
-        return b.append('}').toString();
     }
 }

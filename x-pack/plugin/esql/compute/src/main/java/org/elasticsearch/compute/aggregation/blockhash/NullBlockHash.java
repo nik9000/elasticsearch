@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -18,6 +21,9 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Maps a {@link BooleanBlock} column to group ids. Assigns group
@@ -81,5 +87,36 @@ final class NullBlockHash extends BlockHash {
     @Override
     public String toString() {
         return "NullBlockHash{channel=" + channel + ", seenNull=" + seenNull + '}';
+    }
+
+    @Override
+    public Status status() {
+        return new Status();
+    }
+
+    public record Status() implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            BlockHash.Status.class,
+            "Null",
+            NullBlockHash.Status::new
+        );
+
+        private Status(StreamInput in) {
+            this();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().endObject();
+        }
     }
 }

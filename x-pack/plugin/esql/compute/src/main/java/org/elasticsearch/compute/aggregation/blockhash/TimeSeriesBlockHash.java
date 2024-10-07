@@ -8,6 +8,9 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -26,7 +29,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Objects;
 
 public final class TimeSeriesBlockHash extends BlockHash {
@@ -39,6 +44,9 @@ public final class TimeSeriesBlockHash extends BlockHash {
     long groupOrdinal = -1;
     BytesRef previousTsidHash;
     long previousTimestampInterval;
+
+    private int processedVectors;
+    private long processedVectorPositions;
 
     public TimeSeriesBlockHash(int tsHashChannel, int timestampIntervalChannel, DriverContext driverContext) {
         super(driverContext.blockFactory());
@@ -59,6 +67,8 @@ public final class TimeSeriesBlockHash extends BlockHash {
         BytesRefVector tsHashVector = Objects.requireNonNull(tsHashBlock.asVector());
         try (var ordsBuilder = blockFactory.newIntVectorBuilder(tsHashVector.getPositionCount())) {
             LongBlock timestampIntervalBlock = page.getBlock(timestampIntervalChannel);
+            processedVectors++;
+            processedVectorPositions += tsHashVector.getPositionCount();
             BytesRef spare = new BytesRef();
             for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
                 BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
@@ -127,12 +137,45 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     public String toString() {
-        return "TimeSeriesBlockHash{keys=[BytesRefKey[channel="
-            + tsHashChannel
-            + "], LongKey[channel="
-            + timestampIntervalChannel
-            + "]], entries="
-            + groupOrdinal
-            + "b}";
+        return "TimeSeriesBlockHash[" + tsHashChannel + ", " + timestampIntervalChannel + "]";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(processedVectors, processedVectorPositions);
+    }
+
+    public record Status(int processedVectors, long processedVectorPositions) implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            BlockHash.Status.class,
+            "TimeSeries",
+            Status::new
+        );
+
+        private Status(StreamInput in) throws IOException {
+            this(in.readVInt(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(processedVectors);
+            out.writeVLong(processedVectorPositions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("processed")
+                .field("vectors", processedVectors)
+                .field("vector_positions", processedVectorPositions)
+                .endObject();
+            return builder.endObject();
+        }
     }
 }

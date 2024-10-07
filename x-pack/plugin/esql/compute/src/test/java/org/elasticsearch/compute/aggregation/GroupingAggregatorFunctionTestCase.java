@@ -117,10 +117,9 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}";
         return equalTo(
             "HashAggregationOperator["
-                + hash
+                + "blockHash=LongBlockHash[0]"
                 + ", aggregators=[GroupingAggregator[aggregatorFunction="
                 + expectedToStringOfSimpleAggregator()
                 + ", mode=SINGLE]]]"

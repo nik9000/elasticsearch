@@ -76,7 +76,7 @@ public interface Operator extends Releasable {
     void close();
 
     /**
-     * The status of the operator.
+     * The status of the {@link Operator} returned by the tasks API and the {@code profile} option.
      */
     default Status status() {
         return null;
@@ -103,7 +103,7 @@ public interface Operator extends Releasable {
     }
 
     /**
-     * Status of an {@link Operator} to be returned by the tasks API.
+     * Status of an {@link Operator} to be returned by the tasks API and the {@code profile} option.
      */
     interface Status extends ToXContentObject, VersionedNamedWriteable {}
 }

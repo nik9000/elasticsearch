@@ -36,6 +36,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 import org.junit.After;
 
 import java.util.ArrayList;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -559,8 +561,8 @@ public class BlockHashTests extends ESTestCase {
 
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
-                    assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
-                    assertThat(ordsAndKeys.description, endsWith("b}"));
+                    assertThat(ordsAndKeys.description, equalTo("PackedValuesBlockHash[0:BYTES_REF]"));
+                    assertStatus((PackedValuesBlockHash.Status) ordsAndKeys.status, 4, lessThan(1024L), 1, 6);
                     assertOrds(
                         ordsAndKeys.ords,
                         new int[] { 0 },
@@ -572,8 +574,8 @@ public class BlockHashTests extends ESTestCase {
                     );
                     assertKeys(ordsAndKeys.keys, "foo", "bar", "bort", null);
                 } else {
-                    assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
-                    assertThat(ordsAndKeys.description, endsWith("b, seenNull=true}"));
+                    assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash[0]"));
+                    assertStatus((BlockHash.BasicStatus) ordsAndKeys.status, true, 3, lessThan(1024L), 1, 5, 0, 0, 0, 0);
                     assertOrds(
                         ordsAndKeys.ords,
                         new int[] { 1 },
@@ -594,11 +596,13 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { false, true, true, true, true };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
-                assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size="));
+                assertThat(ordsAndKeys.description, equalTo("PackedValuesBlockHash[0:BOOLEAN]"));
+                assertStatus((PackedValuesBlockHash.Status) ordsAndKeys.status, 2, lessThan(1024L), 1, 5);
                 assertOrds(ordsAndKeys.ords, 0, 1, 1, 1, 1);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 2)));
             } else {
-                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=false}"));
+                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash[0]"));
+                assertThat(ordsAndKeys.status, equalTo(new BooleanBlockHash.Status(false, true, true, 0, 0, 1, 5, 0, 0)));
                 assertOrds(ordsAndKeys.ords, 1, 2, 2, 2, 2);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(1, 3)));
             }
@@ -610,12 +614,14 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { true, false, false, true, true };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
-                assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=2, size="));
+                assertThat(ordsAndKeys.description, equalTo("PackedValuesBlockHash[0:BOOLEAN]"));
+                assertStatus((PackedValuesBlockHash.Status) ordsAndKeys.status, 2, lessThan(1024L), 1, 5);
                 assertOrds(ordsAndKeys.ords, 0, 1, 1, 0, 0);
                 assertKeys(ordsAndKeys.keys, true, false);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 2)));
             } else {
-                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=false}"));
+                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash[0]"));
+                assertThat(ordsAndKeys.status, equalTo(new BooleanBlockHash.Status(false, true, true, 0, 0, 1, 4, 0, 0)));
                 assertOrds(ordsAndKeys.ords, 2, 1, 1, 2, 2);
                 assertKeys(ordsAndKeys.keys, false, true);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(1, 3)));
@@ -627,12 +633,14 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { true, true, true, true };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
-                assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
+                assertThat(ordsAndKeys.description, equalTo("PackedValuesBlockHash[0:BOOLEAN]"));
+                assertStatus((PackedValuesBlockHash.Status) ordsAndKeys.status, 1, lessThan(1024L), 1, 4);
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
                 assertKeys(ordsAndKeys.keys, true);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
             } else {
-                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=false, seenTrue=true, seenNull=false}"));
+                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash[0]"));
+                assertThat(ordsAndKeys.status, equalTo(new BooleanBlockHash.Status(false, false, true, 0, 0, 1, 4, 0, 0)));
                 assertOrds(ordsAndKeys.ords, 2, 2, 2, 2);
                 assertKeys(ordsAndKeys.keys, true);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(2, 1)));
@@ -644,11 +652,14 @@ public class BlockHashTests extends ESTestCase {
         boolean[] values = new boolean[] { false, false, false, false };
         hash(ordsAndKeys -> {
             if (forcePackedHash) {
-                assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=1, size="));
+                assertThat(ordsAndKeys.description, equalTo("PackedValuesBlockHash[0:BOOLEAN]"));
+                assertStatus((PackedValuesBlockHash.Status) ordsAndKeys.status, 1, lessThan(1024L), 1, 4);
+                // NOCOMMIT status tests all around
                 assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
             } else {
-                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=false, seenNull=false}"));
+                assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash[0]"));
+                assertThat(ordsAndKeys.status, equalTo(new BooleanBlockHash.Status(false, true, false, 0, 0, 1, 4, 0, 0)));
                 assertOrds(ordsAndKeys.ords, 1, 1, 1, 1);
                 assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(1, 1)));
             }
@@ -665,14 +676,13 @@ public class BlockHashTests extends ESTestCase {
 
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
-                    assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BOOLEAN], entries=3, size="));
+                    assertThat(ordsAndKeys.description, equalTo("PackedValuesBlockHash[0:BOOLEAN]"));
+                    assertStatus((PackedValuesBlockHash.Status) ordsAndKeys.status, 3, lessThan(1024L), 1, 4);
                     assertOrds(ordsAndKeys.ords, 0, 1, 2, 1);
                     assertKeys(ordsAndKeys.keys, false, null, true);
                 } else {
-                    assertThat(
-                        ordsAndKeys.description,
-                        equalTo("BooleanBlockHash{channel=0, seenFalse=true, seenTrue=true, seenNull=true}")
-                    );
+                    assertThat(ordsAndKeys.description, equalTo("BooleanBlockHash[0]"));
+                    assertThat(ordsAndKeys.status, equalTo(new BooleanBlockHash.Status(true, true, true, 1, 4, 0, 0, 0, 0)));
                     assertOrds(ordsAndKeys.ords, 1, 0, 2, 0);
                     assertKeys(ordsAndKeys.keys, null, false, true);
                 }
@@ -1339,7 +1349,7 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
-    record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
+    record OrdsAndKeys(String description, BlockHash.Status status, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
 
     /**
      * Hash some values into a single block of group ids. If the hash produces
@@ -1403,6 +1413,7 @@ public class BlockHashTests extends ESTestCase {
             public void add(int positionOffset, IntBlock groupIds) {
                 OrdsAndKeys result = new OrdsAndKeys(
                     blockHash.toString(),
+                    blockHash.status(),
                     positionOffset,
                     groupIds,
                     collectKeys ? blockHash.getKeys() : null,
@@ -1543,5 +1554,41 @@ public class BlockHashTests extends ESTestCase {
 
     IntVector intRange(int startInclusive, int endExclusive) {
         return IntVector.range(startInclusive, endExclusive, TestBlockFactory.getNonBreakingInstance());
+    }
+
+    private void assertStatus(
+        PackedValuesBlockHash.Status status,
+        int entries,
+        Matcher<Long> sizeBytesMatcher,
+        int processedBlocks,
+        long processedBlockPositions
+    ) {
+        assertThat(status.entries(), equalTo(entries));
+        assertThat(status.size().getBytes(), sizeBytesMatcher);
+        assertThat(status.processedBlocks(), equalTo(processedBlocks));
+        assertThat(status.processedBlockPositions(), equalTo(processedBlockPositions));
+    }
+
+    private void assertStatus(
+        BlockHash.BasicStatus status,
+        boolean seenNull,
+        int entries,
+        Matcher<Long> sizeBytesMatcher,
+        int processedBlocks,
+        long processedBlockPositions,
+        int processedVectors,
+        long processedVectorPositions,
+        int processedAllNulls,
+        long processedAllNullPositions
+    ) {
+        assertThat(status.seenNull(), equalTo(seenNull));
+        assertThat(status.entries(), equalTo(entries));
+        assertThat(status.size().getBytes(), sizeBytesMatcher);
+        assertThat(status.processedBlocks(), equalTo(processedBlocks));
+        assertThat(status.processedBlockPositions(), equalTo(processedBlockPositions));
+        assertThat(status.processedVectors(), equalTo(processedVectors));
+        assertThat(status.processedVectorPositions(), equalTo(processedVectorPositions));
+        assertThat(status.processedAllNulls(), equalTo(processedAllNulls));
+        assertThat(status.processedAllNullPositions(), equalTo(processedAllNullPositions));
     }
 }

@@ -7,6 +7,10 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -24,7 +28,10 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
@@ -62,6 +69,19 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef2BlockHash, BytesRef3BlockHash, //
     NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
 
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            BasicStatus.ENTRY,
+            BooleanBlockHash.Status.ENTRY,
+            BytesRefBlockHashStatus.ENTRY,
+            BytesRefLongBlockHash.Status.ENTRY,
+            LongLongBlockHash.Status.ENTRY,
+            NullBlockHash.Status.ENTRY,
+            PackedValuesBlockHash.Status.ENTRY,
+            TimeSeriesBlockHash.Status.ENTRY
+        );
+    }
+
     protected final BlockFactory blockFactory;
 
     BlockHash(BlockFactory blockFactory) {
@@ -93,6 +113,16 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      * Returns a {@link Block} that contains all the keys that are inserted by {@link #add}.
      */
     public abstract Block[] getKeys();
+
+    /**
+     * The status of the {@link BlockHash} returned by the tasks API and the {@code profile} option.
+     */
+    public abstract Status status();
+
+    /**
+     * The status of the {@link BlockHash} returned by the tasks API and the {@code profile} option.
+     */
+    public interface Status extends NamedWriteable, ToXContentObject {}
 
     /**
      * The grouping ids that are not empty. We use this because some block hashes reserve
@@ -194,5 +224,68 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static long hashOrdToGroupNullReserved(long ord) {
         return hashOrdToGroup(ord) + 1;
+    }
+
+    public record BasicStatus(
+        boolean seenNull,
+        int entries,
+        ByteSizeValue size,
+        int processedBlocks,
+        long processedBlockPositions,
+        int processedVectors,
+        long processedVectorPositions,
+        int processedAllNulls,
+        long processedAllNullPositions
+    ) implements Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Status.class, "Basic", BasicStatus::new);
+
+        private BasicStatus(StreamInput in) throws IOException {
+            this(
+                in.readBoolean(),
+                in.readVInt(),
+                ByteSizeValue.readFrom(in),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVInt(),
+                in.readVLong()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(seenNull);
+            out.writeVInt(entries);
+            size.writeTo(out);
+            out.writeVInt(processedBlocks);
+            out.writeVLong(processedBlockPositions);
+            out.writeVInt(processedVectors);
+            out.writeVLong(processedVectorPositions);
+            out.writeVInt(processedAllNulls);
+            out.writeVLong(processedAllNullPositions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("seen").field("null", seenNull).field("entries", entries).endObject();
+            builder.field("size", size);
+            builder.startObject("processed")
+                .field("blocks", processedBlocks)
+                .field("block_positions", processedBlockPositions)
+                .field("vectors", processedVectors)
+                .field("vector_positions", processedVectorPositions)
+                .field("all_nulls", processedAllNulls)
+                .field("all_null_positions", processedAllNullPositions)
+                .endObject();
+            return builder.endObject();
+        }
     }
 }

@@ -8,6 +8,9 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -16,13 +19,14 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Locale;
 
 /**
@@ -37,6 +41,9 @@ final class BytesRef3BlockHash extends BlockHash {
     private final BytesRefBlockHash hash2;
     private final BytesRefBlockHash hash3;
     private final Int3Hash finalHash;
+
+    private int processedBlocks;
+    private int processedVectors;
 
     BytesRef3BlockHash(BlockFactory blockFactory, int channel1, int channel2, int channel3, int emitBatchSize) {
         super(blockFactory);
@@ -68,13 +75,15 @@ final class BytesRef3BlockHash extends BlockHash {
         BytesRefBlock b1 = page.getBlock(channel1);
         BytesRefBlock b2 = page.getBlock(channel2);
         BytesRefBlock b3 = page.getBlock(channel3);
-        BytesRefVector v1 = b1.asVector();
-        BytesRefVector v2 = b2.asVector();
-        BytesRefVector v3 = b3.asVector();
-        if (v1 != null && v2 != null && v3 != null) {
-            addVectors(v1, v2, v3, addInput);
-        } else {
-            try (IntBlock k1 = hash1.add(b1); IntBlock k2 = hash2.add(b2); IntBlock k3 = hash3.add(b3)) {
+        try (IntBlock k1 = hash1.addAndFetch(b1); IntBlock k2 = hash2.addAndFetch(b2); IntBlock k3 = hash3.addAndFetch(b3)) {
+            IntVector k1v = k1.asVector();
+            IntVector k2v = k2.asVector();
+            IntVector k3v = k3.asVector();
+            if (k1v != null && k2v != null && k3v != null) {
+                processedVectors++;
+                addVectors(k1v, k2v, k3v, addInput);
+            } else {
+                processedBlocks++;
                 try (AddWork work = new AddWork(k1, k2, k3, addInput)) {
                     work.add();
                 }
@@ -82,14 +91,12 @@ final class BytesRef3BlockHash extends BlockHash {
         }
     }
 
-    private void addVectors(BytesRefVector v1, BytesRefVector v2, BytesRefVector v3, GroupingAggregatorFunction.AddInput addInput) {
-        final int positionCount = v1.getPositionCount();
+    private void addVectors(IntVector k1, IntVector k2, IntVector k3, GroupingAggregatorFunction.AddInput addInput) {
+        final int positionCount = k1.getPositionCount();
         try (IntVector.FixedBuilder ordsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-            try (IntVector k1 = hash1.add(v1); IntVector k2 = hash2.add(v2); IntVector k3 = hash3.add(v3)) {
-                for (int p = 0; p < positionCount; p++) {
-                    long ord = hashOrdToGroup(finalHash.add(k1.getInt(p), k2.getInt(p), k3.getInt(p)));
-                    ordsBuilder.appendInt(p, Math.toIntExact(ord));
-                }
+            for (int p = 0; p < positionCount; p++) {
+                long ord = hashOrdToGroup(finalHash.add(k1.getInt(p), k2.getInt(p), k3.getInt(p)));
+                ordsBuilder.appendInt(p, Math.toIntExact(ord));
             }
             try (IntVector ords = ordsBuilder.build()) {
                 addInput.add(0, ords);
@@ -205,13 +212,75 @@ final class BytesRef3BlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return String.format(
-            Locale.ROOT,
-            "BytesRef3BlockHash{keys=[channel1=%d, channel2=%d, channel3=%d], entries=%d}",
-            channel1,
-            channel2,
-            channel3,
-            finalHash.size()
+        return String.format(Locale.ROOT, "BytesRef3BlockHash[%d, %d, %d]", channel1, channel2, channel3);
+    }
+
+    @Override
+    public Status status() {
+        return new Status(
+            hash1.status(),
+            hash2.status(),
+            hash3.status(),
+            (int) finalHash.size(),
+            ByteSizeValue.ofBytes(finalHash.ramBytesUsed()),
+            processedBlocks,
+            processedVectors
         );
+    }
+
+    public record Status(
+        BytesRefBlockHashStatus status1,
+        BytesRefBlockHashStatus status2,
+        BytesRefBlockHashStatus status3,
+        int finalEntries,
+        ByteSizeValue finalSize,
+        int processedBlocks,
+        int processedVectors
+    ) implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            BlockHash.Status.class,
+            "BytesRef3",
+            Status::new
+        );
+
+        private Status(StreamInput in) throws IOException {
+            this(
+                new BytesRefBlockHashStatus(in),
+                new BytesRefBlockHashStatus(in),
+                new BytesRefBlockHashStatus(in),
+                in.readVInt(),
+                ByteSizeValue.readFrom(in),
+                in.readVInt(),
+                in.readVInt()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            status1.writeTo(out);
+            status2.writeTo(out);
+            status3.writeTo(out);
+            out.writeVInt(finalEntries);
+            finalSize.writeTo(out);
+            out.writeVInt(processedBlocks);
+            out.writeVInt(processedVectors);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("hash1", status1);
+            builder.field("hash2", status2);
+            builder.field("hash3", status3);
+            builder.startObject("final").field("entries", finalEntries).field("size", finalSize).endObject();
+            builder.startObject("processed").field("vectors", processedVectors).field("blocks", processedBlocks).endObject();
+            return builder.endObject();
+        }
     }
 }

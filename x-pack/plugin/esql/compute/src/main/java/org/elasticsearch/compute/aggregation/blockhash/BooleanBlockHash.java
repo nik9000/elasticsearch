@@ -7,6 +7,9 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -19,6 +22,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.FALSE_ORD;
 import static org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean.NULL_ORD;
@@ -33,6 +39,13 @@ final class BooleanBlockHash extends BlockHash {
     private final int channel;
     private final boolean[] everSeen = new boolean[TRUE_ORD + 1];
 
+    private int processedVectors;
+    private long processedVectorPositions;
+    private int processedBlocks;
+    private long processedBlockPositions;
+    private int processedAllNulls;
+    private long processedAllNullPositions;
+
     BooleanBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
@@ -42,21 +55,27 @@ final class BooleanBlockHash extends BlockHash {
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
         var block = page.getBlock(channel);
         if (block.areAllValuesNull()) {
+            processedAllNulls++;
+            processedAllNullPositions += block.getPositionCount();
             everSeen[NULL_ORD] = true;
             try (IntVector groupIds = blockFactory.newConstantIntVector(0, block.getPositionCount())) {
                 addInput.add(0, groupIds);
             }
+            return;
+        }
+        BooleanBlock booleanBlock = page.getBlock(channel);
+        BooleanVector booleanVector = booleanBlock.asVector();
+        if (booleanVector == null) {
+            processedBlocks++;
+            processedBlockPositions += booleanBlock.getPositionCount();
+            try (IntBlock groupIds = add(booleanBlock)) {
+                addInput.add(0, groupIds);
+            }
         } else {
-            BooleanBlock booleanBlock = page.getBlock(channel);
-            BooleanVector booleanVector = booleanBlock.asVector();
-            if (booleanVector == null) {
-                try (IntBlock groupIds = add(booleanBlock)) {
-                    addInput.add(0, groupIds);
-                }
-            } else {
-                try (IntVector groupIds = add(booleanVector)) {
-                    addInput.add(0, groupIds);
-                }
+            processedVectors++;
+            processedVectorPositions += booleanBlock.getPositionCount();
+            try (IntVector groupIds = add(booleanVector)) {
+                addInput.add(0, groupIds);
             }
         }
     }
@@ -155,14 +174,83 @@ final class BooleanBlockHash extends BlockHash {
 
     @Override
     public String toString() {
-        return "BooleanBlockHash{channel="
-            + channel
-            + ", seenFalse="
-            + everSeen[FALSE_ORD]
-            + ", seenTrue="
-            + everSeen[TRUE_ORD]
-            + ", seenNull="
-            + everSeen[NULL_ORD]
-            + '}';
+        return "BooleanBlockHash[" + channel + "]";
+    }
+
+    @Override
+    public Status status() {
+        return new Status(
+            everSeen[NULL_ORD],
+            everSeen[FALSE_ORD],
+            everSeen[TRUE_ORD],
+            processedBlocks,
+            processedBlockPositions,
+            processedVectors,
+            processedVectorPositions,
+            processedAllNulls,
+            processedAllNullPositions
+        );
+    }
+
+    public record Status(
+        boolean seenNull,
+        boolean seenFalse,
+        boolean seenTrue,
+        int processedBlocks,
+        long processedBlockPositions,
+        int processedVectors,
+        long processedVectorPositions,
+        int processedAllNulls,
+        long processedAllNullPositions
+    ) implements BlockHash.Status {
+
+        static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(BlockHash.Status.class, "Boolean", Status::new);
+
+        private Status(StreamInput in) throws IOException {
+            this(
+                in.readBoolean(),
+                in.readBoolean(),
+                in.readBoolean(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVInt(),
+                in.readVLong(),
+                in.readVInt(),
+                in.readVLong()
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(seenNull);
+            out.writeBoolean(seenFalse);
+            out.writeBoolean(seenTrue);
+            out.writeVInt(processedBlocks);
+            out.writeVLong(processedBlockPositions);
+            out.writeVInt(processedVectors);
+            out.writeVLong(processedVectorPositions);
+            out.writeVInt(processedAllNulls);
+            out.writeVLong(processedAllNullPositions);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("seen").field("null", seenNull).field("false", seenFalse).field("true", seenTrue).endObject();
+            builder.startObject("processed")
+                .field("blocks", processedBlocks)
+                .field("block_positions", processedBlockPositions)
+                .field("vectors", processedVectors)
+                .field("vector_positions", processedVectorPositions)
+                .field("all_nulls", processedAllNulls)
+                .field("all_null_positions", processedAllNullPositions)
+                .endObject();
+            return builder.endObject();
+        }
     }
 }
