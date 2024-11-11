@@ -149,6 +149,7 @@ public class EsqlSession {
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
+            request.filter(),
             new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
@@ -266,13 +267,18 @@ public class EsqlSession {
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
+    public void analyzedPlan(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder filter,
+        ActionListener<LogicalPlan> listener
+    ) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
         }
 
-        preAnalyze(parsed, executionInfo, (indices, policies) -> {
+        preAnalyze(parsed, executionInfo, filter, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
             Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
@@ -285,6 +291,7 @@ public class EsqlSession {
     private <T> void preAnalyze(
         LogicalPlan parsed,
         EsqlExecutionInfo executionInfo,
+        QueryBuilder filter,
         BiFunction<IndexResolution, EnrichResolution, T> action,
         ActionListener<T> listener
     ) {
@@ -336,7 +343,7 @@ public class EsqlSession {
                     }
                 }
                 ll.onResponse(action.apply(indexResolution, enrichResolution));
-            }), matchFields);
+            }), matchFields, filter);
         }));
     }
 
@@ -345,7 +352,8 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         Map<String, Exception> unavailableClusters,  // known to be unavailable from the enrich policy API call
         ActionListener<IndexResolution> listener,
-        Set<String> enrichPolicyMatchFields
+        Set<String> enrichPolicyMatchFields,
+        QueryBuilder filter
     ) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
@@ -389,7 +397,7 @@ public class EsqlSession {
                 listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);
+                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, filter, listener);
             }
         } else {
             try {
