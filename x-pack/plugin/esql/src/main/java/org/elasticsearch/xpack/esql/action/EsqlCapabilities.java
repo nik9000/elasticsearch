@@ -407,7 +407,12 @@ public class EsqlCapabilities {
         /**
          * Fix pushdown of LIMIT past MV_EXPAND
          */
-        ADD_LIMIT_INSIDE_MV_EXPAND;
+        ADD_LIMIT_INSIDE_MV_EXPAND,
+
+        /**
+         * Fix for regex folding with case-insensitive pattern https://github.com/elastic/elasticsearch/issues/118371
+         */
+        FIXED_REGEX_FOLD;
 
         private final boolean enabled;
 

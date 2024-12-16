@@ -17,13 +17,11 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Like;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.LikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
@@ -101,7 +99,6 @@ public class ConstantFoldingTests extends ESTestCase {
     }
 
     public void testConstantFoldingLikes() {
-        assertEquals(TRUE, new ConstantFolding().rule(new Like(EMPTY, of("test_emp"), new LikePattern("test%", (char) 0))).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(new WildcardLike(EMPTY, of("test_emp"), new WildcardPattern("test*"))).canonical());
         assertEquals(TRUE, new ConstantFolding().rule(new RLike(EMPTY, of("test_emp"), new RLikePattern("test.emp"))).canonical());
     }
