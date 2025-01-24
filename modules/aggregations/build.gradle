@@ -9,6 +9,7 @@
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description = 'Adds "built in" aggregations to Elasticsearch.'
@@ -42,6 +43,7 @@ artifacts {
 dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   clusterModules(project(':modules:lang-painless'))
+  javaRestTestImplementation project(':test:framework')
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
