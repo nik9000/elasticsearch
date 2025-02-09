@@ -44,10 +44,10 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
+    public PlanExecutor(IndexResolver indexResolver, EsqlFunctionRegistry functionRegistry, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
-        this.functionRegistry = new EsqlFunctionRegistry();
+        this.functionRegistry = functionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);

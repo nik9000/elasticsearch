@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -119,12 +120,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
-        ViewService viewService = new ViewService(services.clusterService());
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        ViewService viewService = new ViewService(services.clusterService(), functionRegistry);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
+            new PlanExecutor(new IndexResolver(services.client()), functionRegistry, services.telemetryProvider().getMeterRegistry(), getLicenseState()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory,
+            functionRegistry,
             viewService
         );
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -27,9 +28,11 @@ import java.util.function.Function;
 
 public class ViewService {
     private final ClusterService clusterService;
+    private final EsqlFunctionRegistry functionRegistry;
 
-    public ViewService(ClusterService clusterService) {
+    public ViewService(ClusterService clusterService, EsqlFunctionRegistry functionRegistry) {
         this.clusterService = clusterService;
+        this.functionRegistry = functionRegistry;
     }
 
     public LogicalPlan resolve(UnresolvedView unresolvedView, PlanTelemetry telementry) {
@@ -40,15 +43,19 @@ public class ViewService {
         }
         // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
         // NOCOMMIT this will make super-wrong Source. the _source should be the view.
+        // NOCOMMIT if there's a `filter` it applies "under" the view. that's weird. right?
+        // NOCOMMIT security to create this
+        // NOCOMMIT telemetry
         return new EsqlParser().createStatement(view.query(), new QueryParams(), telementry);
     }
 
     /**
-     * Adds or modifies a view by name. This method can only be invoked on the elected master node.
+     * Adds or modifies a view by name. This method can only be invoked on the master node.
      */
     public void put(String name, View view, ActionListener<Void> callback) {
         assert clusterService.localNode().isMasterNode();
-        // TODO validate the view parses
+        new EsqlParser().createStatement(view.query(), new QueryParams(), new PlanTelemetry(functionRegistry));
+        // TODO should we validate this in the transport action and make it async? like plan like a query
 
         updateClusterState(callback, current -> {
             Map<String, View> original = current.metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views();
