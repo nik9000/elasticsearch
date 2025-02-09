@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -76,6 +77,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
+    private final ViewService viewService;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
@@ -94,6 +96,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        ViewService viewService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -111,6 +114,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
         this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
+        this.viewService = viewService;
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
@@ -262,6 +266,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             foldCtx,
             enrichPolicyResolver,
+            viewService,
             executionInfo,
             remoteClusterService,
             planRunner,

@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedView;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -106,6 +108,7 @@ public class EsqlSession {
     private final Configuration configuration;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
+    private final ViewService viewService;
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
@@ -123,6 +126,7 @@ public class EsqlSession {
         Configuration configuration,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
+        ViewService viewService,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
@@ -136,6 +140,7 @@ public class EsqlSession {
         this.configuration = configuration;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
+        this.viewService = viewService;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
@@ -158,7 +163,7 @@ public class EsqlSession {
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
-            parse(request.query(), request.params()),
+            replaceViews(parse(request.query(), request.params())),
             executionInfo,
             request.filter(),
             new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
@@ -281,6 +286,10 @@ public class EsqlSession {
         var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
+    }
+
+    public LogicalPlan replaceViews(LogicalPlan parsed) {
+        return parsed.transformUp(UnresolvedView.class, uv -> viewService.resolve(uv, planTelemetry));
     }
 
     public void analyzedPlan(

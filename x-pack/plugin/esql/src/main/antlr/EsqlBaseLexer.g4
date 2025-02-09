@@ -281,6 +281,7 @@ FROM_COLON : COLON -> type(COLON);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
+DEV_VIEW : {this.isDevVersion()}? 'view' -> pushMode(FROM_VIEW_MODE);
 
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
@@ -307,6 +308,27 @@ FROM_MULTILINE_COMMENT
 FROM_WS
     : WS -> channel(HIDDEN)
     ;
+
+
+//
+// FROM VIEW command
+//
+mode FROM_VIEW_MODE;
+FROM_VIEW_PIPE : PIPE -> type(PIPE), popMode, popMode; // Pop FROM_VIEW and FROM
+FROM_UNQUOTED_IDENTIFIER : UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+
+FROM_VIEW_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+FROM_VIEW_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+FROM_VIEW_WS
+    : WS -> channel(HIDDEN)
+    ;
+
 //
 // DROP, KEEP
 //

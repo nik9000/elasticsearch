@@ -32,6 +32,7 @@ query
 sourceCommand
     : explainCommand
     | fromCommand
+    | fromViewCommand
     | rowCommand
     | showCommand
     // in development
@@ -135,6 +136,10 @@ field
 
 fromCommand
     : FROM indexPattern (COMMA indexPattern)* metadata?
+    ;
+
+fromViewCommand
+    : FROM DEV_VIEW UNQUOTED_IDENTIFIER
     ;
 
 indexPattern

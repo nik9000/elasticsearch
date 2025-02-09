@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedView;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -257,7 +258,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
+    public Object visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
@@ -283,6 +284,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             null,
             "FROM"
         );
+    }
+
+    @Override
+    public Object visitFromViewCommand(EsqlBaseParser.FromViewCommandContext ctx) {
+        Source source = source(ctx);
+        return new UnresolvedView(source, ctx.UNQUOTED_IDENTIFIER().getText());
     }
 
     @Override

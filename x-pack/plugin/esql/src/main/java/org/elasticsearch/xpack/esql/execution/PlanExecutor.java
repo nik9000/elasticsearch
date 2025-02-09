@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -59,6 +60,7 @@ public class PlanExecutor {
         Configuration cfg,
         FoldContext foldContext,
         EnrichPolicyResolver enrichPolicyResolver,
+        ViewService viewService,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -71,6 +73,7 @@ public class PlanExecutor {
             cfg,
             indexResolver,
             enrichPolicyResolver,
+            viewService,
             preAnalyzer,
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),

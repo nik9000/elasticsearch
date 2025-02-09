@@ -43,6 +43,7 @@ public class ConsumeProcessor implements Processor {
             "org.elasticsearch.rest.ServerlessScope",
             "org.elasticsearch.xcontent.ParserConstructor",
             "org.elasticsearch.core.UpdateForV9",
+            "org.elasticsearch.core.SuppressForbidden",
             Fixed.class.getName()
         );
     }
