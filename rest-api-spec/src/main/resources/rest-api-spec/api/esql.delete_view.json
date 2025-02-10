@@ -1,0 +1,30 @@
+{
+  "esql.delete_view":{
+    "documentation":{
+      "url":"NOCOMMIT",
+      "description":"Creates a VIEW for ESQL."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_query/view/{name}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the view"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
