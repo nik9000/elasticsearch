@@ -163,7 +163,7 @@ public class EsqlSession {
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
-            replaceViews(parse(request.query(), request.params())),
+            viewService.replaceViews(parse(request.query(), request.params()), planTelemetry),
             executionInfo,
             request.filter(),
             new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
@@ -286,10 +286,6 @@ public class EsqlSession {
         var parsed = new EsqlParser().createStatement(query, params, planTelemetry);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
-    }
-
-    public LogicalPlan replaceViews(LogicalPlan parsed) {
-        return parsed.transformUp(UnresolvedView.class, uv -> viewService.resolve(uv, planTelemetry));
     }
 
     public void analyzedPlan(
