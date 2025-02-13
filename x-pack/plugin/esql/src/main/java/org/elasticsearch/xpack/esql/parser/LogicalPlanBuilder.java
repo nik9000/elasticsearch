@@ -12,6 +12,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Collect;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -464,6 +466,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };
+    }
+
+    @Override
+    public PlanFactory visitCollectCommand(EsqlBaseParser.CollectCommandContext ctx) {
+        Source src = source(ctx);
+        ReferenceAttribute nameAttr = new ReferenceAttribute(src, "name", DataType.KEYWORD);
+        ReferenceAttribute pageCountAttr = new ReferenceAttribute(src, "page_count", DataType.INTEGER);
+        ReferenceAttribute expirationAttr = new ReferenceAttribute(src, "expiration", DataType.DATETIME);
+        String name = visitIdentifier(ctx.identifier());
+        TimeValue expiration = TimeValue.timeValueHours(1);
+        return child -> new Collect(src, child, nameAttr, pageCountAttr, expirationAttr, name, expiration);
     }
 
     @Override

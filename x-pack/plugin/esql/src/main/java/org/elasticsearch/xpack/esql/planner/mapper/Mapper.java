@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Collect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -131,6 +132,11 @@ public class Mapper {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
             if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 mappedChild = addExchangeForFragment(enrich.child(), mappedChild);
+                return MapperUtils.mapUnary(unary, mappedChild);
+            }
+            if (unary instanceof Collect) {
+                // Collect must be run once, on the coordinator
+                mappedChild = addExchangeForFragment(unary.child(), mappedChild);
                 return MapperUtils.mapUnary(unary, mappedChild);
             }
             // in case of a fragment, push to it any current streaming operator

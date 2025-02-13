@@ -70,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -445,12 +446,19 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             }
             final R resp;
             try {
+                // NOCOMMIT here
                 final BytesReference source = getResponse.getSourceInternal();
                 // reserve twice memory of the source length: one for the internal XContent parser and one for the response
                 final long reservedBytes = source.length() * 2L;
                 circuitBreaker.addEstimateBytesAndMaybeBreak(reservedBytes, "decode async response");
                 listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
-                resp = parseResponseFromIndex(asyncExecutionId, source, restoreResponseHeaders, checkAuthentication);
+                resp = parseResponseFromIndex(
+                    source,
+                    restoreResponseHeaders,
+                    checkAuthentication,
+                    Function.identity(),
+                    () -> new ResourceNotFoundException(asyncExecutionId.getEncoded())
+                );
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
@@ -459,11 +467,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }));
     }
 
-    private R parseResponseFromIndex(
-        AsyncExecutionId asyncExecutionId,
+    public R parseResponseFromIndex(
         BytesReference source,
         boolean restoreResponseHeaders,
-        boolean checkAuthentication
+        boolean checkAuthentication,
+        Function<StreamInput, StreamInput> wrapInput,
+        Supplier<RuntimeException> notFound
     ) {
         try (
             XContentParser parser = XContentHelper.createParser(
@@ -480,14 +489,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                 parser.nextToken();
                 switch (parser.currentName()) {
-                    case RESULT_FIELD -> resp = decodeResponse(parser.charBuffer());
+                    case RESULT_FIELD -> resp = decodeResponse(wrapInput, parser.charBuffer());
                     case EXPIRATION_TIME_FIELD -> expirationTime = (long) parser.numberValue();
                     case HEADERS_FIELD -> {
                         @SuppressWarnings("unchecked")
                         final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
                         if (checkAuthentication && false == security.currentUserHasAccessToTaskWithHeaders(headers)) {
-                            throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
+                            throw notFound.get();
                         }
                     }
                     case RESPONSE_HEADERS_FIELD -> {
@@ -566,7 +575,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    private R decodeResponse(CharBuffer encodedBuffer) throws IOException {
+    private R decodeResponse(Function<StreamInput, StreamInput> wrapInput, CharBuffer encodedBuffer) throws IOException {
         InputStream encodedIn = Base64.getDecoder().wrap(new InputStream() {
             @Override
             public int read() {
@@ -585,7 +594,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         } else {
             input = new InputStreamStreamInput(encodedIn);
         }
-        try (StreamInput in = new NamedWriteableAwareStreamInput(input, registry)) {
+        try (StreamInput in = wrapInput.apply(new NamedWriteableAwareStreamInput(input, registry))) {
             in.setTransportVersion(version);
             return reader.read(in);
         }

@@ -20,7 +20,8 @@ options {
   tokenVocab=EsqlBaseLexer;
 }
 
-import Expression,
+import Collect,
+       Expression,
        Join;
 
 singleStatement
@@ -56,6 +57,7 @@ processingCommand
     | mvExpandCommand
     | joinCommand
     // in development
+    | {this.isDevVersion()}? collectCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? changePointCommand

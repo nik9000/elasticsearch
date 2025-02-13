@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.operator.collect.CollectResultsService;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
@@ -90,6 +91,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        CollectResultsService collectResultsService,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactory blockFactory,
@@ -129,6 +131,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             exchangeService,
             enrichLookupService,
             lookupFromIndexService,
+            collectResultsService,
             clusterService,
             threadPool,
             bigArrays,

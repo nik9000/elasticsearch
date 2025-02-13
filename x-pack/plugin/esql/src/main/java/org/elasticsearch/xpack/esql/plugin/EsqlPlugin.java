@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
+import org.elasticsearch.compute.operator.collect.CollectResultsService;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
@@ -112,11 +113,19 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        CollectResultsService collectResultsService = new CollectResultsService(
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.namedWriteableRegistry(),
+            bigArrays
+        );
         setupSharedSecrets();
         return List.of(
             new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
-            blockFactory
+            blockFactory,
+            collectResultsService
         );
     }
 

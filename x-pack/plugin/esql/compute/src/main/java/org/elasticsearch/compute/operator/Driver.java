@@ -298,6 +298,9 @@ public class Driver implements Releasable, Describable {
             }
 
             if (op.isFinished()) {
+                if (nextOp.isBlocked().listener().isDone() == false) {
+                    return op.isBlocked();
+                }
                 driverContext.checkForEarlyTermination();
                 nextOp.finish();
             }

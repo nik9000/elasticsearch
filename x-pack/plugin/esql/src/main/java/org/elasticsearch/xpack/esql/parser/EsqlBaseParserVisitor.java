@@ -357,6 +357,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#collectCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCollectCommand(EsqlBaseParser.CollectCommandContext ctx);
+  /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.
    * @param ctx the parse tree

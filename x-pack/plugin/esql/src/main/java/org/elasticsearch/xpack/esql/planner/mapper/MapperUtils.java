@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Collect;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.CollectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -98,6 +100,18 @@ class MapperUtils {
 
         if (p instanceof MvExpand mvExpand) {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
+        }
+
+        if (p instanceof Collect collect) {
+            return new CollectExec(
+                collect.source(),
+                child,
+                collect.nameAttr(),
+                collect.pageCountAttr(),
+                collect.expirationAttr(),
+                collect.name(),
+                collect.expiration()
+            );
         }
 
         if (p instanceof ChangePoint changePoint) {
