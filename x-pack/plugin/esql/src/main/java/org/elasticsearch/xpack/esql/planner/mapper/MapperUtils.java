@@ -109,7 +109,6 @@ class MapperUtils {
                 collect.nameAttr(),
                 collect.pageCountAttr(),
                 collect.expirationAttr(),
-                collect.name(),
                 collect.expiration()
             );
         }

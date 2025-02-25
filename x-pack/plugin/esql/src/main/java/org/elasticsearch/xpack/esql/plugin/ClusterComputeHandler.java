@@ -263,6 +263,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         List.of(),
                         configuration,
                         configuration.newFoldContext(),
+                        null,
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),

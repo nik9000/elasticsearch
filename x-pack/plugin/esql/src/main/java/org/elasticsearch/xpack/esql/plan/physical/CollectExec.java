@@ -23,7 +23,6 @@ public class CollectExec extends UnaryExec {
     private final ReferenceAttribute nameAttr;
     private final ReferenceAttribute pageCountAttr;
     private final ReferenceAttribute expirationAttr;
-    private final String name;
     private final TimeValue expiration;
 
     public CollectExec(
@@ -32,14 +31,12 @@ public class CollectExec extends UnaryExec {
         ReferenceAttribute nameAttr,
         ReferenceAttribute pageCountAttr,
         ReferenceAttribute expirationAttr,
-        String name,
         TimeValue expiration
     ) {
         super(source, child);
         this.nameAttr = nameAttr;
         this.pageCountAttr = pageCountAttr;
         this.expirationAttr = expirationAttr;
-        this.name = name;
         this.expiration = expiration;
     }
 
@@ -55,16 +52,12 @@ public class CollectExec extends UnaryExec {
 
     @Override
     protected NodeInfo<CollectExec> info() {
-        return NodeInfo.create(this, CollectExec::new, child(), nameAttr, pageCountAttr, expirationAttr, name, expiration);
+        return NodeInfo.create(this, CollectExec::new, child(), nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     @Override
     public CollectExec replaceChild(PhysicalPlan newChild) {
-        return new CollectExec(source(), newChild, nameAttr, pageCountAttr, expirationAttr, name, expiration);
-    }
-
-    public String name() {
-        return name;
+        return new CollectExec(source(), newChild, nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     public TimeValue expiration() {
@@ -78,12 +71,12 @@ public class CollectExec extends UnaryExec {
 
     @Override
     protected AttributeSet computeReferences() {
-        return child().references();
+        return child().outputSet();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), nameAttr, pageCountAttr, expirationAttr, name, expiration);
+        return Objects.hash(child(), nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     @Override
@@ -100,7 +93,6 @@ public class CollectExec extends UnaryExec {
         return nameAttr.equals(other.nameAttr)
             && pageCountAttr.equals(other.pageCountAttr)
             && expirationAttr.equals(other.expirationAttr)
-            && name.equals(other.name)
             && expiration.equals(other.expiration)
             && child().equals(other.child());
     }

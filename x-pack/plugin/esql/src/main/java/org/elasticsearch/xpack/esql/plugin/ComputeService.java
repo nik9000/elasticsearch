@@ -114,7 +114,14 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         this.collectResultsService = collectResultsService;
         this.clusterService = clusterService;
-        this.dataNodeComputeHandler = new DataNodeComputeHandler(this, searchService, transportService, exchangeService, esqlExecutor);
+        this.dataNodeComputeHandler = new DataNodeComputeHandler(
+            this,
+            searchService,
+            transportService,
+            exchangeService,
+            esqlExecutor,
+            collectResultsService
+        );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,
@@ -168,6 +175,7 @@ public class ComputeService {
                 List.of(),
                 configuration,
                 foldContext,
+                collectResultsService,
                 null,
                 null
             );
@@ -244,6 +252,7 @@ public class ComputeService {
                             List.of(),
                             configuration,
                             foldContext,
+                            collectResultsService,
                             exchangeSource::createExchangeSource,
                             null
                         ),
@@ -357,7 +366,7 @@ public class ComputeService {
                 }
             };
             contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter())
+                new EsPhysicalOperationProviders.DefaultShardContext(i, searchExecutionContext, searchContext.request().getAliasFilter(), searchContext.indexShard())
             );
         }
         final List<Driver> drivers;
@@ -385,7 +394,13 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.taskDescription(), context.foldCtx(), plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
+                context.taskDescription(),
+                context.sessionId(),
+                context.foldCtx(),
+                context.collectResultsService(),
+                plan
+            );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }

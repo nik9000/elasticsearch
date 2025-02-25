@@ -11,54 +11,36 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
-public class CollectedMetadata implements Writeable {
-    private final String prefix;
-    private final int pageIds;
-
-    public CollectedMetadata(String prefix, int pageIds) {
-        this.prefix = prefix;
-        this.pageIds = pageIds;
-    }
-
-    CollectedMetadata(StreamInput in) throws IOException {
-        prefix = in.readString();
-        pageIds = in.readInt();
+public record CollectedMetadata(List<Field> fields, int pageCount) implements Writeable {
+    public CollectedMetadata(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(Field::new), in.readVInt());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(prefix);
-        out.writeInt(pageIds);
+        out.writeCollection(fields);
+        out.writeVInt(pageCount);
     }
 
-    String pageId(int page) {
-        assert page <= pageIds;
-        return CollectResultsService.pageId(prefix, page);
-    }
-
-    public int pageIds() {
-        return pageIds;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) {
-            return false;
+    public record Field(String name, String type) implements Writeable {
+        Field(StreamInput in) throws IOException {
+            this(in.readString(), in.readString());
         }
-        CollectedMetadata that = (CollectedMetadata) o;
-        return pageIds == that.pageIds && Objects.equals(prefix, that.prefix);
-    }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(prefix, pageIds);
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(type);
+        }
     }
 }

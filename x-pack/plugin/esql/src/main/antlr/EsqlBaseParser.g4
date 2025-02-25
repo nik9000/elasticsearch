@@ -20,8 +20,7 @@ options {
   tokenVocab=EsqlBaseLexer;
 }
 
-import Collect,
-       Expression,
+import Expression,
        Join;
 
 singleStatement
@@ -267,4 +266,8 @@ forkSubQueryProcessingCommand
     : whereCommand
     | sortCommand
     | limitCommand
+    ;
+
+collectCommand
+    : DEV_COLLECT
     ;

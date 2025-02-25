@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsCollectedSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -17,6 +18,8 @@ interface PhysicalOperationProviders {
     PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source);
 
     PhysicalOperation sourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
+
+    PhysicalOperation collectedSourcePhysicalOperation(EsCollectedSourceExec esCollectedSourceExec, LocalExecutionPlannerContext context);
 
     PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,

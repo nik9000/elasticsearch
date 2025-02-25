@@ -21,14 +21,20 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CollectOperator implements Operator {
-    public record Factory(CollectResultsService service, String name, Instant expirationTime) implements OperatorFactory {
+    public record Factory(CollectResultsService service, String sessionId, List<CollectedMetadata.Field> fields, Instant expirationTime)
+        implements
+            OperatorFactory {
         @Override
         public CollectOperator get(DriverContext driverContext) {
-            return new CollectOperator(driverContext, service, name, expirationTime);
+            return new CollectOperator(driverContext, service, sessionId, fields, expirationTime);
         }
 
         @Override
@@ -41,8 +47,8 @@ public class CollectOperator implements Operator {
 
     private final CollectResultsService service;
     private final DriverContext driverContext;
-    private final String prefix;
-    private final String name;
+    private final AsyncExecutionId mainId;
+    private final List<CollectedMetadata.Field> fields;
     private final Instant expirationTime;
 
     private int pageCount;
@@ -50,11 +56,17 @@ public class CollectOperator implements Operator {
     private volatile Phase phase = Phase.COLLECTING;
     private volatile IsBlockedResult blocked = NOT_BLOCKED;
 
-    public CollectOperator(DriverContext driverContext, CollectResultsService service, String name, Instant expirationTime) {
+    public CollectOperator(
+        DriverContext driverContext,
+        CollectResultsService service,
+        String sessionId,
+        List<CollectedMetadata.Field> fields,
+        Instant expirationTime
+    ) {
         this.driverContext = driverContext;
         this.service = service;
-        this.prefix = UUIDs.randomBase64UUID();
-        this.name = name;
+        this.mainId = new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(sessionId.split("/")[0]));
+        this.fields = fields;
         this.expirationTime = expirationTime;
     }
 
@@ -71,7 +83,7 @@ public class CollectOperator implements Operator {
         LogManager.getLogger(CollectOperator.class).error("indexing");
         driverContext.addAsyncAction();
         blocked = new IsBlockedResult(blockedFuture, "indexing");
-        service.save(prefix, pageCount, page, expirationTime, new ActionListener<>() {
+        service.savePage(mainId, pageCount, page, expirationTime, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 pageCount++;
@@ -115,7 +127,7 @@ public class CollectOperator implements Operator {
         LogManager.getLogger(CollectOperator.class).error("writing finished");
         driverContext.addAsyncAction();
         blocked = new IsBlockedResult(blockedFuture, "finishing");
-        service.save(name, new CollectedMetadata(prefix, pageCount), expirationTime, new ActionListener<>() {
+        service.saveMetadata(mainId, new CollectedMetadata(fields, pageCount), expirationTime, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 phase = Phase.READY_TO_OUTPUT;
@@ -155,7 +167,7 @@ public class CollectOperator implements Operator {
         Block pageCountBlock = null;
         Block expiration = null;
         try {
-            nameBlock = driverContext.blockFactory().newConstantBytesRefBlockWith(new BytesRef(name), 1);
+            nameBlock = driverContext.blockFactory().newConstantBytesRefBlockWith(new BytesRef(mainId.getEncoded()), 1);
             pageCountBlock = driverContext.blockFactory().newConstantIntBlockWith(pageCount, 1);
             expiration = driverContext.blockFactory().newConstantLongBlockWith(expirationTime.toEpochMilli(), 1);
             Page result = new Page(nameBlock, pageCountBlock, expiration);

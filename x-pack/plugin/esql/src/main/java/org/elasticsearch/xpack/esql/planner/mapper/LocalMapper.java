@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.physical.EsCollectedSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -57,7 +58,11 @@ public class LocalMapper {
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {
         if (leaf instanceof EsRelation esRelation) {
-            return new EsSourceExec(esRelation);
+            if (esRelation.collectedConfig() == null) {
+                return new EsSourceExec(esRelation);
+            } else {
+                return new EsCollectedSourceExec(esRelation);
+            }
         }
 
         return MapperUtils.mapLeaf(leaf);

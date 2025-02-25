@@ -41,6 +41,7 @@ import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
 import org.elasticsearch.compute.operator.collect.CollectOperator;
 import org.elasticsearch.compute.operator.collect.CollectResultsService;
+import org.elasticsearch.compute.operator.collect.CollectedMetadata;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CollectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsCollectedSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
@@ -180,14 +183,22 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(
+        String taskDescription,
+        String sessionId,
+        FoldContext foldCtx,
+        CollectResultsService collectResultsService,
+        PhysicalPlan localPhysicalPlan
+    ) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
             bigArrays,
+            sessionId,
             blockFactory,
             foldCtx,
+            collectResultsService,
             settings
         );
 
@@ -240,6 +251,8 @@ public class LocalExecutionPlanner {
         // source nodes
         else if (node instanceof EsQueryExec esQuery) {
             return planEsQueryNode(esQuery, context);
+        } else if (node instanceof EsCollectedSourceExec esCollectedSourceExec) {
+            return planEsCollectedSourceExec(esCollectedSourceExec, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
         } else if (node instanceof LocalSourceExec localSource) {
@@ -276,6 +289,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
+    }
+
+    private PhysicalOperation planEsCollectedSourceExec(EsCollectedSourceExec esCollectedSourceExec, LocalExecutionPlannerContext context) {
+        return physicalOperationProviders.collectedSourcePhysicalOperation(esCollectedSourceExec, context);
     }
 
     private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
@@ -719,10 +736,15 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(collect.child(), context);
         Layout.Builder layout = new Layout.Builder();
         layout.append(collect.output());
+        List<CollectedMetadata.Field> fields = collect.child()
+            .output()
+            .stream()
+            .map(a -> new CollectedMetadata.Field(a.name(), a.dataType().typeName()))
+            .toList();
         Instant expiration = configuration.now()
             .toInstant()
             .plus(collect.expiration().duration(), collect.expiration().timeUnit().toChronoUnit());
-        return source.with(new CollectOperator.Factory(collectResultsService, collect.name(), expiration), layout.build());
+        return source.with(new CollectOperator.Factory(collectResultsService, context.sessionId, fields, expiration), layout.build());
     }
 
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
@@ -852,8 +874,10 @@ public class LocalExecutionPlanner {
         Holder<DriverParallelism> driverParallelism,
         QueryPragmas queryPragmas,
         BigArrays bigArrays,
+        String sessionId,
         BlockFactory blockFactory,
         FoldContext foldCtx,
+        CollectResultsService collectResultsService,
         Settings settings
     ) {
         void addDriverFactory(DriverFactory driverFactory) {

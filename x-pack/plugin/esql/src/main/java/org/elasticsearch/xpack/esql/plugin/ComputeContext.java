@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.compute.operator.collect.CollectResultsService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -24,6 +25,7 @@ record ComputeContext(
     List<SearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,
+    CollectResultsService collectResultsService,
     Supplier<ExchangeSource> exchangeSourceSupplier,
     Supplier<ExchangeSink> exchangeSinkSupplier
 ) {

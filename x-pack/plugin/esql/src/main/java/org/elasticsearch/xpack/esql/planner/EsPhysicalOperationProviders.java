@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.collect.FromCollectedOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -40,11 +41,13 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -56,12 +59,14 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsCollectedSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.jcodings.transcode.EConvFlags;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -95,6 +100,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * Returns something to load values from this field into a {@link Block}.
          */
         BlockLoader blockLoader(String name, boolean asUnsupportedSource, MappedFieldType.FieldExtractPreference fieldExtractPreference);
+
+        IndexShard indexShard();
     }
 
     private final List<ShardContext> shardContexts;
@@ -132,7 +139,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField kf) {
-            shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
+            shardContext = new DefaultShardContextForUnmappedField(shardContext, kf, shardContext.indexShard);
         }
 
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
@@ -152,8 +159,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
         private final KeywordEsField unmappedEsField;
 
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, PotentiallyUnmappedKeywordEsField unmappedEsField) {
-            super(ctx.index, ctx.ctx, ctx.aliasFilter);
+        DefaultShardContextForUnmappedField(
+            DefaultShardContext ctx,
+            PotentiallyUnmappedKeywordEsField unmappedEsField,
+            IndexShard indexShard
+        ) {
+            super(ctx.index, ctx.ctx, ctx.aliasFilter, indexShard);
             this.unmappedEsField = unmappedEsField;
         }
 
@@ -232,6 +243,25 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
     }
 
+    @Override
+    public PhysicalOperation collectedSourcePhysicalOperation(
+        EsCollectedSourceExec esCollectedSourceExec,
+        LocalExecutionPlannerContext context
+    ) {
+        FromCollectedOperator.Factory factory = new FromCollectedOperator.Factory(
+            // CollectResultsService resultsService, IndexShard shard, AsyncExecutionId mainId, CollectedMetadata metadata
+            context.collectResultsService(),
+            shardContexts.get(0).indexShard(),
+            AsyncExecutionId.decode(esCollectedSourceExec.config().mainId()),
+            esCollectedSourceExec.config().metadata()
+        );
+
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(esCollectedSourceExec.output());
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+        return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
     /**
      * Build a {@link SourceOperator.SourceOperatorFactory} that counts documents in the search index.
      */
@@ -276,11 +306,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final int index;
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
+        private final IndexShard indexShard;
 
-        public DefaultShardContext(int index, SearchExecutionContext ctx, AliasFilter aliasFilter) {
+        public DefaultShardContext(int index, SearchExecutionContext ctx, AliasFilter aliasFilter, IndexShard indexShard) {
             this.index = index;
             this.ctx = ctx;
             this.aliasFilter = aliasFilter;
+            this.indexShard = indexShard;
         }
 
         @Override
@@ -386,6 +418,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         protected @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
+        }
+
+        @Override
+        public IndexShard indexShard() {
+            return indexShard;
         }
     }
 

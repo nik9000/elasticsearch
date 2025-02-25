@@ -11,6 +11,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.collect.CollectedConfig;
+import org.elasticsearch.compute.operator.collect.CollectedMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -42,9 +45,14 @@ public class EsRelation extends LeafPlan {
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
+    /**
+     * If this is {@code FROM} a {@code | COLLECT}ed result this is that result's read configuration.
+     */
+    @Nullable
+    private final CollectedConfig collectedConfig;
 
     public EsRelation(Source source, EsIndex index, IndexMode indexMode) {
-        this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()));
+        this(source, index.name(), indexMode, index.indexNameWithModes(), flatten(source, index.mapping()), null);
     }
 
     public EsRelation(
@@ -52,13 +60,15 @@ public class EsRelation extends LeafPlan {
         String indexPattern,
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
-        List<Attribute> attributes
+        List<Attribute> attributes,
+        @Nullable CollectedConfig collectedConfig
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
+        this.collectedConfig = collectedConfig;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
@@ -84,7 +94,10 @@ public class EsRelation extends LeafPlan {
         if (in.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             in.readBoolean();
         }
-        return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes);
+        CollectedConfig collectedConfig = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_COLLECT)
+            ? in.readOptional(CollectedConfig::new)
+            : null;
+        return new EsRelation(source, indexPattern, indexMode, indexNameWithModes, attributes, collectedConfig);
     }
 
     @Override
@@ -107,6 +120,9 @@ public class EsRelation extends LeafPlan {
         if (out.getTransportVersion().before(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
             out.writeBoolean(false);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_COLLECT)) {
+            out.writeOptional((o, c) -> c.writeTo(o), collectedConfig);
+        }
     }
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
@@ -120,7 +136,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, indexNameWithModes, attrs);
+        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, indexNameWithModes, attrs, collectedConfig);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -172,6 +188,11 @@ public class EsRelation extends LeafPlan {
         return indexNameWithModes.keySet();
     }
 
+    @Nullable
+    public CollectedConfig collectedConfig() {
+        return collectedConfig;
+    }
+
     @Override
     public boolean expressionsResolved() {
         // For unresolved expressions to exist in EsRelation is fine, as long as they are not used in later operations
@@ -198,7 +219,8 @@ public class EsRelation extends LeafPlan {
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
-            && Objects.equals(attrs, other.attrs);
+            && Objects.equals(attrs, other.attrs)
+            && Objects.equals(collectedConfig, other.collectedConfig);
     }
 
     @Override
@@ -228,6 +250,6 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes);
+        return new EsRelation(source(), indexPattern, indexMode, indexNameWithModes, newAttributes, collectedConfig);
     }
 }

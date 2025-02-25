@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsCollectedSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -126,6 +127,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         Layout.Builder layout = new Layout.Builder();
         layout.append(esQueryExec.output());
         return PhysicalOperation.fromSource(new TestSourceOperatorFactory(), layout.build());
+    }
+
+    @Override
+    public PhysicalOperation collectedSourcePhysicalOperation(EsCollectedSourceExec esCollectedSourceExec, LocalExecutionPlannerContext context) {
+        throw new UnsupportedOperationException("collect not supported by csv tests");
     }
 
     @Override

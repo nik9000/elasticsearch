@@ -67,21 +67,21 @@ public class CollectResultsService {
         this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
-    void save(String prefix, int sequence, Page page, Instant expirationTime, ActionListener<DocWriteResponse> listener) {
+    void savePage(AsyncExecutionId main, int sequence, Page page, Instant expirationTime, ActionListener<DocWriteResponse> listener) {
         pageStore.createResponse(
-            pageId(prefix, sequence),
+            pageId(main, sequence),
             Map.of(),
             new StoredAsyncResponse<>(page, expirationTime.toEpochMilli()),
             listener
         );
     }
 
-    void save(String name, CollectedMetadata metadata, Instant expirationTime, ActionListener<DocWriteResponse> listener) {
-        metadataStore.createResponse(name, Map.of(), new StoredAsyncResponse<>(metadata, expirationTime.toEpochMilli()), listener);
+    void saveMetadata(AsyncExecutionId id, CollectedMetadata metadata, Instant expirationTime, ActionListener<DocWriteResponse> listener) {
+        metadataStore.createResponse(id.getDocId(), Map.of(), new StoredAsyncResponse<>(metadata, expirationTime.toEpochMilli()), listener);
     }
 
-    void loadMetadata(String name, ActionListener<CollectedMetadata> listener) {
-        metadataStore.getResponse(new AsyncExecutionId(name, new TaskId("dummy")), false, new ActionListener<>() {
+    public void loadMetadata(AsyncExecutionId id, ActionListener<CollectedMetadata> listener) {
+        metadataStore.getResponse(id, false, new ActionListener<>() {
             @Override
             public void onResponse(StoredAsyncResponse<CollectedMetadata> r) {
                 if (r.getException() == null) {
@@ -118,7 +118,7 @@ public class CollectResultsService {
                 in -> new BlockStreamInput(in, blockFactory),
                 () -> new ResourceNotFoundException("can't find Page")
             );
-            if (r.getException() == null) {
+            if (r.getException() != null) {
                 throw new RuntimeException("page contained an error", r.getException());
             }
             return r.getResponse();
@@ -127,7 +127,7 @@ public class CollectResultsService {
         }
     }
 
-    static String pageId(String prefix, int sequence) {
-        return prefix + ":" + sequence;
+    static String pageId(AsyncExecutionId main, int sequence) {
+        return main.getDocId() + ":" + sequence;
     }
 }

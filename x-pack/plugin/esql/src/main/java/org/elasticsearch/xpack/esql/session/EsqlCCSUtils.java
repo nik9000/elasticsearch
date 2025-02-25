@@ -191,7 +191,7 @@ public class EsqlCCSUtils {
         Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
         clustersWithNoMatchingIndices.removeAll(indexResolution.unavailableClusters().keySet());
 
-        /**
+        /*
          * Rules enforced at planning time around non-matching indices
          * 1. fail query if no matching indices on any cluster (VerificationException) - that is handled elsewhere
          * 2. fail query if a cluster has no matching indices *and* a concrete index was specified - handled here
@@ -303,6 +303,9 @@ public class EsqlCCSUtils {
         XPackLicenseState licenseState
     ) {
         for (TableInfo tableInfo : indices) {
+            if (tableInfo.id().indexPattern().startsWith("$collected:")) {
+                continue;
+            }
             Map<String, OriginalIndices> groupedIndices;
             try {
                 groupedIndices = indicesGrouper.groupIndices(IndicesOptions.DEFAULT, tableInfo.id().indexPattern());

@@ -18,6 +18,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.collect.CollectResultsService;
+import org.elasticsearch.compute.operator.collect.CollectedConfig;
+import org.elasticsearch.compute.operator.collect.CollectedMetadata;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -25,6 +28,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -43,6 +49,9 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -84,9 +93,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -115,6 +126,7 @@ public class EsqlSession {
     private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final PreMapper preMapper;
+    private final CollectResultsService collectResultsService;
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
@@ -133,7 +145,8 @@ public class EsqlSession {
         Verifier verifier,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        TransportActionServices services
+        TransportActionServices services,
+        CollectResultsService collectResultsService
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -148,6 +161,7 @@ public class EsqlSession {
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.preMapper = new PreMapper(services);
+        this.collectResultsService = collectResultsService;
     }
 
     public String sessionId() {
@@ -360,6 +374,7 @@ public class EsqlSession {
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream()
                 .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().indexPattern())))
+                .filter(s -> s.startsWith("$collected:") == false)
                 .toArray(String[]::new)
         ).keySet();
 
@@ -436,9 +451,13 @@ public class EsqlSession {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
         } else if (indices.size() == 1) {
+            TableInfo tableInfo = indices.get(0);
+            if (tableInfo.id().indexPattern().startsWith("$collected:")) {
+                preAnalyzeCollected(tableInfo, executionInfo, result, requestFilter, listener);
+                return;
+            }
             // known to be unavailable from the enrich policy API call
             Map<String, Exception> unavailableClusters = result.enrichResolution.getUnavailableClusters();
-            TableInfo tableInfo = indices.get(0);
             IndexPattern table = tableInfo.id();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
@@ -493,6 +512,42 @@ public class EsqlSession {
                 listener.onFailure(ex);
             }
         }
+    }
+
+    private void preAnalyzeCollected(
+        TableInfo tableInfo,
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        if (requestFilter != null) {
+            throw new IllegalArgumentException("[filter] not supported with $collected");
+        }
+        String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+            return new EsqlExecutionInfo.Cluster(clusterAlias, tableInfo.id().indexPattern(), false);
+        });
+        String id = tableInfo.id().indexPattern().substring("$collected:".length());
+        AsyncExecutionId asyncId = AsyncExecutionId.decode(id);
+        collectResultsService.loadMetadata(asyncId, listener.map(metadata -> {
+            Map<String, EsField> fields = new LinkedHashMap<>();
+            for (CollectedMetadata.Field f : metadata.fields()) {
+                fields.put(f.name(), new EsField(f.name(), DataType.fromTypeName(f.type()), Map.of(), true, false));
+            }
+            return result.withIndexResolution(
+                IndexResolution.valid(
+                    new EsIndex(
+                        XPackPlugin.ASYNC_RESULTS_INDEX,
+                        fields,
+                        Map.of(XPackPlugin.ASYNC_RESULTS_INDEX, IndexMode.STANDARD),
+                        Set.of(),
+                        new CollectedConfig(id, metadata)
+                    )
+                )
+            );
+        }));
     }
 
     private boolean analyzeCCSIndices(

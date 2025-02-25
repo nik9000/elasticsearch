@@ -260,7 +260,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.name(),
                 plan.indexMode(),
                 esIndex.indexNameWithModes(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes.isEmpty() ? NO_FIELDS : attributes,
+                esIndex.collectedConfig()
             );
         }
     }
@@ -1479,7 +1480,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         esr.indexPattern(),
                         esr.indexMode(),
                         esr.indexNameWithModes(),
-                        CollectionUtils.combine(esr.output(), missing)
+                        CollectionUtils.combine(esr.output(), missing),
+                        esr.collectedConfig()
                     );
                 }
                 return esr;

@@ -644,7 +644,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     0,
                     context.getSearchExecutionContext(),
-                    context.request().getAliasFilter()
+                    context.request().getAliasFilter(),
+                    context.indexShard()
                 ),
                 context.getSearchExecutionContext(),
                 context

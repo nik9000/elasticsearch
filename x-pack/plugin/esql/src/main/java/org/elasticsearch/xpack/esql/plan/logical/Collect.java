@@ -26,7 +26,6 @@ public class Collect extends UnaryPlan {
     private final ReferenceAttribute nameAttr;
     private final ReferenceAttribute pageCountAttr;
     private final ReferenceAttribute expirationAttr;
-    private final String name;
     private final TimeValue expiration;
 
     private List<Attribute> output;
@@ -37,14 +36,12 @@ public class Collect extends UnaryPlan {
         ReferenceAttribute nameAttr,
         ReferenceAttribute pageCountAttr,
         ReferenceAttribute expirationAttr,
-        String name,
         TimeValue expiration
     ) {
         super(source, child);
         this.nameAttr = nameAttr;
         this.pageCountAttr = pageCountAttr;
         this.expirationAttr = expirationAttr;
-        this.name = name;
         this.expiration = expiration;
     }
 
@@ -70,22 +67,18 @@ public class Collect extends UnaryPlan {
         return expirationAttr;
     }
 
-    public String name() {
-        return name;
-    }
-
     public TimeValue expiration() {
         return expiration;
     }
 
     @Override
     protected NodeInfo<Collect> info() {
-        return NodeInfo.create(this, Collect::new, child(), nameAttr, pageCountAttr, expirationAttr, name, expiration);
+        return NodeInfo.create(this, Collect::new, child(), nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Collect(source(), newChild, nameAttr, pageCountAttr, expirationAttr, name, expiration);
+        return new Collect(source(), newChild, nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     @Override
@@ -95,7 +88,7 @@ public class Collect extends UnaryPlan {
 
     @Override
     protected AttributeSet computeReferences() {
-        return child().references();
+        return child().outputSet();
     }
 
     @Override
@@ -105,7 +98,7 @@ public class Collect extends UnaryPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), nameAttr, pageCountAttr, expirationAttr, name, expiration);
+        return Objects.hash(child(), nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     @Override
@@ -122,7 +115,6 @@ public class Collect extends UnaryPlan {
         return nameAttr.equals(other.nameAttr)
             && pageCountAttr.equals(other.pageCountAttr)
             && expirationAttr.equals(other.expirationAttr)
-            && name.equals(other.name)
             && expiration.equals(other.expiration)
             && child().equals(other.child());
     }

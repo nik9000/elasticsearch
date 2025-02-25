@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.collect.CollectResultsService;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -69,13 +70,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     private final ExchangeService exchangeService;
     private final Executor esqlExecutor;
     private final ThreadPool threadPool;
+    private final CollectResultsService collectResultsService;
 
     DataNodeComputeHandler(
         ComputeService computeService,
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
-        Executor esqlExecutor
+        Executor esqlExecutor,
+        CollectResultsService collectResultsService
     ) {
         this.computeService = computeService;
         this.searchService = searchService;
@@ -83,6 +86,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.exchangeService = exchangeService;
         this.esqlExecutor = esqlExecutor;
         this.threadPool = transportService.getThreadPool();
+        this.collectResultsService = collectResultsService;
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, esqlExecutor, DataNodeRequest::new, this);
     }
 
@@ -275,6 +279,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     searchContexts,
                     configuration,
                     configuration.newFoldContext(),
+                    collectResultsService,
                     null,
                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                 );
@@ -419,6 +424,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         List.of(),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
+                        collectResultsService,
                         exchangeSource::createExchangeSource,
                         () -> externalSink.createExchangeSink(() -> {})
                     ),

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsCollectedSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -166,7 +167,14 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        boolean[] collected = new boolean[] { false };
+        plan.forEachDown(
+            FragmentExec.class,
+            f -> f.fragment().forEachDown(EsRelation.class, r -> collected[0] = r.collectedConfig() != null)
+        );
+        // If we're loading from a | COLLECTed result we don't have any index metadata
+        SearchStats stats = collected[0] ? new SearchStats.CollectedSearchStats() : SearchContextStats.from(searchContexts);
+        return localPlan(configuration, foldCtx, plan, stats);
     }
 
     public static PhysicalPlan localPlan(Configuration configuration, FoldContext foldCtx, PhysicalPlan plan, SearchStats searchStats) {

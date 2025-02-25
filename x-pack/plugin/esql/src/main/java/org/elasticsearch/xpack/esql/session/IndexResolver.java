@@ -162,7 +162,7 @@ public class IndexResolver {
             allEmpty &= ir.get().isEmpty();
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields, null);
         return IndexResolution.valid(index, concreteIndices.keySet(), unavailableRemotes);
     }
 

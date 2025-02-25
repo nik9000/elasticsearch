@@ -474,9 +474,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         ReferenceAttribute nameAttr = new ReferenceAttribute(src, "name", DataType.KEYWORD);
         ReferenceAttribute pageCountAttr = new ReferenceAttribute(src, "page_count", DataType.INTEGER);
         ReferenceAttribute expirationAttr = new ReferenceAttribute(src, "expiration", DataType.DATETIME);
-        String name = visitIdentifier(ctx.identifier());
         TimeValue expiration = TimeValue.timeValueHours(1);
-        return child -> new Collect(src, child, nameAttr, pageCountAttr, expirationAttr, name, expiration);
+        return child -> new Collect(src, child, nameAttr, pageCountAttr, expirationAttr, expiration);
     }
 
     @Override
