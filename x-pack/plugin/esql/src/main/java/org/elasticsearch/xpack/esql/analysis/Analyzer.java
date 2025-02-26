@@ -253,7 +253,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping(), esIndex.collectedConfig() == null);
             attributes.addAll(plan.metadataFields());
             return new EsRelation(
                 plan.source(),
@@ -274,10 +274,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *     Public for testing.
      * </p>
      */
-    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping, boolean sort) {
         var list = new ArrayList<Attribute>();
         mappingAsAttributes(list, source, null, mapping);
-        list.sort(Comparator.comparing(Attribute::name));
+        if (sort) {
+            list.sort(Comparator.comparing(Attribute::name));
+        }
         return list;
     }
 
@@ -329,7 +331,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping(), true),
                     plan.enrichFields(),
                     policy
                 );

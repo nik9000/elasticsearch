@@ -86,9 +86,13 @@ public class CollectOperator implements Operator {
         service.savePage(mainId, pageCount, page, expirationTime, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
-                pageCount++;
-                LogManager.getLogger(CollectOperator.class).error("done indexing");
-                blocked = NOT_BLOCKED;
+                try {
+                    pageCount++;
+                    LogManager.getLogger(CollectOperator.class).error("done indexing");
+                    blocked = NOT_BLOCKED;
+                } finally {
+                    Releasables.closeExpectNoException(Releasables.wrap(page::releaseBlocks, docWriteResponse::decRef));
+                }
                 driverContext.removeAsyncAction();
                 blockedFuture.onResponse(null);
             }

@@ -1,0 +1,197 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains, allowed_warnings_regex]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [collect]
+      reason: "uses COLLECT"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              data:
+                type: long
+              data_d:
+                type: double
+              count:
+                type: long
+              count_d:
+                type: double
+              time:
+                type: date
+              color:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275187, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275188, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275189, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275190, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275191, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275192, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275193, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275194, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275195, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275196, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275197, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275198, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275199, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275200, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275201, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275202, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275203, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275204, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275205, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275206, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275207, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275208, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275209, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275210, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275211, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275212, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275213, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275214, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275215, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275216, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275217, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275218, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275219, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275220, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275221, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275222, "color": "red" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275223, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275224, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275225, "color": "green" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red" }
+
+---
+grouped by long:
+  # TODO group by color
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS min_time=MIN(time) BY data | COLLECT'
+      allowed_warnings_regex:
+        - 'No limit defined, adding default limit of \[1000\]'
+
+  - length: { columns: 3 }
+  - length: { values: 1 }
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "page_count" }
+  - match: { columns.1.type: "integer" }
+  - match: { columns.2.name: "expiration" }
+  - match: { columns.2.type: "date" }
+  - match: { values.0.1: 1 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM "$collected:${body.values.0.0}" | SORT data ASC'
+      allowed_warnings_regex:
+        - 'No limit defined, adding default limit of \[1000\]'
+        - 'this request accesses system indices.+' # NOCOMMIT figure out how to fix security
+  - length: { columns: 2 }
+  - length: { values: 2 }
+  - match: { columns.0.name: "min_time" }
+  - match: { columns.0.type: "date" }
+  - match: { columns.1.name: "data" }
+  - match: { columns.1.type: "long" }
+  - match: { values.0: ["2023-01-27T16:01:15.187Z", 1] }
+  - match: { values.1: ["2023-01-27T16:01:15.188Z", 2] }
+
+---
+grouped by keyword:
+  # TODO group by color
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS min_time=MIN(time) BY color | COLLECT'
+      allowed_warnings_regex:
+        - 'No limit defined, adding default limit of \[1000\]'
+
+  - length: { columns: 3 }
+  - length: { values: 1 }
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "page_count" }
+  - match: { columns.1.type: "integer" }
+  - match: { columns.2.name: "expiration" }
+  - match: { columns.2.type: "date" }
+  - match: { values.0.1: 1 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM "$collected:${body.values.0.0}" | SORT color ASC'
+      allowed_warnings_regex:
+        - 'No limit defined, adding default limit of \[1000\]'
+        - 'this request accesses system indices.+' # NOCOMMIT figure out how to fix security
+  - length: { columns: 2 }
+  - length: { values: 3 }
+  - match: { columns.0.name: "min_time" }
+  - match: { columns.0.type: "date" }
+  - match: { columns.1.name: "color" }
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: ["2023-01-27T16:01:15.188Z", "blue"] }
+  - match: { values.1: ["2023-01-27T16:01:15.189Z", "green"] }
+  - match: { values.2: ["2023-01-27T16:01:15.187Z", "red"] }
+
+---
+invalid:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM $collected:$error'
+      catch: /Error decoding \$collected id/

@@ -530,12 +530,18 @@ public class EsqlSession {
             return new EsqlExecutionInfo.Cluster(clusterAlias, tableInfo.id().indexPattern(), false);
         });
         String id = tableInfo.id().indexPattern().substring("$collected:".length());
-        AsyncExecutionId asyncId = AsyncExecutionId.decode(id);
+        AsyncExecutionId asyncId;
+        try {
+            asyncId = AsyncExecutionId.decode(id);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Error decoding $collected id", e);
+        }
         collectResultsService.loadMetadata(asyncId, listener.map(metadata -> {
             Map<String, EsField> fields = new LinkedHashMap<>();
             for (CollectedMetadata.Field f : metadata.fields()) {
                 fields.put(f.name(), new EsField(f.name(), DataType.fromTypeName(f.type()), Map.of(), true, false));
             }
+            LOGGER.error("ADSFADF {} {}", metadata, fields);
             return result.withIndexResolution(
                 IndexResolution.valid(
                     new EsIndex(

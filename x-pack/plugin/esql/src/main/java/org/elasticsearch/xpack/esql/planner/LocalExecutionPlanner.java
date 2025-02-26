@@ -741,6 +741,7 @@ public class LocalExecutionPlanner {
             .stream()
             .map(a -> new CollectedMetadata.Field(a.name(), a.dataType().typeName()))
             .toList();
+        logger.error("ADSFADF {} {}", fields, source.layout);
         Instant expiration = configuration.now()
             .toInstant()
             .plus(collect.expiration().duration(), collect.expiration().timeUnit().toChronoUnit());

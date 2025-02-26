@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;

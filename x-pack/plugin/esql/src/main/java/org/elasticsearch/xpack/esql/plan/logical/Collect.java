@@ -28,8 +28,6 @@ public class Collect extends UnaryPlan {
     private final ReferenceAttribute expirationAttr;
     private final TimeValue expiration;
 
-    private List<Attribute> output;
-
     public Collect(
         Source source,
         LogicalPlan child,

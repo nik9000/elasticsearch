@@ -135,10 +135,13 @@ public class FromCollectedOperator extends SourceOperator {
 
     private void findDocIds() throws IOException {
         long start = System.nanoTime();
-        this.pageGets = new Engine.GetResult[metadata.pageCount()];
+        pageGets = new Engine.GetResult[metadata.pageCount()];
         for (int page = 0; page < pageGets.length; page++) {
-            this.pageGets[page] = shard.get(new Engine.Get(false, false, CollectResultsService.pageId(mainId, page)));
-            // NOCOMMIT make sure we find it. Go async if not there. Why can't read from translog?
+            String pageId = CollectResultsService.pageId(mainId, page);
+            pageGets[page] = shard.get(new Engine.Get(true, true, pageId));
+            if (pageGets[page].exists() == false) {
+                throw new IllegalArgumentException("couldn't find a page [" + pageId + "]");
+            }
         }
         findNanos += System.nanoTime() - start;
     }

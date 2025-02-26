@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.collect.CollectedConfig;
 import org.elasticsearch.compute.operator.collect.CollectedMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,6 +71,7 @@ public class EsRelation extends LeafPlan {
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
         this.collectedConfig = collectedConfig;
+        LogManager.getLogger(EsRelation.class).error("ADSFADF {}", attributes);
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
