@@ -16,11 +16,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -34,6 +36,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 public class CollectResultsService {
     private final AsyncTaskIndexService<StoredAsyncResponse<CollectedMetadata>> metadataStore;
     private final AsyncTaskIndexService<StoredAsyncResponse<Page>> pageStore;
+    private final ThreadContext threadContext;
+    private final ClusterService clusterService;
     private final CircuitBreaker breaker;
 
     public CollectResultsService(
@@ -64,20 +68,34 @@ public class CollectResultsService {
             registry,
             bigArrays
         );
+        this.threadContext = threadPool.getThreadContext();
+        this.clusterService = clusterService;
         this.breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
-    void savePage(AsyncExecutionId main, int sequence, Page page, Instant expirationTime, ActionListener<DocWriteResponse> listener) {
-        pageStore.createResponse(
-            pageId(main, sequence),
-            Map.of(),
-            new StoredAsyncResponse<>(page, expirationTime.toEpochMilli()),
-            listener
-        );
+    void savePage(
+        Map<String, String> headers,
+        AsyncExecutionId main,
+        int sequence,
+        Page page,
+        Instant expirationTime,
+        ActionListener<DocWriteResponse> listener
+    ) {
+        pageStore.createResponse(pageId(main, sequence), headers, new StoredAsyncResponse<>(page, expirationTime.toEpochMilli()), listener);
     }
 
-    void saveMetadata(AsyncExecutionId id, CollectedMetadata metadata, Instant expirationTime, ActionListener<DocWriteResponse> listener) {
-        metadataStore.createResponse(id.getDocId(), Map.of(), new StoredAsyncResponse<>(metadata, expirationTime.toEpochMilli()), listener);
+    void saveMetadata(
+        Map<String, String> headers,
+        AsyncExecutionId id,
+        CollectedMetadata metadata,
+        Instant expirationTime,
+        ActionListener<DocWriteResponse> listener
+    ) {
+        metadataStore.createResponse(id.getDocId(), headers, new StoredAsyncResponse<>(metadata, expirationTime.toEpochMilli()), listener);
+    }
+
+    Map<String, String> headers() {
+        return ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterService.state());
     }
 
     public void loadMetadata(AsyncExecutionId id, ActionListener<CollectedMetadata> listener) {

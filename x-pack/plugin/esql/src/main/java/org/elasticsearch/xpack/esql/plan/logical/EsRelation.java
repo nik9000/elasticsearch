@@ -71,7 +71,6 @@ public class EsRelation extends LeafPlan {
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
         this.collectedConfig = collectedConfig;
-        LogManager.getLogger(EsRelation.class).error("ADSFADF {}", attributes);
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {

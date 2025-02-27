@@ -281,7 +281,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
         );
-        DataNodeRequestSender requestSender = new DataNodeRequestSender(transportService, executor, task, allowPartialResults) {
+        DataNodeRequestSender requestSender = new DataNodeRequestSender(transportService, executor, task, allowPartialResults, false) {
             @Override
             void searchShards(
                 Task parentTask,

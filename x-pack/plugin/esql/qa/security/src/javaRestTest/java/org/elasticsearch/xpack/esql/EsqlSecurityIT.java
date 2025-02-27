@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -40,6 +41,7 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -408,6 +410,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
         Map<String, Object> respMap = entityAsMap(resp);
         assertThat(respMap.get("columns"), equalTo(List.of(Map.of("name", "sum", "type", "double"))));
         assertThat(respMap.get("values"), equalTo(List.of(List.of(10.0))));
+    }
+
+    public void testDocumentLevelSecurityCollect() throws Exception {
+        Response resp = runESQLCommand("user3", "FROM index | STATS sum=sum(value) | COLLECT");
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        ListMatcher columnsMatcher = matchesList().item(Map.of("name", "name", "type", "keyword"))
+            .item(Map.of("name", "page_count", "type", "integer"))
+            .item(Map.of("name", "expiration", "type", "date"));
+        ListMatcher valuesMatcher = matchesList().item(List.of(any(String.class), 1, any(String.class)));
+        assertMap(respMap, matchesMap().extraOk().entry("columns", columnsMatcher).entry("values", valuesMatcher));
+
+        @SuppressWarnings("unchecked")
+        List<List<?>> values = (List<List<?>>) respMap.get("values");
+        String id = values.getFirst().getFirst().toString();
+        resp = runESQLCommand("user3", "FROM \"$collected:" + id + "\"");
+        assertOK(resp);
+        respMap = entityAsMap(resp);
+        columnsMatcher = matchesList().item(Map.of("name", "sum", "type", "double"));
+        valuesMatcher = matchesList().item(List.of(10.0));
+        assertMap(respMap, matchesMap().extraOk().entry("columns", columnsMatcher).entry("values", valuesMatcher));
     }
 
     public void testFieldLevelSecurityAllow() throws Exception {

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +106,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<ComputeResponse> outListener
     ) {
         final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
+        final boolean findShardsAsAsyncSearchOrigin = PlannerUtils.containsCollectedConfig(dataNodePlan);
+        final OriginalIndices dataNodeOriginalIndices = findShardsAsAsyncSearchOrigin
+            ? removeAsyncSearch(originalIndices)
+            : originalIndices;
+        DataNodeRequestSender sender = new DataNodeRequestSender(
+            transportService,
+            esqlExecutor,
+            parentTask,
+            allowPartialResults,
+            findShardsAsAsyncSearchOrigin
+        ) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
@@ -164,8 +177,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 shardIds,
                                 aliasFilters,
                                 dataNodePlan,
-                                originalIndices.indices(),
-                                originalIndices.indicesOptions(),
+                                dataNodeOriginalIndices.indices(),
+                                dataNodeOriginalIndices.indicesOptions(),
                                 sameNode == false && queryPragmas.nodeLevelReduction()
                             );
                             transportService.sendChildRequest(
@@ -191,6 +204,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             PlannerUtils.requestTimestampFilter(dataNodePlan),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
+        );
+    }
+
+    /**
+     * If we're reading from {@code COLLECT}ed results we will perform security
+     * on the pages loaded from the security node so we
+     */
+    private OriginalIndices removeAsyncSearch(OriginalIndices originalIndices) {
+        return new OriginalIndices(
+            Arrays.stream(originalIndices.indices()).filter(i -> i.equals(XPackPlugin.ASYNC_RESULTS_INDEX) == false).toArray(String[]::new),
+            originalIndices.indicesOptions()
         );
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class CollectOperator implements Operator {
     public record Factory(CollectResultsService service, String sessionId, List<CollectedMetadata.Field> fields, Instant expirationTime)
@@ -45,6 +46,7 @@ public class CollectOperator implements Operator {
 
     private final FailureCollector failureCollector = new FailureCollector();
 
+    private final Map<String, String> headers;
     private final CollectResultsService service;
     private final DriverContext driverContext;
     private final AsyncExecutionId mainId;
@@ -63,6 +65,7 @@ public class CollectOperator implements Operator {
         List<CollectedMetadata.Field> fields,
         Instant expirationTime
     ) {
+        this.headers = service.headers();
         this.driverContext = driverContext;
         this.service = service;
         this.mainId = new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(sessionId.split("/")[0]));
@@ -83,7 +86,7 @@ public class CollectOperator implements Operator {
         LogManager.getLogger(CollectOperator.class).error("indexing");
         driverContext.addAsyncAction();
         blocked = new IsBlockedResult(blockedFuture, "indexing");
-        service.savePage(mainId, pageCount, page, expirationTime, new ActionListener<>() {
+        service.savePage(headers, mainId, pageCount, page, expirationTime, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 try {
@@ -131,7 +134,7 @@ public class CollectOperator implements Operator {
         LogManager.getLogger(CollectOperator.class).error("writing finished");
         driverContext.addAsyncAction();
         blocked = new IsBlockedResult(blockedFuture, "finishing");
-        service.saveMetadata(mainId, new CollectedMetadata(fields, pageCount), expirationTime, new ActionListener<>() {
+        service.saveMetadata(headers, mainId, new CollectedMetadata(fields, pageCount), expirationTime, new ActionListener<>() {
             @Override
             public void onResponse(DocWriteResponse docWriteResponse) {
                 phase = Phase.READY_TO_OUTPUT;

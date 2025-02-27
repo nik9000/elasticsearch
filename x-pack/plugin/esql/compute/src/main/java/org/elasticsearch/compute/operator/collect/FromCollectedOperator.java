@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -35,9 +36,12 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 
 import java.io.IOException;
@@ -51,12 +55,18 @@ import java.util.Map;
 import java.util.Set;
 
 public class FromCollectedOperator extends SourceOperator {
-    public record Factory(CollectResultsService resultsService, IndexShard shard, AsyncExecutionId mainId, CollectedMetadata metadata)
-        implements
-            SourceOperator.SourceOperatorFactory {
+    private static final Logger log = LogManager.getLogger(FromCollectedOperator.class);
+
+    public record Factory(
+        ThreadContext threadContext,
+        CollectResultsService resultsService,
+        IndexShard shard,
+        AsyncExecutionId mainId,
+        CollectedMetadata metadata
+    ) implements SourceOperator.SourceOperatorFactory {
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new FromCollectedOperator(resultsService, driverContext.blockFactory(), shard, mainId, metadata);
+            return new FromCollectedOperator(threadContext, resultsService, driverContext.blockFactory(), shard, mainId, metadata);
         }
 
         @Override
@@ -66,6 +76,7 @@ public class FromCollectedOperator extends SourceOperator {
     }
 
     private final Map<LeafReader, PerLeafReader> perLeafReader = new HashMap<>();
+    private final ThreadContext threadContext;
     private final CollectResultsService resultsService;
     private final BlockFactory blockFactory;
     private final IndexShard shard;
@@ -77,16 +88,17 @@ public class FromCollectedOperator extends SourceOperator {
 
     private long findNanos;
     private long loadNanos;
-    private int pagesEmitted;
     private long rowsEmitted;
 
     public FromCollectedOperator(
+        ThreadContext threadContext,
         CollectResultsService resultsService,
         BlockFactory blockFactory,
         IndexShard shard,
         AsyncExecutionId mainId,
         CollectedMetadata metadata
     ) {
+        this.threadContext = threadContext;
         this.resultsService = resultsService;
         this.blockFactory = blockFactory;
         this.shard = shard;
@@ -108,17 +120,16 @@ public class FromCollectedOperator extends SourceOperator {
     public Page getOutput() {
         try {
             if (pageGets == null) {
-                // NOCOMMIT security testing
                 findDocIds();
                 return null;
             }
+            log.error("ADFADSF load page");
             long start = System.nanoTime();
             Engine.GetResult get = pageGets[current++];
             PerLeafReader perLeaf = perLeaf(get);
             BytesReference source = perLeaf.load(get.docIdAndVersion().docId);
             Page page = resultsService.decodePage(blockFactory, source);
             loadNanos += System.nanoTime() - start;
-            pagesEmitted++;
             rowsEmitted += page.getPositionCount();
             return page;
         } catch (IOException e) {
@@ -134,16 +145,21 @@ public class FromCollectedOperator extends SourceOperator {
     }
 
     private void findDocIds() throws IOException {
-        long start = System.nanoTime();
-        pageGets = new Engine.GetResult[metadata.pageCount()];
-        for (int page = 0; page < pageGets.length; page++) {
-            String pageId = CollectResultsService.pageId(mainId, page);
-            pageGets[page] = shard.get(new Engine.Get(true, true, pageId));
-            if (pageGets[page].exists() == false) {
-                throw new IllegalArgumentException("couldn't find a page [" + pageId + "]");
+        // NOCOMMIT remove security hack
+        try (ThreadContext.StoredContext stash = threadContext.stashWithOrigin("async-search-security-hack")) {
+            log.error("ADFADSF finding doc ids");
+            long start = System.nanoTime();
+            pageGets = new Engine.GetResult[metadata.pageCount()];
+            for (int page = 0; page < pageGets.length; page++) {
+                String pageId = CollectResultsService.pageId(mainId, page);
+                pageGets[page] = shard.get(new Engine.Get(true, true, pageId));
+                if (pageGets[page].exists() == false) {
+                    throw new IllegalArgumentException("couldn't find a page [" + pageId + "]");
+                }
             }
+            findNanos += System.nanoTime() - start;
+            // NOCOMMIT validate security on loaded pages
         }
-        findNanos += System.nanoTime() - start;
     }
 
     private static class PerLeafReader {
@@ -154,7 +170,9 @@ public class FromCollectedOperator extends SourceOperator {
         }
 
         public BytesReference load(int docId) throws IOException {
-            storedFieldLoader.advanceTo(docId); // NOCOMMIT is it ok to go out of order here?
+            // NOCOMMIT is it ok to go out of order here?
+            // NOCOMMIT test that security failures here fail the request
+            storedFieldLoader.advanceTo(docId);
             return storedFieldLoader.source();
         }
     }
@@ -182,6 +200,7 @@ public class FromCollectedOperator extends SourceOperator {
         }
         Arrays.sort(docs);
 
+        // NOCOMMIT be more careful about order - sorting the docs isn't the order we load them in.
         LeafStoredFieldLoader storedFieldLoader = this.storedFieldLoader.getLoader(pageGet.docIdAndVersion().reader.getContext(), docs);
         perLeaf = new PerLeafReader(storedFieldLoader);
         perLeafReader.put(pageGet.docIdAndVersion().reader, perLeaf);
@@ -195,10 +214,10 @@ public class FromCollectedOperator extends SourceOperator {
 
     @Override
     public Operator.Status status() {
-        return new Status(findNanos, loadNanos, current, pagesEmitted, rowsEmitted);
+        return new Status(findNanos, loadNanos, metadata.pageCount(), current, rowsEmitted);
     }
 
-    public record Status(long findNanos, long loadNanos, int current, int pagesEmitted, long rowsEmitted) implements Operator.Status {
+    public record Status(long findNanos, long loadNanos, int totalPages, int pagesEmitted, long rowsEmitted) implements Operator.Status {
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
@@ -214,7 +233,7 @@ public class FromCollectedOperator extends SourceOperator {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(findNanos);
             out.writeVLong(loadNanos);
-            out.writeVInt(current);
+            out.writeVInt(totalPages);
             out.writeVInt(pagesEmitted);
             out.writeVLong(rowsEmitted);
         }
@@ -240,7 +259,7 @@ public class FromCollectedOperator extends SourceOperator {
             if (builder.humanReadable()) {
                 builder.field("load_time", TimeValue.timeValueNanos(loadNanos));
             }
-            builder.field("current", current);
+            builder.field("total_pages", totalPages);
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();

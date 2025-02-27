@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.core.TimeValue;
@@ -31,6 +32,8 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
@@ -56,6 +59,17 @@ abstract class DataNodeRequestSender {
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
     private final boolean allowPartialResults;
+    /**
+     * Should the {@link EsqlSearchShardsAction} run as the async search user (true) or
+     * as the original user (false)?
+     * <p>
+     *     We must run as the async search user if we're going to read from a
+     *     {@code COLLECT}ed result because most users don't have permission to read from
+     *     the {@link XPackPlugin#ASYNC_RESULTS_INDEX}. Instead, we take security into our
+     *     own hands and double-check the loaded data.
+     * </p>
+     */
+    private final boolean findShardsAsAsyncSearchOrigin;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
@@ -63,11 +77,18 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
+    DataNodeRequestSender(
+        TransportService transportService,
+        Executor esqlExecutor,
+        CancellableTask rootTask,
+        boolean allowPartialResults,
+        boolean findShardsAsAsyncSearchOrigin
+    ) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
+        this.findShardsAsAsyncSearchOrigin = findShardsAsAsyncSearchOrigin;
     }
 
     final void startComputeOnDataNodes(
@@ -352,6 +373,12 @@ abstract class DataNodeRequestSender {
             true, // unavailable_shards will be handled by the sender
             clusterAlias
         );
+        if (findShardsAsAsyncSearchOrigin) {
+            ThreadContext.StoredContext stash = transportService.getThreadPool()
+                .getThreadContext()
+                .stashWithOrigin(ClientHelper.ASYNC_SEARCH_ORIGIN);
+            searchShardsListener = ActionListener.runBefore(searchShardsListener, stash::restore);
+        }
         transportService.sendChildRequest(
             transportService.getLocalNode(),
             EsqlSearchShardsAction.TYPE.name(),

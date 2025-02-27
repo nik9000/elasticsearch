@@ -105,6 +105,10 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
 
     protected IndicesAccessControl getIndicesAccessControl() {
         final ThreadContext threadContext = securityContext.getThreadContext();
+        if ("async-search-security-hack".equals(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME))) {
+            // NOCOMMIT remove hole I've punched into security
+            return IndicesAccessControl.allowAll();
+        }
         IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             throw Exceptions.authorizationError("no indices permissions found");

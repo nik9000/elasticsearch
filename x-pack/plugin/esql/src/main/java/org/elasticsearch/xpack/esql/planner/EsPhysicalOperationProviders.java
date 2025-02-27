@@ -250,7 +250,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         LocalExecutionPlannerContext context
     ) {
         FromCollectedOperator.Factory factory = new FromCollectedOperator.Factory(
-            // CollectResultsService resultsService, IndexShard shard, AsyncExecutionId mainId, CollectedMetadata metadata
+            context.threadContext(),
             context.collectResultsService(),
             shardContexts.get(0).indexShard(),
             AsyncExecutionId.decode(esCollectedSourceExec.config().mainId()),

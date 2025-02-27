@@ -161,19 +161,28 @@ public class PlannerUtils {
         }
     }
 
+    /**
+     * Checks if a data node plan contains a {@code COLLECT}ed index.
+     */
+    public static boolean containsCollectedConfig(PhysicalPlan plan) {
+        boolean[] collected = new boolean[] { false };
+        plan.forEachDown(
+            FragmentExec.class,
+            f -> f.fragment().forEachDown(EsRelation.class, r -> collected[0] = r.collectedConfig() != null)
+        );
+        return collected[0];
+    }
+
     public static PhysicalPlan localPlan(
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        boolean[] collected = new boolean[] { false };
-        plan.forEachDown(
-            FragmentExec.class,
-            f -> f.fragment().forEachDown(EsRelation.class, r -> collected[0] = r.collectedConfig() != null)
-        );
         // If we're loading from a | COLLECTed result we don't have any index metadata
-        SearchStats stats = collected[0] ? new SearchStats.CollectedSearchStats() : SearchContextStats.from(searchContexts);
+        SearchStats stats = containsCollectedConfig(plan)
+            ? new SearchStats.CollectedSearchStats()
+            : SearchContextStats.from(searchContexts);
         return localPlan(configuration, foldCtx, plan, stats);
     }
 

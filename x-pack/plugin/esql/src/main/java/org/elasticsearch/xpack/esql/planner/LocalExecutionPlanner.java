@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
@@ -56,6 +57,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -194,6 +196,7 @@ public class LocalExecutionPlanner {
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
             configuration.pragmas(),
+            enrichLookupService.getThreadContext(),
             bigArrays,
             sessionId,
             blockFactory,
@@ -741,7 +744,6 @@ public class LocalExecutionPlanner {
             .stream()
             .map(a -> new CollectedMetadata.Field(a.name(), a.dataType().typeName()))
             .toList();
-        logger.error("ADSFADF {} {}", fields, source.layout);
         Instant expiration = configuration.now()
             .toInstant()
             .plus(collect.expiration().duration(), collect.expiration().timeUnit().toChronoUnit());
@@ -874,6 +876,7 @@ public class LocalExecutionPlanner {
         List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
         QueryPragmas queryPragmas,
+        ThreadContext threadContext,
         BigArrays bigArrays,
         String sessionId,
         BlockFactory blockFactory,

@@ -541,7 +541,6 @@ public class EsqlSession {
             for (CollectedMetadata.Field f : metadata.fields()) {
                 fields.put(f.name(), new EsField(f.name(), DataType.fromTypeName(f.type()), Map.of(), true, false));
             }
-            LOGGER.error("ADSFADF {} {}", metadata, fields);
             return result.withIndexResolution(
                 IndexResolution.valid(
                     new EsIndex(
