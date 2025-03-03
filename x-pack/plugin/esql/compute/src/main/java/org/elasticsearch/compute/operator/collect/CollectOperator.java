@@ -70,7 +70,7 @@ public class CollectOperator implements Operator {
         this.service = service;
         this.mainId = new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(sessionId.split("/")[0]));
         this.fields = fields;
-        this.expirationTime = expirationTime;
+        this.expirationTime = expirationTime; // NOCOMMIT this should be calculated at finish time. Maybe not. This is weird.
     }
 
     @Override
