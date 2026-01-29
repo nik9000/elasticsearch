@@ -53,6 +53,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         ConfigurationAware.verifyNoMarkerConfiguration(optimizedPlan, failures);
 
         if (depFailures.hasFailures()) {
+            System.err.println("NOCOMMIT " + optimizedPlan);
             throw new IllegalStateException(depFailures.toString());
         }
 

@@ -50,8 +50,9 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceFieldWithConstantOrNull(),
             new InferIsNotNull(),
             new InferNonNullAggConstraint(),
-            new ReplaceDateTruncBucketWithRoundTo(),
-            new PushExpressionsToFieldLoad()
+            new ReplaceDateTruncBucketWithRoundTo()
+//            ,
+//            new PushExpressionsToFieldLoad()
         ),
         localOperators(),
         localCleanup()

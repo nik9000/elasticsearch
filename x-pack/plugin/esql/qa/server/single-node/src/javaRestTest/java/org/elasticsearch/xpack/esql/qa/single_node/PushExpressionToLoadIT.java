@@ -15,6 +15,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -534,8 +535,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         sig,
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                            .item("FilterOperator")
                             .item("EvalOperator") // this one just renames the field
+                            .item("ProjectOperator") // removes the field with generated name
+                            .item("FilterOperator")
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -545,6 +547,7 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                         matchesList().item("LuceneSourceOperator")
                             .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
                             .item("EvalOperator") // this one just renames the field
+                            .item("ProjectOperator") // drops the generated name
                             .item("AggregationOperator")
                             .item("ExchangeSinkOperator")
                     );
@@ -699,21 +702,16 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
         Matcher<?> expectedValue,
         MapMatcher expectedLoaders
     ) throws IOException {
-        test(
-            mapping,
-            doc,
-            eval,
-            expectedValue,
-            expectedLoaders,
-            sig -> assertMap(
-                sig,
-                matchesList().item("LuceneSourceOperator")
-                    .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
-                    .item("EvalOperator") // this one just renames the field
-                    .item("AggregationOperator")
-                    .item("ExchangeSinkOperator")
-            )
-        );
+        test(mapping, doc, eval, expectedValue, expectedLoaders, sig -> {
+            ListMatcher signatures = matchesList().item("LuceneSourceOperator")
+                .item("ValuesSourceReaderOperator") // the real work is here, checkOperatorProfile checks the status
+                .item("EvalOperator"); // this one just renames the field
+            if (sig.contains("ProjectOperator")) {
+                signatures = signatures.item("ProjectOperator"); // drops the generated name
+            }
+            signatures = signatures.item("AggregationOperator").item("ExchangeSinkOperator");
+            assertMap(sig, signatures);
+        });
     }
 
     private void test(

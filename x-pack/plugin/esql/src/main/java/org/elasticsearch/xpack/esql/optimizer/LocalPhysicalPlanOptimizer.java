@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatial
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
@@ -95,7 +96,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundsExtraction()
+            new SpatialShapeBoundsExtraction(),
+            new PushExpressionsToFieldLoad()
         );
         return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }
