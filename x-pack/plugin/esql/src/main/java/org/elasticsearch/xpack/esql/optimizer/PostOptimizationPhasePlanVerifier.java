@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -33,6 +35,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.dataTypeEqu
  * Note: Logical and Physical optimizers may override methods in this class to perform different checks.
  */
 public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> {
+    private static final Logger log = LogManager.getLogger(PostOptimizationPhasePlanVerifier.class);
 
     // Are we verifying the global plan (coordinator) or a local plan (data node)?
     protected final boolean isLocal;
@@ -53,7 +56,8 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         ConfigurationAware.verifyNoMarkerConfiguration(optimizedPlan, failures);
 
         if (depFailures.hasFailures()) {
-            System.err.println("NOCOMMIT " + optimizedPlan);
+            // NOCOMMIT keep this?
+            log.warn("dependency failures optimizing plan {}: {}", optimizedPlan, depFailures);
             throw new IllegalStateException(depFailures.toString());
         }
 

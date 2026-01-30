@@ -15,11 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -33,8 +31,8 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,27 +53,39 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
     @Override
     public PhysicalPlan apply(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
         Scan scan = new Scan(context);
-        plan.forEachUp(scan::scan);
-        return plan.transformUp(new InsertLoads(context, scan.loads)::insertLoads);
+        return plan.transformUp(scan::scan);
+//        return plan.transformUp(new InsertLoads(context, scan.loads)::insertLoads);
     }
 
     private static class Scan {
         private final Map<PhysicalPlan, LoadsForPlan> loads = new IdentityHashMap<>();
         private final LocalPhysicalOptimizerContext context;
+        private Map<Attribute.IdIgnoringWrapper, PushedExpressionFirstUse> alreadyPushed;
 
         private Scan(LocalPhysicalOptimizerContext context) {
             this.context = context;
         }
 
-        void scan(PhysicalPlan plan) {
-            // Source nodes never load anything
+        PhysicalPlan scan(PhysicalPlan plan) {
             if (plan instanceof LeafExec) {
-                return;
+                // Source nodes never load anything
+                return plan;
             }
+
             LoadsForPlan loadsForPlan = loadsForPlan(plan);
-            if (loadsForPlan.loads.isEmpty() == false) {
-                loads.put(plan, loadsForPlan);
+            System.err.println("loading " + loadsForPlan + " for " + plan.nodeName());
+            if (loadsForPlan.loads.isEmpty()) {
+                // No loads, nothing to index
+                return plan;
             }
+
+            // Index the loads
+            loads.put(plan, loadsForPlan);
+            PhysicalPlan withLoad = plan.replaceChildren(
+                loadsForPlan.addLoadsToChildren(plan, context.configuration().pragmas().fieldExtractPreference())
+            );
+            PhysicalPlan replaced = loadsForPlan.replacePushedExpressions(withLoad);
+            return replaced;
         }
 
         private LoadsForPlan loadsForPlan(PhysicalPlan plan) {
@@ -87,12 +97,15 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
 
             // Try the most aggressive field fusion plan
             scanForAttributeLoads(pushAll(plan, loadsForPlan), loadsForPlan);
+
+            // TODO prune back any bad choices
+            loadsForPlan.indexPushedExpressions(this);
             return loadsForPlan;
         }
 
         private void scanForAttributeLoads(PhysicalPlan plan, LoadsForPlan loadsForPlan) {
             AttributeSet input = plan.inputSet();
-            Set<Attribute> pushed = loadsForPlan.pushedExpressionsSet();
+            Set<Attribute> pushed = loadsForPlan.pushedAttributes();
             plan.references().forEach(a -> {
                 if (a instanceof FieldAttribute || a instanceof MetadataAttribute) {
                     if (input.contains(a) == false && pushed.contains(a) == false) {
@@ -120,14 +133,32 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
             BlockLoaderExpression.PushedBlockLoaderExpression fuse,
             LoadsForPlan loadsForPlan
         ) {
+            if (plan.inputSet().contains(fuse.field())) {
+                /*
+                 * If the target field is already loaded it does us no good to try and fuse to it.
+                 * In fact, it's disastrous because it might not be coming from the index at all.
+                 */
+                return e;
+            }
             var preference = context.configuration().pragmas().fieldExtractPreference();
             if (context.searchStats().supportsLoaderConfig(fuse.field().fieldName(), fuse.config(), preference) == false) {
                 return e;
             }
-            // NOCOMMIT don't attempt if already loaded
-            PushedExpression pushed = new PushedExpression(fuse.field(), fuse.config(), e);
-            loadsForPlan.attr(fuse.field()).pushedExpression(pushed);
+            PushedExpressionFirstUse pushed = new PushedExpressionFirstUse(fuse.field(), fuse.config(), e);
+            loadsForPlan.attr(fuse.field()).pushedExpression(referenceAlreadyPushed(pushed));
             return pushed.attr;
+        }
+
+        /**
+         * If the proposed push was <strong>already</strong> pushed, then reference it
+         * instead.
+         */
+        private PushedExpression referenceAlreadyPushed(PushedExpressionFirstUse push) {
+            if (alreadyPushed == null) {
+                return push;
+            }
+            PushedExpressionFirstUse firstPush = alreadyPushed.get(push.key);
+            return firstPush == null ? push : firstPush.reference(push.orig);
         }
     }
 
@@ -143,12 +174,13 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
             return loads.toString();
         }
 
-        public Set<Attribute> pushedExpressionsSet() {
+        /**
+         * A {@link Set} of the attributes that are pushed expressions.
+         */
+        public Set<Attribute> pushedAttributes() {
             Set<Attribute> attributes = Collections.newSetFromMap(new IdentityHashMap<>());
             for (LoadsForAttribute l : loads.values()) {
-                for (PushedExpression e : l.pushedExpressions) {
-                    attributes.add(e.attr);
-                }
+                l.buildPushedAttributes(attributes);
             }
             return attributes;
         }
@@ -156,16 +188,7 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
         public List<Attribute> attributesToExtract() {
             List<Attribute> attributesToExtract = new ArrayList<>(loads.size());
             for (Map.Entry<Attribute, LoadsForAttribute> l : loads.entrySet()) {
-                Attribute attr = l.getKey();
-                LoadsForAttribute loads = l.getValue();
-                if (loads.loadWithoutFuse) {
-                    attributesToExtract.add(attr);
-                }
-                if (loads.pushedExpressions != null) {
-                    for (PushedExpression push : loads.pushedExpressions) {
-                        attributesToExtract.add(push.attr);
-                    }
-                }
+                l.getValue().buildAttributesToExtract(attributesToExtract, l.getKey());
             }
             return attributesToExtract;
         }
@@ -180,18 +203,44 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
         }
 
         public PhysicalPlan replacePushedExpressions(PhysicalPlan plan) {
+            if (false == hasPushedExpressions()) {
+                return plan;
+            }
             Map<Expression, Attribute> replaced = new IdentityHashMap<>();
             for (LoadsForAttribute l : loads.values()) {
-                if (l.pushedExpressions != null) {
-                    for (PushedExpression p : l.pushedExpressions) {
-                        replaced.put(p.orig, p.attr);
-                    }
-                }
+                l.buildPushedExpressionsToReplace(replaced);
             }
             return plan.transformExpressionsOnly(e -> {
                 Attribute replacement = replaced.get(e);
                 return replacement == null ? e : replacement;
             });
+        }
+
+        public void indexPushedExpressions(Scan scan) {
+            for (LoadsForAttribute load : loads.values()) {
+                load.indexPushedExpressions(scan);
+            }
+        }
+
+        public List<PhysicalPlan> addLoadsToChildren(PhysicalPlan plan, MappedFieldType.FieldExtractPreference extractPreference) {
+            List<PhysicalPlan> newChildren = new ArrayList<>(plan.children().size());
+            boolean found = false;
+            for (PhysicalPlan child : plan.children()) {
+                if (found == false) {
+                    if (child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+                        found = true;
+                        // collect source attributes and add the extractor
+                        child = new FieldExtractExec(plan.source(), child, attributesToExtract(), extractPreference);
+
+                    }
+                }
+                newChildren.add(child);
+            }
+            // somehow no doc id
+            if (found == false) {
+                throw new IllegalArgumentException("No child with doc id found");
+            }
+            return newChildren;
         }
     }
 
@@ -219,16 +268,63 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
             }
             return b.append('}').toString();
         }
+
+        public void indexPushedExpressions(Scan scan) {
+            if (pushedExpressions == null) {
+                return;
+            }
+            for (PushedExpression push : pushedExpressions) {
+                push.indexPushedExpressions(scan);
+            }
+        }
+
+        public void buildPushedAttributes(Set<Attribute> attributes) {
+            if (pushedExpressions == null) {
+                return;
+            }
+            for (PushedExpression e : pushedExpressions) {
+                e.buildPushedAttributes(attributes);
+            }
+        }
+
+        public void buildAttributesToExtract(List<Attribute> attributesToExtract, Attribute attr) {
+            if (loadWithoutFuse) {
+                attributesToExtract.add(attr);
+            }
+            if (pushedExpressions == null) {
+                return;
+            }
+            for (PushedExpression push : pushedExpressions) {
+                push.buildAttributesToExtract(attributesToExtract);
+            }
+        }
+
+        public void buildPushedExpressionsToReplace(Map<Expression, Attribute> replaced) {
+            if (pushedExpressions == null) {
+                return;
+            }
+            for (PushedExpression p : pushedExpressions) {
+                p.buildPushedExpressionToReplace(replaced);
+            }
+        }
     }
 
-    private static class PushedExpression {
-        // NOCOMMIT just use the new attribute?
-        private final BlockLoaderFunctionConfig config;
+    private interface PushedExpression {
+        void indexPushedExpressions(Scan scan);
+
+        void buildPushedAttributes(Set<Attribute> attributes);
+
+        void buildAttributesToExtract(List<Attribute> attributesToExtract);
+
+        void buildPushedExpressionToReplace(Map<Expression, Attribute> replaced);
+    }
+
+    private static class PushedExpressionFirstUse implements PushedExpression {
         private final Expression orig;
         private final FieldAttribute attr;
+        private final Attribute.IdIgnoringWrapper key;
 
-        private PushedExpression(FieldAttribute field, BlockLoaderFunctionConfig config, Expression orig) {
-            this.config = config;
+        private PushedExpressionFirstUse(FieldAttribute field, BlockLoaderFunctionConfig config, Expression orig) {
             this.orig = orig;
             FunctionEsField functionEsField = new FunctionEsField(field.field(), orig.dataType(), config);
             String name = rawTemporaryName(field.name(), config.function().toString(), String.valueOf(config.hashCode()));
@@ -242,11 +338,66 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
                 new NameId(),
                 true
             );
+            this.key = attr.ignoreId();
+        }
+
+        public PushedExpressionReference reference(Expression orig) {
+            return new PushedExpressionReference(orig, this);
+        }
+
+        @Override
+        public void indexPushedExpressions(Scan scan) {
+            if (scan.alreadyPushed == null) {
+                scan.alreadyPushed = new HashMap<>();
+            }
+            scan.alreadyPushed.put(key, this);
+        }
+
+        @Override
+        public void buildPushedAttributes(Set<Attribute> attributes) {
+            attributes.add(attr);
+        }
+
+        @Override
+        public void buildAttributesToExtract(List<Attribute> attributesToExtract) {
+            attributesToExtract.add(attr);
+        }
+
+        @Override
+        public void buildPushedExpressionToReplace(Map<Expression, Attribute> replaced) {
+            replaced.put(orig, attr);
         }
 
         @Override
         public String toString() {
             return attr.toString();
+        }
+    }
+
+    private record PushedExpressionReference(Expression orig, PushedExpressionFirstUse firstUse) implements PushedExpression {
+        @Override
+        public void indexPushedExpressions(Scan scan) {
+            // Only index first push
+        }
+
+        @Override
+        public void buildPushedAttributes(Set<Attribute> attributes) {
+            attributes.add(firstUse.attr);
+        }
+
+        @Override
+        public void buildAttributesToExtract(List<Attribute> attributesToExtract) {
+            // Only extract on first push
+        }
+
+        @Override
+        public void buildPushedExpressionToReplace(Map<Expression, Attribute> replaced) {
+            replaced.put(orig, firstUse.attr);
+        }
+
+        @Override
+        public String toString() {
+            return "->" + firstUse;
         }
     }
 
@@ -256,38 +407,13 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
             if (loadsForPlan == null) {
                 return plan;
             }
-            plan = plan.replaceChildren(addLoadsToChildren(plan, loadsForPlan));
+            plan = plan.replaceChildren(loadsForPlan.addLoadsToChildren(plan, context.configuration().pragmas().fieldExtractPreference()));
             if (loadsForPlan.hasPushedExpressions() == false) {
                 return plan;
             }
             PhysicalPlan replaced = loadsForPlan.replacePushedExpressions(plan);
-            return new ProjectExec(plan.source(), replaced, plan.output());
-        }
-
-        private List<PhysicalPlan> addLoadsToChildren(PhysicalPlan plan, LoadsForPlan loadsForPlan) {
-            List<PhysicalPlan> newChildren = new ArrayList<>(plan.children().size());
-            boolean found = false;
-            for (PhysicalPlan child : plan.children()) {
-                if (found == false) {
-                    if (child.outputSet().stream().anyMatch(EsQueryExec::isDocAttribute)) {
-                        found = true;
-                        // collect source attributes and add the extractor
-                        child = new FieldExtractExec(
-                            plan.source(),
-                            child,
-                            loadsForPlan.attributesToExtract(),
-                            context.configuration().pragmas().fieldExtractPreference()
-                        );
-
-                    }
-                }
-                newChildren.add(child);
-            }
-            // somehow no doc id
-            if (found == false) {
-                throw new IllegalArgumentException("No child with doc id found");
-            }
-            return newChildren;
+            // return new ProjectExec(plan.source(), replaced, plan.output());
+            return replaced;
         }
     }
 }
