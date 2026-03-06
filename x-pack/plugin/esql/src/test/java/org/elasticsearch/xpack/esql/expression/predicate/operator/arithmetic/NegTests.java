@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matchers;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.time.Duration;
 import java.time.Period;
@@ -26,92 +26,53 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
+import static org.mockito.ArgumentMatchers.startsWith;
 
 public class NegTests extends AbstractScalarFunctionTestCase {
-
-    public NegTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
-    }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "NegIntsEvaluator[v=Attribute[channel=0]]",
-            DataType.INTEGER,
-            Math::negateExact,
-            Integer.MIN_VALUE + 1,
-            Integer.MAX_VALUE,
-            List.of()
-        );
-        // out of bounds integer
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "NegIntsEvaluator[v=Attribute[channel=0]]",
-            DataType.INTEGER,
-            z -> null,
-            Integer.MIN_VALUE,
-            Integer.MIN_VALUE,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: integer overflow"
-            )
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "NegLongsEvaluator[v=Attribute[channel=0]]",
-            DataType.LONG,
-            Math::negateExact,
-            Long.MIN_VALUE + 1,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        // out of bounds long
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "NegLongsEvaluator[v=Attribute[channel=0]]",
-            DataType.LONG,
-            z -> null,
-            Long.MIN_VALUE,
-            Long.MIN_VALUE,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: long overflow"
-            )
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "NegDoublesEvaluator[v=Attribute[channel=0]]",
-            DataType.DOUBLE,
-            // TODO: Probably we don't want to allow negative zeros
-            d -> -d,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            List.of()
-        );
 
-        // TODO: Wire up edge case generation functions for these
-        suppliers.addAll(List.of(new TestCaseSupplier("Duration", List.of(DataType.TIME_DURATION), () -> {
-            Duration arg = (Duration) randomLiteral(DataType.TIME_DURATION).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.TIME_DURATION, "arg").forceLiteral()),
-                Matchers.startsWith("LiteralsEvaluator[lit="),
-                DataType.TIME_DURATION,
-                equalTo(arg.negated())
-            ).withoutEvaluator();
-        }), new TestCaseSupplier("Period", List.of(DataType.DATE_PERIOD), () -> {
-            Period arg = (Period) randomLiteral(DataType.DATE_PERIOD).value();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.DATE_PERIOD, "arg").forceLiteral()),
-                Matchers.startsWith("LiteralsEvaluator[lit="),
-                DataType.DATE_PERIOD,
-                equalTo(arg.negated())
-            ).withoutEvaluator();
-        })));
+        intCase().ints(Integer.MIN_VALUE + 1, Integer.MAX_VALUE).expectedFromInt(Math::negateExact).build(suppliers);
+        // out of bounds integer
+        intCase().ints(Integer.MIN_VALUE, Integer.MIN_VALUE)
+            .expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: integer overflow"))
+            .build(suppliers);
+
+        longCase().longs(Long.MIN_VALUE + 1, Long.MAX_VALUE).expectedFromLong(Math::negateExact).build(suppliers);
+        // out of bounds long
+        longCase().longs(Long.MIN_VALUE, Long.MIN_VALUE)
+            .expectNullAndWarnings(o -> List.of("Line 1:1: java.lang.ArithmeticException: long overflow"))
+            .build(suppliers);
+
+        // TODO: Probably we don't want to allow negative zeros
+        unary().expectedOutputType(DataType.DOUBLE)
+            .evaluatorToString("NegDoublesEvaluator[v=%0]")
+            .doubles()
+            .expectedFromDouble(d -> -d)
+            .build(suppliers);
+
+        foldCase().expectedOutputType(DataType.TIME_DURATION).timeDuration().expectedFromDuration(Duration::negated).build(suppliers);
+        foldCase().expectedOutputType(DataType.DATE_PERIOD).datePeriod().expectedFromPeriod(Period::negated).build(suppliers);
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+    }
+
+    private static UnaryTestCaseHelper intCase() {
+        return unary().expectedOutputType(DataType.INTEGER).evaluatorToString("NegIntsEvaluator[v=%0]");
+    }
+
+    private static UnaryTestCaseHelper longCase() {
+        return unary().expectedOutputType(DataType.LONG).evaluatorToString("NegLongsEvaluator[v=%0]");
+    }
+
+    private static UnaryTestCaseHelper foldCase() {
+        return unary().evaluatorToString(startsWith("LiteralsEvaluator[lit=")).withoutEvaluator();
+    }
+
+    public NegTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
     @Override

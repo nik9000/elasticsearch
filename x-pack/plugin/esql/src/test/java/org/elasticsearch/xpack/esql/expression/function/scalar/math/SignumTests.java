@@ -16,63 +16,50 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class SignumTests extends AbstractScalarFunctionTestCase {
-    public SignumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "SignumIntEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            i -> (double) Math.signum(i),
-            Integer.MIN_VALUE,
-            Integer.MAX_VALUE,
-            List.of()
-        );
 
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "SignumLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            l -> (double) Math.signum(l),
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
-
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "SignumUnsignedLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            ul -> Math.signum(NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "SignumDoubleEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::signum,
-            -Double.MAX_VALUE,
-            Double.MAX_VALUE,
-            List.of()
-        );
-
+        doubleCase().doubles(-Double.MAX_VALUE, Double.MAX_VALUE).expectedFromDouble(Math::signum).build(suppliers);
+        intCase().ints().expectedFromInt(i -> (double) Math.signum(i)).build(suppliers);
+        longCase().longs().expectedFromLong(l -> (double) Math.signum(l)).build(suppliers);
+        unsignedLongCase().unsignedLongs()
+            .expectedFromBigInteger(ul -> Math.signum(NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))))
+            .build(suppliers);
         suppliers = anyNullIsNull(true, suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static UnaryTestCaseHelper doubleCase() {
+        return helper("Double");
+    }
+
+    private static UnaryTestCaseHelper intCase() {
+        return helper("Int");
+    }
+
+    private static UnaryTestCaseHelper longCase() {
+        return helper("Long");
+    }
+
+    private static UnaryTestCaseHelper unsignedLongCase() {
+        return helper("UnsignedLong");
+    }
+
+    private static UnaryTestCaseHelper helper(String type) {
+        return TestCaseSupplier.unary().expectedOutputType(DataType.DOUBLE).evaluatorToString("Signum" + type + "Evaluator[val=%0]");
+    }
+
+    public SignumTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
     @Override

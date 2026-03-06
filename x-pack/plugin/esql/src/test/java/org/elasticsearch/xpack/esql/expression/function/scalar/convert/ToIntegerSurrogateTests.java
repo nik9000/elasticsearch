@@ -32,14 +32,7 @@ public class ToIntegerSurrogateTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // one argument test cases
-        ToIntegerTests.supplyUnaryInteger(suppliers);
-        ToIntegerTests.supplyUnaryBoolean(suppliers);
-        ToIntegerTests.supplyUnaryDate(suppliers);
-        ToIntegerTests.supplyUnaryString(suppliers);
-        ToIntegerTests.supplyUnaryDouble(suppliers);
-        ToIntegerTests.supplyUnaryUnsignedLong(suppliers);
-        ToIntegerTests.supplyUnaryLong(suppliers);
-        ToIntegerTests.supplyUnaryCounterInteger(suppliers);
+        ToIntegerTests.unary(suppliers);
 
         // two argument test cases
         ToIntegerBaseTests.supplyBinaryStringInteger(suppliers);

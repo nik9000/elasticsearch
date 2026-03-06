@@ -32,15 +32,7 @@ public class ToLongSurrogateTests extends AbstractScalarFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         // one argument test cases
-        ToLongTests.supplyUnaryLong(suppliers);
-        ToLongTests.supplyUnaryBoolean(suppliers);
-        ToLongTests.supplyUnaryDate(suppliers);
-        ToLongTests.supplyUnaryString(suppliers);
-        ToLongTests.supplyUnaryDouble(suppliers);
-        ToLongTests.supplyUnaryUnsignedLong(suppliers);
-        ToLongTests.supplyUnaryInteger(suppliers);
-        ToLongTests.supplyUnaryCounter(suppliers);
-        ToLongTests.supplyUnaryGeo(suppliers);
+        ToLongTests.unary(suppliers);
 
         // two argument test cases
         ToLongBaseTests.supplyBinaryStringInteger(suppliers);

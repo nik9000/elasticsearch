@@ -16,100 +16,61 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class SqrtTests extends AbstractScalarFunctionTestCase {
-    public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        // Valid values
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "SqrtIntEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::sqrt,
-            0,
-            Integer.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "SqrtLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::sqrt,
-            0,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "SqrtUnsignedLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            ul -> Math.sqrt(ul == null ? null : unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))),
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "SqrtDoubleEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            Math::sqrt,
-            -0d,
-            Double.MAX_VALUE,
-            List.of()
-        );
+
+        intCase().ints(0, Integer.MAX_VALUE).expectedFromInt(Math::sqrt).build(suppliers);
+        longCase().longs(0, Long.MAX_VALUE).expectedFromLong(Math::sqrt).build(suppliers);
+        unsignedLongCase().unsignedLongs()
+            .expectedFromBigInteger(ul -> Math.sqrt(unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))))
+            .build(suppliers);
+        doubleCase().doubles(-0d, Double.MAX_VALUE).expectedFromDouble(Math::sqrt).build(suppliers);
         suppliers = anyNullIsNull(true, suppliers);
 
-        // Out of range values (there are no out of range unsigned longs)
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "SqrtIntEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            k -> null,
-            Integer.MIN_VALUE,
-            -1,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
-            )
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "SqrtLongEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            k -> null,
-            Long.MIN_VALUE,
-            -1,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
-            )
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "SqrtDoubleEvaluator[val=" + read + "]",
-            DataType.DOUBLE,
-            k -> null,
-            Double.NEGATIVE_INFINITY,
-            -Double.MIN_VALUE,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
-            )
-        );
+        intCase().ints(Integer.MIN_VALUE, -1).expectNullAndWarnings(negativeWarning()).build(suppliers);
+        longCase().longs(Long.MIN_VALUE, -1).expectNullAndWarnings(negativeWarning()).build(suppliers);
+        doubleCase().doubles(Double.NEGATIVE_INFINITY, -Double.MIN_VALUE).expectNullAndWarnings(negativeWarning()).build(suppliers);
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static UnaryTestCaseHelper intCase() {
+        return helper("Int");
+    }
+
+    private static UnaryTestCaseHelper longCase() {
+        return helper("Long");
+    }
+
+    private static UnaryTestCaseHelper unsignedLongCase() {
+        return helper("UnsignedLong");
+    }
+
+    private static UnaryTestCaseHelper doubleCase() {
+        return helper("Double");
+    }
+
+    private static Function<Object, List<String>> negativeWarning() {
+        return o -> List.of("Line 1:1: java.lang.ArithmeticException: Square root of negative");
+    }
+
+    private static UnaryTestCaseHelper helper(String type) {
+        return TestCaseSupplier.unary().expectedOutputType(DataType.DOUBLE).evaluatorToString("Sqrt" + type + "Evaluator[val=%0]");
+    }
+
+    public SqrtTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
     @Override

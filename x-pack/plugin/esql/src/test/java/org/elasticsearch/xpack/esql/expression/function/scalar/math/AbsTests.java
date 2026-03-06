@@ -15,77 +15,50 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class AbsTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
-            DataType.INTEGER,
-            Math::absExact,
-            Integer.MIN_VALUE + 1,
-            Integer.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "AbsIntEvaluator[fieldVal=Attribute[channel=0]]",
-            DataType.INTEGER,
-            z -> null,
-            Integer.MIN_VALUE,
-            Integer.MIN_VALUE,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: Overflow to represent absolute value of Integer.MIN_VALUE"
-            )
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "Attribute[channel=0]",
-            DataType.UNSIGNED_LONG,
-            (n) -> n,
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
-            DataType.LONG,
-            Math::absExact,
-            Long.MIN_VALUE + 1,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "AbsLongEvaluator[fieldVal=Attribute[channel=0]]",
-            DataType.LONG,
-            z -> null,
-            Long.MIN_VALUE,
-            Long.MIN_VALUE,
-            List.of(
-                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.ArithmeticException: Overflow to represent absolute value of Long.MIN_VALUE"
-            )
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "AbsDoubleEvaluator[fieldVal=Attribute[channel=0]]",
-            DataType.DOUBLE,
-            Math::abs,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            List.of()
-        );
+
+        doubleCase().doubles(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY).expectedFromDouble(Math::abs).build(suppliers);
+        intCase().ints(Integer.MIN_VALUE + 1, Integer.MAX_VALUE).expectedFromInt(Math::absExact).build(suppliers);
+        intCase().ints(Integer.MIN_VALUE, Integer.MIN_VALUE).expectNullAndWarnings(overflowWarning("Integer")).build(suppliers);
+        longCase().longs(Long.MIN_VALUE + 1, Long.MAX_VALUE).expectedFromLong(Math::absExact).build(suppliers);
+        longCase().longs(Long.MIN_VALUE, Long.MIN_VALUE).expectNullAndWarnings(overflowWarning("Long")).build(suppliers);
+        unsignedLongCase().unsignedLongs().expected(n -> n).build(suppliers);
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+    }
+
+    private static UnaryTestCaseHelper doubleCase() {
+        return helper("Double").expectedOutputType(DataType.DOUBLE);
+    }
+
+    private static UnaryTestCaseHelper intCase() {
+        return helper("Int").expectedOutputType(DataType.INTEGER);
+    }
+
+    private static UnaryTestCaseHelper longCase() {
+        return helper("Long").expectedOutputType(DataType.LONG);
+    }
+
+    private static Function<Object, List<String>> overflowWarning(String type) {
+        return o -> List.of("Line 1:1: java.lang.ArithmeticException: Overflow to represent absolute value of " + type + ".MIN_VALUE");
+    }
+
+    private static UnaryTestCaseHelper unsignedLongCase() {
+        return TestCaseSupplier.unary().expectedOutputType(DataType.UNSIGNED_LONG).evaluatorToString("%0");
+    }
+
+    private static UnaryTestCaseHelper helper(String type) {
+        return TestCaseSupplier.unary().evaluatorToString("Abs" + type + "Evaluator[fieldVal=%0]");
     }
 
     public AbsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

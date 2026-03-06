@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -34,7 +33,7 @@ public class FloorTests extends AbstractScalarFunctionTestCase {
         unary().expectedOutputType(DataType.INTEGER).ints().expectedFromInt(i -> i).evaluatorToString("%0").build(suppliers);
         unary().expectedOutputType(DataType.LONG).longs().expectedFromLong(l -> l).evaluatorToString("%0").build(suppliers);
         unary().expectedOutputType(DataType.UNSIGNED_LONG)
-            .unsignedLongs(BigInteger.ZERO, UNSIGNED_LONG_MAX)
+            .unsignedLongs()
             .expectedFromBigInteger(ul -> ul)
             .evaluatorToString("%0")
             .build(suppliers);

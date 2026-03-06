@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -37,7 +36,7 @@ public class CbrtTests extends AbstractScalarFunctionTestCase {
         UnaryTestCaseHelper helper = unary().expectedOutputType(DataType.DOUBLE);
         helper.ints().expectedFromInt(Math::cbrt).evaluatorToString("CbrtIntEvaluator[val=%0]").build(suppliers);
         helper.longs().expectedFromLong(Math::cbrt).evaluatorToString("CbrtLongEvaluator[val=%0]").build(suppliers);
-        helper.unsignedLongs(BigInteger.ZERO, UNSIGNED_LONG_MAX)
+        helper.unsignedLongs()
             .expectedFromBigInteger(ul -> Math.cbrt(unsignedLongToDouble(NumericUtils.asLongUnsigned(ul))))
             .evaluatorToString("CbrtUnsignedLongEvaluator[val=%0]")
             .build(suppliers);

@@ -53,12 +53,8 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
-import java.util.function.DoubleFunction;
 import java.util.function.Function;
-import java.util.function.IntFunction;
-import java.util.function.LongFunction;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
@@ -155,52 +151,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     @Override
     public String toString() {
         return name;
-    }
-
-    /**
-     * Generate positive test cases for unary functions that operate on an {@code numeric}
-     * fields by casting them to {@link DataType#DOUBLE}s.
-     */
-    public static List<TestCaseSupplier> forUnaryCastingToDouble(
-        String name,
-        String argName,
-        UnaryOperator<Double> expected,
-        Double min,
-        Double max,
-        List<String> warnings
-    ) {
-        String read = "Attribute[channel=0]";
-        String eval = name + "[" + argName + "=";
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
-        forUnaryInt(
-            suppliers,
-            eval + castToDoubleEvaluator(read, DataType.INTEGER) + "]",
-            DataType.DOUBLE,
-            i -> expected.apply(Double.valueOf(i)),
-            min.intValue(),
-            max.intValue(),
-            warnings
-        );
-        forUnaryLong(
-            suppliers,
-            eval + castToDoubleEvaluator(read, DataType.LONG) + "]",
-            DataType.DOUBLE,
-            i -> expected.apply(Double.valueOf(i)),
-            min.longValue(),
-            max.longValue(),
-            warnings
-        );
-        forUnaryUnsignedLong(
-            suppliers,
-            eval + castToDoubleEvaluator(read, DataType.UNSIGNED_LONG) + "]",
-            DataType.DOUBLE,
-            ul -> expected.apply(ul.doubleValue()),
-            BigInteger.valueOf((int) Math.ceil(min)),
-            BigInteger.valueOf((int) Math.floor(max)),
-            warnings
-        );
-        forUnaryDouble(suppliers, eval + read + "]", DataType.DOUBLE, expected::apply, min, max, warnings);
-        return suppliers;
     }
 
     /**
@@ -524,166 +474,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#INTEGER}.
-     */
-    public static void forUnaryInt(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        IntFunction<Object> expectedValue,
-        int lowerBound,
-        int upperBound,
-        Function<Number, List<String>> expectedWarnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            intCases(lowerBound, upperBound, true),
-            expectedType,
-            n -> expectedValue.apply(n.intValue()),
-            n -> expectedWarnings.apply(n.intValue())
-        );
-    }
-
-    public static void forUnaryInt(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        IntFunction<Object> expectedValue,
-        int lowerBound,
-        int upperBound,
-        List<String> warnings
-    ) {
-        forUnaryInt(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#LONG}.
-     */
-    public static void forUnaryLong(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        LongFunction<Object> expectedValue,
-        long lowerBound,
-        long upperBound,
-        Function<Number, List<String>> expectedWarnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            longCases(lowerBound, upperBound, true),
-            expectedType,
-            n -> expectedValue.apply(n.longValue()),
-            expectedWarnings
-        );
-    }
-
-    public static void forUnaryLong(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        LongFunction<Object> expectedValue,
-        long lowerBound,
-        long upperBound,
-        List<String> warnings
-    ) {
-        forUnaryLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#UNSIGNED_LONG}.
-     */
-    public static void forUnaryUnsignedLong(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<BigInteger, Object> expectedValue,
-        BigInteger lowerBound,
-        BigInteger upperBound,
-        Function<BigInteger, List<String>> expectedWarnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            ulongCases(lowerBound, upperBound, true),
-            expectedType,
-            n -> expectedValue.apply((BigInteger) n),
-            n -> expectedWarnings.apply((BigInteger) n)
-        );
-    }
-
-    public static void forUnaryUnsignedLong(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<BigInteger, Object> expectedValue,
-        BigInteger lowerBound,
-        BigInteger upperBound,
-        List<String> warnings
-    ) {
-        forUnaryUnsignedLong(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#DOUBLE}.
-     */
-    public static void forUnaryDouble(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        DoubleFunction<Object> expectedValue,
-        double lowerBound,
-        double upperBound,
-        List<String> warnings
-    ) {
-        forUnaryDouble(suppliers, expectedEvaluatorToString, expectedType, expectedValue, lowerBound, upperBound, unused -> warnings);
-    }
-
-    public static void forUnaryDouble(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        DoubleFunction<Object> expectedValue,
-        double lowerBound,
-        double upperBound,
-        DoubleFunction<List<String>> expectedWarnings
-    ) {
-        unaryNumeric(
-            suppliers,
-            expectedEvaluatorToString,
-            doubleCases(lowerBound, upperBound, true),
-            expectedType,
-            n -> expectedValue.apply(n.doubleValue()),
-            n -> expectedWarnings.apply(n.doubleValue())
-        );
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on a {@link DataType#DENSE_VECTOR}.
-     */
-    @SuppressWarnings("unchecked")
-    public static void forUnaryDenseVector(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<List<Float>, Object> expectedValue,
-        float lowerBound,
-        float upperBound
-    ) {
-        List<TypedDataSupplier> cases = new ArrayList<>();
-        cases.add(
-            new TypedDataSupplier(
-                "<dense vector>",
-                () -> randomDenseVector(randomIntBetween(64, 128), () -> randomFloatBetween(lowerBound, upperBound, true)),
-                DataType.DENSE_VECTOR
-            )
-        );
-
-        unary(suppliers, expectedEvaluatorToString, cases, expectedType, v -> expectedValue.apply((List<Float>) v), List.of());
-    }
-
     public static List<Float> randomDenseVector(int dimensions, Supplier<Float> vectorElementSupplier) {
         List<Float> vector = new ArrayList<>();
         for (int i = 0; i < dimensions; i++) {
@@ -698,19 +488,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             vector.add(randomFloatBetween(-1.0f, +1.0f, true));
         }
         return vector;
-    }
-
-    /**
-     * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
-     */
-    public static void forUnaryBoolean(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<Boolean, Object> expectedValue,
-        List<String> warnings
-    ) {
-        unary(suppliers, expectedEvaluatorToString, booleanCases(), expectedType, v -> expectedValue.apply((Boolean) v), warnings);
     }
 
     /**
@@ -890,26 +667,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public static void forUnaryDateTime(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<Instant, Object> expectedValue,
-        List<String> warnings
-    ) {
-        unary(suppliers, expectedEvaluatorToString, dateCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
-    }
-
-    public static void forUnaryDateNanos(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        DataType expectedType,
-        Function<Instant, Object> expectedValue,
-        List<String> warnings
-    ) {
-        unary(suppliers, expectedEvaluatorToString, dateNanosCases(), expectedType, v -> expectedValue.apply((Instant) v), warnings);
-    }
-
     public static void forUnaryDateRange(
         List<TestCaseSupplier> suppliers,
         String expectedEvaluatorToString,
@@ -964,35 +721,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<String> warnings
     ) {
         unary(suppliers, expectedEvaluatorToString, tdigestCases(), expectedType, v -> expectedValue.apply((TDigestHolder) v), warnings);
-    }
-
-    private static void unaryNumeric(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        List<TypedDataSupplier> valueSuppliers,
-        DataType expectedOutputType,
-        Function<Number, Object> expectedValue,
-        Function<Number, List<String>> expectedWarnings
-    ) {
-        unary(
-            suppliers,
-            expectedEvaluatorToString,
-            valueSuppliers,
-            expectedOutputType,
-            v -> expectedValue.apply((Number) v),
-            v -> expectedWarnings.apply((Number) v)
-        );
-    }
-
-    private static void unaryNumeric(
-        List<TestCaseSupplier> suppliers,
-        String expectedEvaluatorToString,
-        List<TypedDataSupplier> valueSuppliers,
-        DataType expectedOutputType,
-        Function<Number, Object> expected,
-        List<String> warnings
-    ) {
-        unaryNumeric(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
     /**

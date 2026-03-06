@@ -9,20 +9,31 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.math.BigInteger;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.Period;
 import java.util.List;
+import java.util.function.DoubleFunction;
 import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomFloatBetween;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLengthBetween;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 
 /**
  * Helper for building {@link TestCaseSupplier}s for unary functions.
@@ -104,9 +115,24 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
         DataType expectedOutputType,
         Function<List<Object>, Object> expected,
         Function<List<Object>, List<String>> expectedWarnings,
-        Supplier<Configuration> configuration
+        Supplier<Configuration> configuration,
+        boolean withoutEvaluator,
+        Class<? extends Throwable> foldingExceptionClass,
+        Function<List<Object>, String> foldingExceptionMessage
     ) {
-        super(1, values, name, expectedEvaluatorToString, expectedOutputType, expected, expectedWarnings, configuration);
+        super(
+            1,
+            values,
+            name,
+            expectedEvaluatorToString,
+            expectedOutputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     /**
@@ -135,7 +161,7 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
     }
 
     /**
-     * Add a specific string test case.
+     * Add a specific test case with all string types.
      */
     public UnaryTestCaseHelper strings(String name, Supplier<String> supplier) {
         return testCases(
@@ -150,6 +176,13 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
                 )
                 .toList()
         );
+    }
+
+    /**
+     * Add a specific test case with all string types.
+     */
+    public UnaryTestCaseHelper strings(String str) {
+        return strings(str, () -> str);
     }
 
     /**
@@ -175,6 +208,13 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
     }
 
     /**
+     * Add a random counter integer test case.
+     */
+    public UnaryTestCaseHelper counterInts() {
+        return testCases(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER));
+    }
+
+    /**
      * Add all possible random long test cases.
      */
     public UnaryTestCaseHelper longs() {
@@ -194,6 +234,20 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      */
     public UnaryTestCaseHelper longs(long min, long max, boolean includeZero) {
         return testCases(TestCaseSupplier.longCases(min, max, includeZero));
+    }
+
+    /**
+     * Add a random counter long test case.
+     */
+    public UnaryTestCaseHelper counterLongs() {
+        return testCases(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomNonNegativeLong, DataType.COUNTER_LONG));
+    }
+
+    /**
+     * Add some random unsigned long test cases across the full range of unsigned long values.
+     */
+    public UnaryTestCaseHelper unsignedLongs() {
+        return unsignedLongs(BigInteger.ZERO, UNSIGNED_LONG_MAX);
     }
 
     /**
@@ -228,11 +282,31 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
 
     /**
      * Add some random long test cases with values between {@code min} and {@code max},
-     *      * optionally skipping {@code 0}.
+     * optionally skipping {@code 0}.
      */
     public UnaryTestCaseHelper doubles(double min, double max, boolean includeZero) {
         // TODO once these are no callers to the static method, move the code here?
         return testCases(TestCaseSupplier.doubleCases(min, max, includeZero));
+    }
+
+    /**
+     * Add a random counter double test case.
+     */
+    public UnaryTestCaseHelper counterDoubles() {
+        return testCases(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomDouble, DataType.COUNTER_DOUBLE));
+    }
+
+    /**
+     * Add a random dense vector test case.
+     */
+    public UnaryTestCaseHelper denseVectors() {
+        return testCases(
+            new TestCaseSupplier.TypedDataSupplier(
+                "<dense vector>",
+                () -> TestCaseSupplier.randomDenseVector(randomIntBetween(64, 128), () -> randomFloatBetween(-1.0f, 1.0f, true)),
+                DataType.DENSE_VECTOR
+            )
+        );
     }
 
     /**
@@ -257,14 +331,54 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
     }
 
     /**
-     * Add some random date nanos test cases with values between {@code min} and {@code max}
+     * Add some random date nanos test cases with values between {@code min} and {@code max}.
      */
     public UnaryTestCaseHelper dateNanos(Instant min, Instant max) {
         return testCases(TestCaseSupplier.dateNanosCases(min, max));
     }
 
     /**
-     * Add a random {@code tsid} test case.
+     * Add test cases for {@code true} and {@code false}.
+     */
+    public UnaryTestCaseHelper booleans() {
+        return testCases(TestCaseSupplier.booleanCases());
+    }
+
+    /**
+     * Add test cases for all geo grid types ({@link DataType#GEOHASH},
+     * {@link DataType#GEOTILE}, {@link DataType#GEOHEX}).
+     */
+    public UnaryTestCaseHelper geoGrids() {
+        UnaryTestCaseHelper h = this;
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            h = h.geoGrids(gridType);
+        }
+        return h;
+    }
+
+    /**
+     * Add test cases for a geo grid type.
+     */
+    public UnaryTestCaseHelper geoGrids(DataType gridType) {
+        return testCases(TestCaseSupplier.geoGridCases(gridType));
+    }
+
+    /**
+     * Add random {@link DataType#VERSION} test cases.
+     */
+    public UnaryTestCaseHelper versions() {
+        return testCases(TestCaseSupplier.versionCases(""));
+    }
+
+    /**
+     * Add a specific {@link DataType#VERSION} test case.
+     */
+    public UnaryTestCaseHelper version(Version v) {
+        return testCases(new TestCaseSupplier.TypedDataSupplier(v.toString(), v::toBytesRef, DataType.VERSION));
+    }
+
+    /**
+     * Add a random {@link DataType#TSID_DATA_TYPE} test case.
      */
     public UnaryTestCaseHelper tsid() {
         return testCases(
@@ -274,6 +388,52 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
                 DataType.TSID_DATA_TYPE
             )
         );
+    }
+
+    /**
+     * Add a random {@link DataType#DATE_PERIOD} literal test case.
+     */
+    public UnaryTestCaseHelper datePeriod() {
+        return testCases(
+            new TestCaseSupplier.TypedDataSupplier("Period", () -> randomLiteral(DataType.DATE_PERIOD).value(), DataType.DATE_PERIOD, true)
+        );
+    }
+
+    /**
+     * Add a random {@link DataType#TIME_DURATION} literal test case.
+     */
+    public UnaryTestCaseHelper timeDuration() {
+        return testCases(
+            new TestCaseSupplier.TypedDataSupplier(
+                "Duration",
+                () -> randomLiteral(DataType.TIME_DURATION).value(),
+                DataType.TIME_DURATION,
+                true
+            )
+        );
+    }
+
+    /**
+     * Map the existing cases using some function.
+     */
+    public UnaryTestCaseHelper mapCases(String suffix, DataType targetType, Function<Object, Object> map) {
+        return replaceTestCases(testCases().stream().map(list -> {
+            TestCaseSupplier.TypedDataSupplier onlyArg = list.getFirst();
+            TestCaseSupplier.TypedDataSupplier mapped = new TestCaseSupplier.TypedDataSupplier(
+                onlyArg.name() + suffix,
+                () -> map.apply(onlyArg.supplier().get()),
+                targetType
+            );
+            return List.of(mapped);
+        }).toList());
+    }
+
+    /**
+     * Map the existing cases using some function. The name case gets a name that looks like a cast.
+     */
+    public UnaryTestCaseHelper mapCases(DataType targetType, Function<Object, Object> map) {
+        return mapCases("::" + targetType.typeName(), targetType, map);
+
     }
 
     /**
@@ -294,6 +454,19 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
     }
 
     /**
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#BOOLEAN} parameters.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     */
+    public UnaryTestCaseHelper expectedFromBoolean(Function<Boolean, Object> expected) {
+        return expected(o -> expected.apply((Boolean) o));
+    }
+
+    /**
      * This works for {@link DataType#isNumeric()} parameters by calling
      * {@link Number#doubleValue()}.
      * <p>
@@ -302,7 +475,7 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      *     in {@link Matchers#equalTo}.
      * </p>
      */
-    public UnaryTestCaseHelper expectedFromInt(Function<Integer, Object> expected) {
+    public UnaryTestCaseHelper expectedFromInt(IntFunction<Object> expected) {
         return expected(o -> expected.apply(((Number) o).intValue()));
     }
 
@@ -316,7 +489,7 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      *     in {@link Matchers#equalTo}.
      * </p>
      */
-    public UnaryTestCaseHelper expectedFromLong(Function<Long, Object> expected) {
+    public UnaryTestCaseHelper expectedFromLong(LongFunction<Object> expected) {
         return expected(o -> expected.apply(((Number) o).longValue()));
     }
 
@@ -330,8 +503,28 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      *     in {@link Matchers#equalTo}.
      * </p>
      */
-    public UnaryTestCaseHelper expectedFromDouble(Function<Double, Object> expected) {
+    public UnaryTestCaseHelper expectedFromDouble(DoubleFunction<Object> expected) {
         return expected(o -> expected.apply(((Number) o).doubleValue()));
+    }
+
+    /**
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#DENSE_VECTOR} parameters by calling
+     * {@link Number#floatValue()}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     */
+    public UnaryTestCaseHelper expectedFromFloatList(Function<List<Float>, Object> expected) {
+        return expected(o -> {
+            if (o instanceof List<?> l) {
+                List<Float> floats = l.stream().map(f -> ((Number) f).floatValue()).toList();
+                return expected.apply(floats);
+            }
+            return expected.apply(List.of((Float) o));
+        });
     }
 
     /**
@@ -360,7 +553,7 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      *     in {@link Matchers#equalTo}.
      * </p>
      */
-    public UnaryTestCaseHelper expectedBytesRef(Function<BytesRef, Object> expected) {
+    public UnaryTestCaseHelper expectedFromBytesRef(Function<BytesRef, Object> expected) {
         return expectedFromArgs(l -> expected.apply((BytesRef) l.getFirst()));
     }
 
@@ -389,6 +582,32 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      */
     public UnaryTestCaseHelper expectedFromInstant(Function<Instant, Object> expected) {
         return expected(o -> expected.apply((Instant) o));
+    }
+
+    /**
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#TIME_DURATION}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     */
+    public UnaryTestCaseHelper expectedFromDuration(Function<Duration, Object> expected) {
+        return expected(o -> expected.apply((Duration) o));
+    }
+
+    /**
+     * Set a function to build the expected value from the parameter value.
+     * This works for {@link DataType#DATE_PERIOD}.
+     * <p>
+     *     If this function returns a {@link Matcher} then we'll
+     *     {@link Matcher#matches use} it. Otherwise, we'll wrap the result
+     *     in {@link Matchers#equalTo}.
+     * </p>
+     */
+    public UnaryTestCaseHelper expectedFromPeriod(Function<Period, Object> expected) {
+        return expected(o -> expected.apply((Period) o));
     }
 
     /**
@@ -431,8 +650,27 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
      * result to be {@code null}. Most functions will return {@code null} when they emit a
      * warning.
      */
+    public UnaryTestCaseHelper expectNullAndWarningsFromLong(Function<Long, List<String>> expectedWarnings) {
+        return expectNullAndWarnings(o -> expectedWarnings.apply(((Number) o).longValue()));
+    }
+
+    /**
+     * Set a function to build any expected warnings <strong>and</strong> expect the actual
+     * result to be {@code null}. Most functions will return {@code null} when they emit a
+     * warning.
+     */
     public UnaryTestCaseHelper expectNullAndWarningsFromBigInteger(Function<BigInteger, List<String>> expectedWarnings) {
         return expectNullAndWarnings(o -> expectedWarnings.apply((BigInteger) o));
+    }
+
+    /**
+     * Set the expected exception type and message that is thrown when folding.
+     * Use this for sets of functions that fail completely when folding. Most functions
+     * <strong>don't</strong> do this, but a few fail with nice error messages
+     * on bad inputs.
+     */
+    public UnaryTestCaseHelper foldingException(Class<? extends Throwable> clazz, Function<Object, String> message) {
+        return foldingExceptionFromAllArgs(clazz, args -> message.apply(args.getFirst()));
     }
 
     /**
@@ -448,7 +686,7 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
         if (evaluatorToString() == null) {
             throw new IllegalStateException("evaluatorToString must be provided");
         }
-        if (values().isEmpty() == false) {
+        if (testCases().isEmpty() == false) {
             throw new IllegalStateException("values must *not* be provided");
         }
         if (min > max) {
@@ -462,8 +700,36 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
         h.doubles(min, max, includeZero).build(suppliers);
     }
 
+    /**
+     * Build many tests for a function that accepts numeric arguments and converts it's
+     * parameters to {@code double} before running. This differs from {@link #castingToDouble}
+     * because the conversion functions apply to all input values. This will test all numeric
+     * types that have a value in the range {@code min..=max}.
+     * @param min the minimum value to test
+     * @param max the maximum value to test
+     * @param includeZero should this generate tests for 0?
+     * @param suppliers where to write the test cases
+     */
+    public void convertingToDouble(double min, double max, boolean includeZero, List<TestCaseSupplier> suppliers) {
+        if (evaluatorToString() == null) {
+            throw new IllegalStateException("evaluatorToString must be provided");
+        }
+        if (testCases().isEmpty() == false) {
+            throw new IllegalStateException("values must *not* be provided");
+        }
+        if (min > max) {
+            throw new IllegalArgumentException("invalid range: " + min + " > " + max);
+        }
+        UnaryTestCaseHelper h = expectedOutputType(DataType.DOUBLE);
+        h.ints((int) min, (int) max, includeZero).innerCastingToDouble("ToDoubleFromIntEvaluator[i=%0]", suppliers);
+        h.longs((long) min, (long) max, includeZero).innerCastingToDouble("ToDoubleFromLongEvaluator[l=%0]", suppliers);
+        h.unsignedLongs(BigInteger.valueOf((long) Math.ceil(min)), BigInteger.valueOf((long) Math.floor(max)), includeZero)
+            .innerCastingToDouble("ToDoubleFromUnsignedLongEvaluator[l=%0]", suppliers);
+        h.doubles(min, max, includeZero).build(suppliers);
+    }
+
     private void innerCastingToDouble(String castEvaluator, List<TestCaseSupplier> suppliers) {
-        if (values().isEmpty()) {
+        if (testCases().isEmpty()) {
             return;
         }
         evaluatorToString(evaluatorToString().replace("%0", castEvaluator)).build(suppliers);
@@ -477,7 +743,10 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
         DataType expectedOutputType,
         Function<List<Object>, Object> expected,
         Function<List<Object>, List<String>> expectedWarnings,
-        Supplier<Configuration> configuration
+        Supplier<Configuration> configuration,
+        boolean withoutEvaluator,
+        Class<? extends Throwable> foldingExceptionClass,
+        Function<List<Object>, String> foldingExceptionMessage
     ) {
         return new UnaryTestCaseHelper(
             values,
@@ -486,7 +755,10 @@ public class UnaryTestCaseHelper extends AbstractTestCaseHelper<UnaryTestCaseHel
             expectedOutputType,
             expected,
             expectedWarnings,
-            configuration
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
         );
     }
 }

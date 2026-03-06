@@ -644,7 +644,7 @@ public class EsqlCapabilities {
         /**
          * Support for to_date_nanos function
          */
-        TO_DATE_NANOS(),
+        TO_DATE_NANOS,
 
         /**
          * Support for date nanos type in binary comparisons
