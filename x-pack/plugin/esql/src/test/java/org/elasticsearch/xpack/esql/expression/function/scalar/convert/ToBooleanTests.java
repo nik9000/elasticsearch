@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -22,65 +23,30 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 public class ToBooleanTests extends AbstractScalarFunctionTestCase {
-    public ToBooleanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
-    }
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, read, DataType.BOOLEAN, b -> b, emptyList());
+        unary().expectedOutputType(DataType.BOOLEAN).booleans().expected(b -> b).evaluatorToString("%0").build(suppliers);
 
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "ToBooleanFromIntEvaluator[i=" + read + "]",
-            DataType.BOOLEAN,
-            i -> i != 0,
-            Integer.MIN_VALUE,
-            Integer.MAX_VALUE,
-            emptyList()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "ToBooleanFromLongEvaluator[l=" + read + "]",
-            DataType.BOOLEAN,
-            l -> l != 0,
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            emptyList()
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "ToBooleanFromUnsignedLongEvaluator[ul=" + read + "]",
-            DataType.BOOLEAN,
-            ul -> ul.compareTo(BigInteger.ZERO) != 0,
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            emptyList()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "ToBooleanFromDoubleEvaluator[d=" + read + "]",
-            DataType.BOOLEAN,
-            d -> d != 0d,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            emptyList()
-        );
-        TestCaseSupplier.forUnaryStrings(
-            suppliers,
-            "ToBooleanFromStringEvaluator[keyword=" + read + "]",
-            DataType.BOOLEAN,
-            bytesRef -> String.valueOf(bytesRef).toLowerCase(Locale.ROOT).equals("true"),
-            emptyList()
-        );
+        helper("Double", "d").doubles().expectedFromDouble(d -> d != 0d).build(suppliers);
+        helper("Int", "i").ints().expectedFromInt(i -> i != 0).build(suppliers);
+        helper("Long", "l").longs().expectedFromLong(l -> l != 0).build(suppliers);
+        helper("String", "keyword").strings().expectedFromString(s -> s.toLowerCase(Locale.ROOT).equals("true")).build(suppliers);
+        helper("UnsignedLong", "ul").unsignedLongs().expectedFromBigInteger(ul -> ul.compareTo(BigInteger.ZERO) != 0).build(suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static UnaryTestCaseHelper helper(String type, String param) {
+        return unary().expectedOutputType(DataType.BOOLEAN).evaluatorToString("ToBooleanFrom" + type + "Evaluator[" + param + "=%0]");
+    }
+
+    public ToBooleanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
     }
 
     @Override

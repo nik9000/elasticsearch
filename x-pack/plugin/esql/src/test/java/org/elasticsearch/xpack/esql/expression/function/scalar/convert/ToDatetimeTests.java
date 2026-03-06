@@ -26,6 +26,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
@@ -47,7 +48,7 @@ public class ToDatetimeTests extends AbstractConfigurationFunctionTestCase {
             .expectedFromInstant(i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)))
             .evaluatorToString("ToDatetimeFromDateNanosEvaluator[in=%0]")
             .build(suppliers);
-        helper().ints().expectedFromInt(Integer::longValue).evaluatorToString("ToLongFromIntEvaluator[i=%0]").build(suppliers);
+        helper().ints().expectedFromInt(i -> (long) i).evaluatorToString("ToLongFromIntEvaluator[i=%0]").build(suppliers);
         helper().longs().expectedFromLong(l -> l).evaluatorToString("%0").build(suppliers);
 
         unsignedLongCase().unsignedLongs(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE))
@@ -61,7 +62,7 @@ public class ToDatetimeTests extends AbstractConfigurationFunctionTestCase {
 
         double lowerDouble = -9.223372036854777E18; // a "convenient" value smaller than `(double) Long.MIN_VALUE` (== ...776E18)
         double upperDouble = 9.223372036854777E18; // a "convenient" value larger than `(double) Long.MAX_VALUE` (== ...776E18)
-        doubleCase().doubles(lowerDouble, upperDouble).expectedFromDouble(Double::longValue);
+        doubleCase().doubles(lowerDouble, upperDouble).expectedFromDouble(d -> (long) d);
         doubleWarningCase().doubles(Double.NEGATIVE_INFINITY, lowerDouble).build(suppliers);
         doubleWarningCase().doubles(upperDouble, Double.POSITIVE_INFINITY).build(suppliers);
 
@@ -126,22 +127,22 @@ public class ToDatetimeTests extends AbstractConfigurationFunctionTestCase {
     }
 
     private static UnaryTestCaseHelper stringWarningCase() {
-        return stringCase().expectNullAndWarningsFromString(
-            s -> List.of(
-                "Line 1:1: java.lang.IllegalArgumentException: "
-                    + (s.isEmpty()
-                        ? "cannot parse empty datetime"
-                        : ("failed to parse date field [" + s + "] with format [strict_date_optional_time]"))
-            )
-        );
+        return stringCase().expectNullAndWarningsFromString(stringWarnings("strict_date_optional_time"));
+    }
+
+    static Function<String, List<String>> stringWarnings(String format) {
+        return s -> {
+            String message = s.isEmpty()
+                ? "cannot parse empty datetime"
+                : ("failed to parse date field [" + s + "] with format [" + format + "]");
+            return List.of("Line 1:1: java.lang.IllegalArgumentException: " + message);
+        };
     }
 
     private static UnaryTestCaseHelper fixedCases(String dateString, String zoneIdString, String expectedDate) {
         ZoneId zoneId = ZoneId.of(zoneIdString);
-        return stringCase().name(s -> s.getFirst().type() + ": " + dateString + ", " + zoneIdString + ", " + expectedDate)
-            .testCases(
-                DataType.stringTypes().stream().map(dt -> new TestCaseSupplier.TypedDataSupplier("date", () -> dateString, dt)).toList()
-            )
+        return stringCase().name(s -> dateString + "::" + s.getFirst().type().typeName() + ", " + zoneIdString + ", " + expectedDate)
+            .strings("date", () -> dateString)
             .expected(o -> matchesDateMillis(expectedDate))
             .configuration(() -> configurationForTimezone(zoneId));
     }

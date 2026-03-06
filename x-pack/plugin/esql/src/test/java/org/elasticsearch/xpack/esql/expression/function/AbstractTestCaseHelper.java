@@ -28,7 +28,7 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
     private static final Logger log = LogManager.getLogger(AbstractTestCaseHelper.class);
 
     private final int arity;
-    private final List<List<TestCaseSupplier.TypedDataSupplier>> values;
+    private final List<List<TestCaseSupplier.TypedDataSupplier>> testCases;
     private final Function<List<TestCaseSupplier.TypedDataSupplier>, String> name;
     private final String evaluatorToString;
     private final DataType outputType;
@@ -41,16 +41,22 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
      */
     private final Function<List<Object>, List<String>> expectedWarnings;
     private final Supplier<Configuration> configuration;
+    private final boolean withoutEvaluator;
+    private final Class<? extends Throwable> foldingExceptionClass;
+    private final Function<List<Object>, String> foldingExceptionMessage;
 
     protected AbstractTestCaseHelper(int arity) {
         this.arity = arity;
-        this.values = List.of();
+        this.testCases = List.of();
         this.name = null;
         this.evaluatorToString = null;
         this.outputType = null;
         this.expected = null;
         this.expectedWarnings = v -> List.of();
         this.configuration = null;
+        this.withoutEvaluator = false;
+        this.foldingExceptionClass = null;
+        this.foldingExceptionMessage = null;
     }
 
     protected AbstractTestCaseHelper(
@@ -61,16 +67,22 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
         DataType expectedOutputType,
         Function<List<Object>, Object> expected,
         Function<List<Object>, List<String>> expectedWarnings,
-        Supplier<Configuration> configuration
+        Supplier<Configuration> configuration,
+        boolean withoutEvaluator,
+        Class<? extends Throwable> foldingExceptionClass,
+        Function<List<Object>, String> foldingExceptionMessage
     ) {
         this.arity = arity;
-        this.values = values;
+        this.testCases = values;
         this.name = name;
         this.evaluatorToString = evaluatorToString;
         this.outputType = expectedOutputType;
         this.expected = expected;
         this.expectedWarnings = expectedWarnings;
         this.configuration = configuration;
+        this.withoutEvaluator = withoutEvaluator;
+        this.foldingExceptionClass = foldingExceptionClass;
+        this.foldingExceptionMessage = foldingExceptionMessage;
     }
 
     /**
@@ -83,17 +95,35 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
         DataType expectedOutputType,
         Function<List<Object>, Object> expected,
         Function<List<Object>, List<String>> expectedWarnings,
-        Supplier<Configuration> configuration
+        Supplier<Configuration> configuration,
+        boolean withoutEvaluator,
+        Class<? extends Throwable> foldingExceptionClass,
+        Function<List<Object>, String> foldingExceptionMessage
     );
 
-    protected final List<List<TestCaseSupplier.TypedDataSupplier>> values() {
-        return values;
+    protected final List<List<TestCaseSupplier.TypedDataSupplier>> testCases() {
+        return testCases;
     }
 
-    protected final S addTestCases(List<List<TestCaseSupplier.TypedDataSupplier>> values) {
-        List<List<TestCaseSupplier.TypedDataSupplier>> newValues = new ArrayList<>(this.values);
-        newValues.addAll(values);
-        return create(List.copyOf(newValues), name, evaluatorToString, outputType, expected, expectedWarnings, configuration);
+    protected final S addTestCases(List<List<TestCaseSupplier.TypedDataSupplier>> testCases) {
+        List<List<TestCaseSupplier.TypedDataSupplier>> newTestCases = new ArrayList<>(this.testCases);
+        newTestCases.addAll(testCases);
+        return replaceTestCases(List.copyOf(newTestCases));
+    }
+
+    protected final S replaceTestCases(List<List<TestCaseSupplier.TypedDataSupplier>> testCases) {
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     /**
@@ -102,7 +132,18 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
      * <pre>{@code <param1name, param2name, param3name>}</pre>.
      */
     public final S name(Function<List<TestCaseSupplier.TypedDataSupplier>, String> name) {
-        return create(values, name, this.evaluatorToString, this.outputType, this.expected, this.expectedWarnings, this.configuration);
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     /**
@@ -114,7 +155,18 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
      * }</pre>
      */
     public final S evaluatorToString(String evaluatorToString) {
-        return create(values, name, evaluatorToString, outputType, expected, expectedWarnings, configuration);
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     protected final String evaluatorToString() {
@@ -122,11 +174,33 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
     }
 
     public final S expectedOutputType(DataType expectedOutputType) {
-        return create(values, name, evaluatorToString, expectedOutputType, expected, expectedWarnings, configuration);
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            expectedOutputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     protected final S expectedFromArgs(Function<List<Object>, Object> expected) {
-        return create(values, name, evaluatorToString, outputType, expected, expectedWarnings, configuration);
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     protected final S expectWarningsFromArgs(Function<List<Object>, List<String>> expectedWarnings) {
@@ -140,7 +214,18 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
             warnings.addAll(e);
             return warnings;
         };
-        return create(values, name, evaluatorToString, outputType, expected, wrapped, configuration);
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            wrapped,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
     }
 
     /**
@@ -148,14 +233,67 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
      * then a {@linkplain Configuration} is not available to the function.
      */
     public final S configuration(Supplier<Configuration> configuration) {
-        return create(values, name, evaluatorToString, outputType, expected, expectedWarnings, configuration);
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
+    }
+
+    /**
+     * Build {@link TestCaseSupplier.TestCase}s that can't build an evaluator.
+     * <p>
+     *     Useful for special cases that can't be executed, but should still be considered.
+     * </p>
+     */
+    public S withoutEvaluator() {
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            true,
+            foldingExceptionClass,
+            foldingExceptionMessage
+        );
+    }
+
+    /**
+     * Set the expected exception type and message that is thrown when folding.
+     * Use this for sets of functions that fail completely when folding. Most functions
+     * <strong>don't</strong> do this, but a few fail with nice error messages
+     * on bad inputs.
+     */
+    public final S foldingExceptionFromAllArgs(Class<? extends Throwable> clazz, Function<List<Object>, String> message) {
+        return create(
+            testCases,
+            name,
+            evaluatorToString,
+            outputType,
+            expected,
+            expectedWarnings,
+            configuration,
+            withoutEvaluator,
+            clazz,
+            message
+        );
     }
 
     /**
      * Build the {@link TestCaseSupplier suppliers} and write them into the provided list.
      */
     public final void build(List<TestCaseSupplier> suppliers) {
-        if (values.isEmpty()) {
+        if (testCases.isEmpty()) {
             throw new IllegalStateException("values must be provided");
         }
         if (evaluatorToString == null) {
@@ -167,7 +305,7 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
         if (expected == null) {
             throw new IllegalStateException("expectedValue must be provided");
         }
-        for (List<TestCaseSupplier.TypedDataSupplier> valueSuppliers : values) {
+        for (List<TestCaseSupplier.TypedDataSupplier> valueSuppliers : testCases) {
             List<DataType> types = valueSuppliers.stream().map(TestCaseSupplier.TypedDataSupplier::type).toList();
             Supplier<TestCaseSupplier.TestCase> supplier = () -> buildTestCase(
                 valueSuppliers.stream().map(TestCaseSupplier.TypedDataSupplier::get).toList()
@@ -210,6 +348,12 @@ public abstract class AbstractTestCaseHelper<S extends AbstractTestCaseHelper<S>
         }
         if (configuration != null) {
             testCase = testCase.withConfiguration(new Source(new Location(1, 0), "source"), configuration.get());
+        }
+        if (withoutEvaluator) {
+            testCase = testCase.withoutEvaluator();
+        }
+        if (foldingExceptionClass != null) {
+            testCase = testCase.withFoldingException(foldingExceptionClass, foldingExceptionMessage.apply(inputs));
         }
         return testCase;
     }

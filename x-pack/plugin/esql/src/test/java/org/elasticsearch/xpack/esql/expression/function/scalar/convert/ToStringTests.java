@@ -18,6 +18,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.ReadableMatchers;
 import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,11 +26,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CART
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -55,7 +57,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.unary(
+        unary(
             suppliers,
             "ToStringFromDatetimeEvaluator[datetime=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             TestCaseSupplier.dateCases(),
@@ -63,7 +65,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             i -> matchesBytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DateUtils.toLongMillis((Instant) i))),
             List.of()
         );
-        TestCaseSupplier.unary(
+        unary(
             suppliers,
             "ToStringFromDateNanosEvaluator[datetime=" + read + ", formatter=format[strict_date_optional_time_nanos] locale[]]",
             TestCaseSupplier.dateNanosCases(),
@@ -77,57 +79,16 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             tc -> tc.withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
         );
 
-        TestCaseSupplier.forUnaryInt(
-            suppliers,
-            "ToStringFromIntEvaluator[integer=" + read + "]",
-            DataType.KEYWORD,
-            i -> matchesBytesRef(Integer.toString(i)),
-            Integer.MIN_VALUE,
-            Integer.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryLong(
-            suppliers,
-            "ToStringFromLongEvaluator[lng=" + read + "]",
-            DataType.KEYWORD,
-            l -> matchesBytesRef(Long.toString(l)),
-            Long.MIN_VALUE,
-            Long.MAX_VALUE,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryUnsignedLong(
-            suppliers,
-            "ToStringFromUnsignedLongEvaluator[lng=" + read + "]",
-            DataType.KEYWORD,
-            ul -> matchesBytesRef(ul.toString()),
-            BigInteger.ZERO,
-            UNSIGNED_LONG_MAX,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDouble(
-            suppliers,
-            "ToStringFromDoubleEvaluator[dbl=" + read + "]",
-            DataType.KEYWORD,
-            d -> matchesBytesRef(Double.toString(d)),
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDenseVector(
-            suppliers,
-            "ToStringFromFloatEvaluator[flt=" + read + "]",
-            DataType.KEYWORD,
-            d -> d.stream().map(f -> new BytesRef(f.toString())).toList(),
-            -1.0f,
-            1.0f
-        );
-        TestCaseSupplier.forUnaryBoolean(
-            suppliers,
-            "ToStringFromBooleanEvaluator[bool=" + read + "]",
-            DataType.KEYWORD,
-            b -> matchesBytesRef(b.toString()),
-            List.of()
-        );
+        intCase().ints().expectedFromInt(i -> matchesBytesRef(Integer.toString(i))).build(suppliers);
+        longCase().longs().expectedFromLong(l -> matchesBytesRef(Long.toString(l))).build(suppliers);
+        helper("UnsignedLong", "lng").unsignedLongs().expectedFromBigInteger(ul -> matchesBytesRef(ul.toString())).build(suppliers);
+        doubleCase().doubles(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+            .expectedFromDouble(d -> matchesBytesRef(Double.toString(d)))
+            .build(suppliers);
+        helper("Float", "flt").denseVectors()
+            .expectedFromFloatList(l -> l.stream().map(f -> new BytesRef(f.toString())).toList())
+            .build(suppliers);
+        booleanCase().booleans().expectedFromBoolean(b -> matchesBytesRef(b.toString())).build(suppliers);
         TestCaseSupplier.forUnaryGeoPoint(
             suppliers,
             "ToStringFromGeoPointEvaluator[wkb=" + read + "]",
@@ -163,7 +124,8 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             ip -> matchesBytesRef(DocValueFormat.IP.format(ip)),
             List.of()
         );
-        TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
+
+        helper("%0").strings().expectedFromString(ReadableMatchers::matchesBytesRef).build(suppliers);
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",
@@ -171,16 +133,10 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             v -> matchesBytesRef(v.toString()),
             List.of()
         );
-        // Geo-Grid types
         for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
-            TestCaseSupplier.forUnaryGeoGrid(
-                suppliers,
-                "ToStringFromGeoGridEvaluator[gridId=Attribute[channel=0], dataType=" + gridType + "]",
-                gridType,
-                DataType.KEYWORD,
-                v -> matchesBytesRef(EsqlDataTypeConverter.geoGridToString((long) v, gridType)),
-                List.of()
-            );
+            helper("ToStringFromGeoGridEvaluator[gridId=%0, dataType=" + gridType + "]").geoGrids(gridType)
+                .expected(v -> matchesBytesRef(EsqlDataTypeConverter.geoGridToString((long) v, gridType)))
+                .build(suppliers);
         }
         TestCaseSupplier.forUnaryAggregateMetricDouble(
             suppliers,
@@ -243,20 +199,12 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
 
         List<TestCaseSupplier> fixedTimezoneSuppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryDateTime(
-            fixedTimezoneSuppliers,
-            "ToStringFromDatetimeEvaluator[datetime=" + read + ", " + "formatter=format[strict_date_optional_time] locale[]]",
-            DataType.KEYWORD,
-            date -> matchesBytesRef(EsqlDataTypeConverter.dateTimeToString(DateUtils.toLongMillis(date))),
-            List.of()
-        );
-        TestCaseSupplier.forUnaryDateNanos(
-            fixedTimezoneSuppliers,
-            "ToStringFromDateNanosEvaluator[datetime=" + read + ", formatter=format[strict_date_optional_time_nanos] locale[]]",
-            DataType.KEYWORD,
-            date -> matchesBytesRef(EsqlDataTypeConverter.nanoTimeToString(DateUtils.toLong(date))),
-            List.of()
-        );
+        dateCase("Datetime", "strict_date_optional_time").dates()
+            .expectedFromInstant(date -> matchesBytesRef(EsqlDataTypeConverter.dateTimeToString(DateUtils.toLongMillis(date))))
+            .build(fixedTimezoneSuppliers);
+        dateCase("DateNanos", "strict_date_optional_time_nanos").dateNanos()
+            .expectedFromInstant(date -> matchesBytesRef(EsqlDataTypeConverter.nanoTimeToString(DateUtils.toLong(date))))
+            .build(fixedTimezoneSuppliers);
         TestCaseSupplier.forUnaryDateRange(
             fixedTimezoneSuppliers,
             "ToStringFromDateRangeEvaluator[field=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
@@ -284,6 +232,34 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             return typedData;
         }).toList()));
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static UnaryTestCaseHelper booleanCase() {
+        return helper("Boolean", "bool");
+    }
+
+    private static UnaryTestCaseHelper intCase() {
+        return helper("Int", "integer");
+    }
+
+    private static UnaryTestCaseHelper doubleCase() {
+        return helper("Double", "dbl");
+    }
+
+    private static UnaryTestCaseHelper longCase() {
+        return helper("Long", "lng");
+    }
+
+    private static UnaryTestCaseHelper dateCase(String type, String format) {
+        return helper("ToStringFrom" + type + "Evaluator[datetime=%0, formatter=format[" + format + "] locale[]]");
+    }
+
+    private static UnaryTestCaseHelper helper(String type, String param) {
+        return helper("ToStringFrom" + type + "Evaluator[" + param + "=%0]");
+    }
+
+    private static UnaryTestCaseHelper helper(String toString) {
+        return TestCaseSupplier.unary().expectedOutputType(DataType.KEYWORD).evaluatorToString(toString);
     }
 
     private static List<TestCaseSupplier> casesForDate(String date, String zoneIdString, String expectedString) {

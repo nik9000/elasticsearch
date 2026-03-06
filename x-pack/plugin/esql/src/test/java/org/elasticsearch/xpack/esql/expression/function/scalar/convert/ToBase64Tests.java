@@ -40,7 +40,7 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
         base.strings()
             .expectedFromString(s -> new BytesRef(Base64.getEncoder().encode(s.getBytes(StandardCharsets.UTF_8))))
             .build(suppliers);
-        base.tsid().expectedBytesRef(b -> new BytesRef(base64Encode(b).getBytes(StandardCharsets.UTF_8))).build(suppliers);
+        base.tsid().expectedFromBytesRef(b -> new BytesRef(base64Encode(b).getBytes(StandardCharsets.UTF_8))).build(suppliers);
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
