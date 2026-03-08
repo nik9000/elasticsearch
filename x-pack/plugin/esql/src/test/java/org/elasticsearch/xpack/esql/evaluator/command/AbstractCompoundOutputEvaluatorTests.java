@@ -18,7 +18,9 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsSink;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceBytesRefBlockSourceOperator;
@@ -32,9 +34,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestCase {
+
+    private static final WarningSourceLocation NOOP_SOURCE = new WarningSourceLocation() {
+        @Override
+        public int lineNumber() {
+            return 0;
+        }
+
+        @Override
+        public int columnNumber() {
+            return 0;
+        }
+
+        @Override
+        public String viewName() {
+            return null;
+        }
+
+        @Override
+        public String text() {
+            return "";
+        }
+    };
 
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
@@ -181,10 +206,17 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
 
     /**
      * Accepts expected values as either {@code Object[]} (multiple values per field) or a single {@code Object}
-     * (wrapped as one value for that field) for readability.
+     * (wrapped as one value for that field) for readability. Asserts that no warnings were produced.
      */
     protected void evaluateAndCompare(List<String> input, List<String> requestedFields, List<?> expectedRowComputationOutput) {
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput, Warnings.NOOP_WARNINGS);
+        WarningsSink warningsSink = new WarningsSink();
+        evaluateAndCompare(
+            input,
+            requestedFields,
+            expectedRowComputationOutput,
+            Warnings.createWarnings(warningsSink, NOOP_SOURCE)
+        );
+        assertThat(warningsSink.takeWarnings(), empty());
     }
 
     protected void evaluateAndCompare(

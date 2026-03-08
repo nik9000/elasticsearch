@@ -126,7 +126,7 @@ public final class LessThanOrEqualDoublesEvaluator implements ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = Warnings.createWarnings(driverContext.warnings(), source);
     }
     return warnings;
   }

@@ -9,18 +9,25 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 public class WarningsTests extends ESTestCase {
     public void testRegisterCollect() {
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+        WarningsSink sink = new WarningsSink();
+        Warnings warnings = Warnings.createWarnings(sink, new TestWarningsSource("foo"));
         warnings.registerException(new IllegalArgumentException());
-        assertCriticalWarnings(
-            "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:1: java.lang.IllegalArgumentException: null"
+        assertThat(
+            sink.takeWarnings(),
+            containsInAnyOrder(
+                "Line 1:1: evaluation of [foo] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: null"
+            )
         );
     }
 
     public void testRegisterCollectFilled() {
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo"));
+        WarningsSink sink = new WarningsSink();
+        Warnings warnings = Warnings.createWarnings(sink, new TestWarningsSource("foo"));
         for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
             warnings.registerException(new IllegalArgumentException(Integer.toString(i)));
         }
@@ -31,11 +38,12 @@ public class WarningsTests extends ESTestCase {
             expected[i + 1] = "Line 1:1: java.lang.IllegalArgumentException: " + i;
         }
 
-        assertCriticalWarnings(expected);
+        assertThat(sink.takeWarnings(), containsInAnyOrder(expected));
     }
 
     public void testRegisterCollectViews() {
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("foo", "view1"));
+        WarningsSink sink = new WarningsSink();
+        Warnings warnings = Warnings.createWarnings(sink, new TestWarningsSource("foo", "view1"));
         for (int i = 0; i < Warnings.MAX_ADDED_WARNINGS + 1000; i++) {
             warnings.registerException(new IllegalArgumentException(Integer.toString(i)));
         }
@@ -46,11 +54,11 @@ public class WarningsTests extends ESTestCase {
             expected[i + 1] = "Line 1:1 (in view [view1]): java.lang.IllegalArgumentException: " + i;
         }
 
-        assertCriticalWarnings(expected);
+        assertThat(sink.takeWarnings(), containsInAnyOrder(expected));
     }
 
     public void testRegisterIgnore() {
-        Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, new TestWarningsSource("foo"));
+        Warnings warnings = Warnings.createWarnings(null, new TestWarningsSource("foo"));
         warnings.registerException(new IllegalArgumentException());
     }
 

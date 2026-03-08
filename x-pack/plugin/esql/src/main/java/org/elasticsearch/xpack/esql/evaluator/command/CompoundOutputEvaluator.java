@@ -53,7 +53,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         public CompoundOutputEvaluator create(DriverContext driverContext) {
             Warnings warnings = (driverContext == null || source == null)
                 ? Warnings.NOOP_WARNINGS
-                : Warnings.createWarnings(driverContext.warningsMode(), source);
+                : Warnings.createWarnings(driverContext.warnings(), source);
             OutputFieldsCollector outputFieldsCollector = outputFieldsCollectorProvider.createOutputFieldsCollector();
             return new CompoundOutputEvaluator(inputType, warnings, outputFieldsCollector);
         }

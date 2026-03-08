@@ -161,7 +161,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(aggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
+            builder.addStatement("var warnings = $T.createWarnings(driverContext.warnings(), warningsSource)", WARNINGS);
         }
 
         builder.addStatement(
@@ -184,7 +184,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.returns(groupingAggregatorImplementer.implementation());
 
         if (hasWarnings) {
-            builder.addStatement("var warnings = $T.createWarnings(driverContext.warningsMode(), warningsSource)", WARNINGS);
+            builder.addStatement("var warnings = $T.createWarnings(driverContext.warnings(), warningsSource)", WARNINGS);
         }
 
         builder.addStatement(

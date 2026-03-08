@@ -104,7 +104,7 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implem
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = Warnings.createWarnings(driverContext.warnings(), source);
     }
     return warnings;
   }

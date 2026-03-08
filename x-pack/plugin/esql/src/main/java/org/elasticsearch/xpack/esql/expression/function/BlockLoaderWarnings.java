@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsSink;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -18,19 +19,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * cheap to create.
  */
 public class BlockLoaderWarnings implements org.elasticsearch.index.mapper.blockloader.Warnings {
-    private final DriverContext.WarningsMode warningsMode;
+    private final @Nullable WarningsSink warnings;
     private final Source source;
     private Warnings delegate;
 
-    public BlockLoaderWarnings(DriverContext.WarningsMode warningsMode, Source source) {
-        this.warningsMode = warningsMode;
+    public BlockLoaderWarnings(@Nullable WarningsSink warnings, Source source) {
+        this.warnings = warnings;
         this.source = source;
     }
 
     @Override
     public void registerException(Class<? extends Exception> exceptionClass, String message) {
         if (delegate == null) {
-            delegate = Warnings.createOnlyWarnings(warningsMode, source);
+            delegate = Warnings.createOnlyWarnings(warnings, source);
         }
         delegate.registerException(exceptionClass, message);
     }

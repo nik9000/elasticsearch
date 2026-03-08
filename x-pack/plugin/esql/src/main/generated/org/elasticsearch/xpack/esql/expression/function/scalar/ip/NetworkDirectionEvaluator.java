@@ -135,7 +135,7 @@ public final class NetworkDirectionEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = Warnings.createWarnings(driverContext.warnings(), source);
     }
     return warnings;
   }

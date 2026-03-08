@@ -25,9 +25,9 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsSink;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -44,6 +44,8 @@ import java.util.Set;
 
 import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF;
 import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -97,12 +99,13 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
             List<List<Object>> fieldValues = setup.build(iw);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                WarningsSink warningsSink = new WarningsSink();
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
+                    Warnings.createWarnings(warningsSink, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
-                runCase(fieldValues, ctx.searcher().count(query));
+                runCase(fieldValues, ctx.searcher().count(query), warningsSink);
                 setup.assertRewrite(ctx.searcher(), query);
             }
         }
@@ -113,12 +116,13 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         try (Directory d = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), d)) {
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext ctx = createSearchExecutionContext(mapper, new IndexSearcher(reader));
+                WarningsSink warningsSink = new WarningsSink();
                 Query query = new SingleValueMatchQuery(
                     ctx.getForField(mapper.fieldType("foo"), MappedFieldType.FielddataOperation.SEARCH),
-                    Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test")),
+                    Warnings.createWarnings(warningsSink, new TestWarningsSource("test")),
                     "single-value function encountered multi-value"
                 );
-                runCase(List.of(), ctx.searcher().count(query));
+                runCase(List.of(), ctx.searcher().count(query), warningsSink);
             }
         }
     }
@@ -129,7 +133,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
     }
 
-    private void runCase(List<List<Object>> fieldValues, int count) {
+    private void runCase(List<List<Object>> fieldValues, int count, WarningsSink warningsSink) {
         int expected = 0;
         int mvCountInRange = 0;
         for (int i = 0; i < fieldValues.size(); i++) {
@@ -144,10 +148,15 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         // the SingleValueQuery.TwoPhaseIteratorForSortedNumericsAndTwoPhaseQueries can scan all docs - and generate warnings - even if
         // inner query matches none, so warn if MVs have been encountered within given range, OR if a full scan is required
         if (mvCountInRange > 0) {
-            assertWarnings(
-                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+            assertThat(
+                warningsSink.takeWarnings(),
+                containsInAnyOrder(
+                    "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                )
             );
+        } else {
+            assertThat(warningsSink.takeWarnings(), empty());
         }
     }
 

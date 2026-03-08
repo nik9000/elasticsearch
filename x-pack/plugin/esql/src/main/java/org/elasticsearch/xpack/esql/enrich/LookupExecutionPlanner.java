@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsSink;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
@@ -400,7 +401,7 @@ public class LookupExecutionPlanner {
             Page inputPage = lookupDriverContext.inputPage();
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
-            Warnings warnings = Warnings.createWarnings(driverContext.warningsMode(), lookupDriverContext.request().source);
+            Warnings warnings = Warnings.createWarnings(driverContext.warnings(), lookupDriverContext.request().source);
 
             LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()
                 .create(lookupDriverContext.request(), searchExecutionContext, lookupDriverContext.aliasFilter(), warnings);
@@ -441,7 +442,7 @@ public class LookupExecutionPlanner {
             IndexedByShardId<? extends ShardContext> shardContexts = new IndexedByShardIdFromSingleton<>(shardContext, shardId);
 
             // Create warnings here when creating the operator from the factory
-            Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, lookupDriverContext.request().source);
+            Warnings warnings = Warnings.createWarnings(new WarningsSink(), lookupDriverContext.request().source);
 
             // Create queryList when creating the operator from the factory
             LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()

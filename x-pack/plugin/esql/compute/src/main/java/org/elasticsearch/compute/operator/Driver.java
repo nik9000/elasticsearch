@@ -241,6 +241,7 @@ public class Driver implements Releasable, Describable {
                     now
                 );
                 driverContext.finish();
+                driverContext.getSnapshot().dumpWarningsToThreadContext();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
             }
@@ -487,6 +488,7 @@ public class Driver implements Releasable, Describable {
             itr.remove();
         }
         driverContext.finish();
+        driverContext.getSnapshot().dumpWarningsToThreadContext();
         Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
 
