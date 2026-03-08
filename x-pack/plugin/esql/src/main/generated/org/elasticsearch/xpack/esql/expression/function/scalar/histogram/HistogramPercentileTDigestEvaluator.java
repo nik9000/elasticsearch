@@ -119,7 +119,7 @@ public final class HistogramPercentileTDigestEvaluator implements ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
+      this.warnings = Warnings.createWarnings(driverContext.warnings(), source);
     }
     return warnings;
   }

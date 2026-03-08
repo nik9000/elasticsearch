@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -58,6 +59,7 @@ import static org.mockito.Mockito.when;
 public class LookupQueryOperatorTests extends OperatorTestCase {
 
     private DirectoryData directoryData;
+    private final List<String> warningsList = new java.util.ArrayList<>();
 
     @Before
     public void setupDirectory() throws IOException {
@@ -72,6 +74,11 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
         if (directoryData != null) {
             directoryData.close();
         }
+    }
+
+    @After
+    public void assertNoWarnings() {
+        assertThat(warningsList, empty());
     }
 
     @Override
@@ -124,7 +131,7 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(warningsList)
                 );
             }
 
@@ -180,7 +187,7 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(noMatchDirectory.reader)),
                     0,
                     noMatchDirectory.searchExecutionContext,
-                    warnings()
+                    warnings(warningsList)
                 )
             ) {
                 // Create input with non-matching terms
@@ -237,7 +244,7 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(warningsList)
             )
         ) {
             // Create input with many matching terms
@@ -283,7 +290,7 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(warningsList)
             )
         ) {
             // Mix of matching and non-matching terms
@@ -325,8 +332,8 @@ public class LookupQueryOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+    private static Warnings warnings(List<String> warningsList) {
+        return Warnings.createWarnings(warningsList, new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

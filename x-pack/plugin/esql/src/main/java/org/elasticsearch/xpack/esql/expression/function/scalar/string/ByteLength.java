@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -99,7 +99,7 @@ public class ByteLength extends UnaryScalarFunction implements BlockLoaderExpres
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         if (field instanceof FieldAttribute f) {
-            BlockLoaderWarnings warnings = new BlockLoaderWarnings(DriverContext.WarningsMode.COLLECT, source());
+            BlockLoaderWarnings warnings = new BlockLoaderWarnings(new ArrayList<>(), source());
             return new PushedBlockLoaderExpression(
                 f,
                 new BlockLoaderFunctionConfig.JustWarnings(BlockLoaderFunctionConfig.Function.BYTE_LENGTH, warnings)

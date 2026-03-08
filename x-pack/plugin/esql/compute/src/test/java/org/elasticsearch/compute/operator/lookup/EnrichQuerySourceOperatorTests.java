@@ -34,7 +34,6 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
@@ -58,7 +57,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -115,6 +116,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 3 -> [] -> []
             // 4 -> [a3] -> [3]
             // 5 -> [] -> []
+            List<String> warningsList = new java.util.ArrayList<>();
             try (
                 EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                     blockFactory,
@@ -125,7 +127,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(warningsList)
                 )
             ) {
                 Page page = queryOperator.getOutput();
@@ -149,6 +151,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 page.releaseBlocks();
                 assertTrue(queryOperator.isFinished());
             }
+            assertThat(warningsList, empty());
         }
     }
 
@@ -179,6 +182,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             var queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
             int maxPageSize = between(1, 256);
             Page inputPage = new Page(inputTerms);
+            List<String> warningsList = new java.util.ArrayList<>();
             try (
                 EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                     blockFactory,
@@ -189,7 +193,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    warnings(warningsList)
                 )
             ) {
                 Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
@@ -209,6 +213,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 }
                 assertThat(actualPositions, equalTo(expectedPositions));
             }
+            assertThat(warningsList, empty());
         }
     }
 
@@ -226,6 +231,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
 
             Page inputPage = new Page(inputTerms);
+            List<String> warningsList = new java.util.ArrayList<>();
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
@@ -235,7 +241,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(warningsList)
             );
 
             // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
@@ -276,6 +282,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 queryOperator.canProduceMoreDataWithoutExtraInput()
             );
             assertTrue("Operator should be finished", queryOperator.isFinished());
+            assertThat(warningsList, empty());
         }
     }
 
@@ -297,6 +304,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
 
             int maxPageSize = 10; // Small page size to ensure multiple pages from single query
             Page inputPage = new Page(inputTerms);
+            List<String> warningsList = new java.util.ArrayList<>();
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                 blockFactory,
                 maxPageSize,
@@ -306,7 +314,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                 0,
                 directoryData.searchExecutionContext,
-                warnings()
+                warnings(warningsList)
             );
 
             // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
@@ -346,6 +354,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 queryOperator.canProduceMoreDataWithoutExtraInput()
             );
             assertTrue("Operator should be finished", queryOperator.isFinished());
+            assertThat(warningsList, empty());
         }
     }
 
@@ -358,8 +367,10 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of("a3", "a2", "z2", "xx"))
             )
         ) {
+            java.util.List<String> warningsList = new java.util.ArrayList<>();
+            Warnings w = Warnings.createWarnings(warningsList, new TestWarningsSource("test"));
             QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF)
-                .onlySingleValues(warnings(), "multi-value found");
+                .onlySingleValues(w, "multi-value found");
             // pos -> terms -> docs
             // -----------------------------
             // 0 -> [b2] -> []
@@ -379,7 +390,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
                     0,
                     directoryData.searchExecutionContext,
-                    warnings()
+                    w
                 )
             ) {
                 Page page = queryOperator.getOutput();
@@ -393,9 +404,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 page.releaseBlocks();
                 assertTrue(queryOperator.isFinished());
             }
-            assertWarnings(
-                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
+            assertThat(
+                warningsList,
+                hasItems(
+                    "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
+                )
             );
         }
     }
@@ -405,8 +419,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         return doc.asVector().docs();
     }
 
-    private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
+    private static Warnings warnings(List<String> warningsList) {
+        return Warnings.createWarnings(warningsList, new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

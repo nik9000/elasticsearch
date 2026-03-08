@@ -398,7 +398,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 finishPages = dropDocBlockOperator(request.extractFields);
             }
             releasables.add(finishPages);
-            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, request.source);
+            var warnings = Warnings.createWarnings(new ArrayList<>(), request.source);
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),

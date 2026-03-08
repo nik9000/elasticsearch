@@ -17,17 +17,21 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+
 /**
  * A driver-local context that is shared across operators.
- *
+ * <p>
  * Operators in the same driver pipeline are executed in a single threaded fashion. A driver context
  * has a set of mutating methods that can be used to store and share values across these operators,
  * or even outside the Driver. When the Driver is finished, it finishes the context. Finishing the
@@ -35,11 +39,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * outside the Driver. The net result of this is that the driver context can be mutated freely,
  * without contention, by the thread executing the pipeline of operators until it is finished.
  * The context must be finished by the thread running the Driver, when the Driver is finished.
- *
+ * <p>
  * Releasables can be added and removed to the context by operators in the same driver pipeline.
  * This allows to "transfer ownership" of a shared resource across operators (and even across
  * Drivers), while ensuring that the resource can be correctly released when no longer needed.
- *
+ * <p>
  * DriverContext can also be used to track async actions. The driver may close an operator while
  * some of its async actions are still running. To prevent the driver from finishing in this case,
  * methods {@link #addAsyncAction()} and {@link #removeAsyncAction()} are provided for tracking
@@ -59,7 +63,12 @@ public class DriverContext {
 
     private final AsyncActions asyncActions = new AsyncActions();
 
-    private final WarningsMode warningsMode;
+    /**
+     * Mutable list shared with all evaluators in this driver. Evaluators append
+     * to this list directly. {@code null} means warnings are ignored.
+     */
+    @Nullable
+    private final List<String> warnings;
 
     private final @Nullable String driverDescription;
 
@@ -68,7 +77,7 @@ public class DriverContext {
     private Runnable earlyTerminationChecker = () -> {};
 
     public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
-        this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
+        this(bigArrays, blockFactory, localBreakerSettings, null, new ArrayList<>());
     }
 
     public DriverContext(
@@ -77,7 +86,7 @@ public class DriverContext {
         @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
         String description
     ) {
-        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
+        this(bigArrays, blockFactory, localBreakerSettings, description, new ArrayList<>());
     }
 
     private DriverContext(
@@ -85,7 +94,7 @@ public class DriverContext {
         BlockFactory blockFactory,
         @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
         @Nullable String description,
-        WarningsMode warningsMode
+        @Nullable List<String> warnings
     ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
@@ -93,7 +102,7 @@ public class DriverContext {
         this.blockFactory = blockFactory;
         this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
         this.driverDescription = description;
-        this.warningsMode = warningsMode;
+        this.warnings = warnings;
     }
 
     public BigArrays bigArrays() {
@@ -122,7 +131,17 @@ public class DriverContext {
     }
 
     /** A snapshot of the driver context. */
-    public record Snapshot(Set<Releasable> releasables) implements Releasable {
+    public record Snapshot(Set<Releasable> releasables, List<String> warnings) implements Releasable {
+        /**
+         * Dumps all collected warnings into the thread context via
+         * {@link org.elasticsearch.common.logging.HeaderWarning#addWarning}.
+         */
+        public void dumpWarningsToThreadContext() {
+            for (String warning : warnings) {
+                addWarning(warning);
+            }
+        }
+
         @Override
         public void close() {
             Releasables.close(releasables);
@@ -180,7 +199,7 @@ public class DriverContext {
             releasableSet.add(r);
             itr.remove();
         }
-        snapshot.compareAndSet(null, new Snapshot(releasableSet));
+        snapshot.compareAndSet(null, new Snapshot(releasableSet, warnings != null ? List.copyOf(warnings) : List.of()));
     }
 
     private void ensureFinished() {
@@ -224,19 +243,12 @@ public class DriverContext {
     }
 
     /**
-     * Evaluators should use this function to decide their warning behavior.
-     * @return an appropriate {@link WarningsMode}
+     * Returns the warnings list that evaluators should append to, or {@code null}
+     * if warnings should be ignored.
      */
-    public WarningsMode warningsMode() {
-        return warningsMode;
-    }
-
-    /**
-     * Indicates the behavior Evaluators of this context should use for reporting warnings
-     */
-    public enum WarningsMode {
-        COLLECT,
-        IGNORE
+    @Nullable
+    public List<String> warnings() {
+        return warnings;
     }
 
     /**

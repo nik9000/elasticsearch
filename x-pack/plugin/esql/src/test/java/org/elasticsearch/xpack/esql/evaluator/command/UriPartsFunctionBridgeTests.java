@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.elasticsearch.web.UriParts.DOMAIN;
 import static org.elasticsearch.web.UriParts.EXTENSION;
 import static org.elasticsearch.web.UriParts.FRAGMENT;
@@ -29,7 +30,7 @@ import static org.elasticsearch.web.UriParts.USER_INFO;
 
 public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
 
-    private final Warnings WARNINGS = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new WarningSourceLocation() {
+    private static final WarningSourceLocation WARNING_SOURCE = new WarningSourceLocation() {
         @Override
         public int lineNumber() {
             return 1;
@@ -49,7 +50,7 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         public String text() {
             return "invalid_input";
         }
-    });
+    };
 
     @Override
     protected CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields) {
@@ -92,10 +93,14 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
             "ftp://ftp.example.org/resource.txt"
         );
         List<Object[]> expected = Collections.nCopies(requestedFields.size(), new Object[] { null });
-        evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
-            "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
+        List<String> warningsList = new ArrayList<>();
+        evaluateAndCompare(input, requestedFields, expected, Warnings.createWarnings(warningsList, WARNING_SOURCE));
+        assertThat(
+            warningsList,
+            containsInAnyOrder(
+                "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:2: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
+            )
         );
     }
 
@@ -131,10 +136,14 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         List<String> requestedFields = List.of(DOMAIN, PORT);
         List<String> input = List.of("not a valid url");
         List<?> expected = Arrays.asList(null, null);
-        evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
-            "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
-            "Line 1:2: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
+        List<String> warningsList = new ArrayList<>();
+        evaluateAndCompare(input, requestedFields, expected, Warnings.createWarnings(warningsList, WARNING_SOURCE));
+        assertThat(
+            warningsList,
+            containsInAnyOrder(
+                "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:2: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
+            )
         );
     }
 

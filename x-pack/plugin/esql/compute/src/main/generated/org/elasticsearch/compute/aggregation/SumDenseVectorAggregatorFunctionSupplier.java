@@ -36,14 +36,14 @@ public final class SumDenseVectorAggregatorFunctionSupplier implements Aggregato
   @Override
   public SumDenseVectorAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = Warnings.createWarnings(driverContext.warnings(), warningsSource);
     return SumDenseVectorAggregatorFunction.create(warnings, driverContext, channels);
   }
 
   @Override
   public SumDenseVectorGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    var warnings = Warnings.createWarnings(driverContext.warnings(), warningsSource);
     return SumDenseVectorGroupingAggregatorFunction.create(warnings, channels, driverContext);
   }
 
