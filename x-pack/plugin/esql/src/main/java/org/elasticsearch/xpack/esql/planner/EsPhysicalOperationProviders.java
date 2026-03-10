@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
+import org.elasticsearch.compute.operator.WarningsSink;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -215,7 +216,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private ValuesSourceReaderOperator.LoaderAndConverter blockLoaderAndConverter(
-        DriverContext.WarningsMode warningsMode,
+        WarningsSink warnings,
         int shardId,
         Attribute attr,
         MappedFieldType.FieldExtractPreference fieldExtractPreference
@@ -228,7 +229,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // Apply any block loader function if present
 
         BlockLoaderFunctionConfig functionConfig = null;
-        BlockLoaderWarnings warnings = new BlockLoaderWarnings(warningsMode, attr.source());
+        BlockLoaderWarnings blWarnings = new BlockLoaderWarnings(warnings, attr.source());
         if (attr instanceof FieldAttribute fieldAttr && fieldAttr.field() instanceof FunctionEsField functionEsField) {
             functionConfig = functionEsField.functionConfig();
         }
@@ -241,7 +242,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 isUnsupported,
                 fieldExtractPreference,
                 functionConfig,
-                warnings,
+                blWarnings,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -262,7 +263,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                         isUnsupported,
                         fieldExtractPreference,
                         e.config(),
-                        warnings,
+                        blWarnings,
                         plannerSettings.blockLoaderSizeOrdinals(),
                         plannerSettings.blockLoaderSizeScript()
                     )
@@ -274,7 +275,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             isUnsupported,
             fieldExtractPreference,
             functionConfig,
-            warnings,
+            blWarnings,
             plannerSettings.blockLoaderSizeOrdinals(),
             plannerSettings.blockLoaderSizeScript()
         );

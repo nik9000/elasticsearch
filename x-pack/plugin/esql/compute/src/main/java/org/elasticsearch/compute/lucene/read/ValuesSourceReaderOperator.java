@@ -22,6 +22,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningsSink;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
@@ -123,7 +124,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * Builds a {@link LoaderAndConverter} for a given shard.
      */
     public interface BuildLoader {
-        LoaderAndConverter build(DriverContext.WarningsMode warningsMode, int shard);
+        LoaderAndConverter build(WarningsSink warnings, int shard);
     }
 
     /**
@@ -382,7 +383,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         void newShard(int shard) {
-            LoaderAndConverter l = info.buildLoader.build(driverContext.warningsMode(), shard);
+            LoaderAndConverter l = info.buildLoader.build(driverContext.warnings(), shard);
             loader = l.loader;
             converter = l.converter == null ? null : converterEvaluators.get(shard, fieldIdx, info.name, l.converter);
             log.debug("moved to shard {} {} {}", shard, loader, converter);
