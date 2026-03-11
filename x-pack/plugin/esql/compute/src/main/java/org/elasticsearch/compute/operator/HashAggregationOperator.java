@@ -280,23 +280,21 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         Block[] blocks = null;
-        IntVector selected = null;
         long startInNanos = System.nanoTime();
         boolean success = false;
+        IntVector[] selected = selected();
         try {
-            selected = blockHash.nonEmpty();
             Block[] keys = blockHash.getKeys();
             int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
             blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int offset = keys.length;
             try (var evaluationContext = evaluationContext(blockHash, keys)) {
-                for (int i = 0; i < aggregators.size(); i++) {
-                    var aggregator = aggregators.get(i);
-                    try (IntVector customSelected = customizeSelected(aggregator, selected)) {
-                        aggregator.evaluate(blocks, offset, customSelected, evaluationContext);
-                    }
-                    offset += aggBlockCounts[i];
+                for (int a = 0; a < aggregators.size(); a++) {
+                    aggregators.get(a).evaluate(blocks, offset, selected[a], evaluationContext);
+                    selected[a].close();
+                    selected[a] = null;
+                    offset += aggBlockCounts[a];
                 }
                 output = new Page(blocks);
                 success = true;
@@ -325,6 +323,22 @@ public class HashAggregationOperator implements Operator {
             return false;
         }
         return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
+    }
+
+    private IntVector[] selected() {
+        IntVector[] result = new IntVector[aggregators.size()];
+        try (IntVector selected = blockHash.nonEmpty()) {
+            for (int a = 0; a < aggregators.size(); a++) {
+                result[a] = customizeSelected(aggregators.get(a), selected);
+            }
+            IntVector[] r = result;
+            result = null;
+            return r;
+        } finally {
+            if (result != null) {
+                Releasables.close(result);
+            }
+        }
     }
 
     /**
