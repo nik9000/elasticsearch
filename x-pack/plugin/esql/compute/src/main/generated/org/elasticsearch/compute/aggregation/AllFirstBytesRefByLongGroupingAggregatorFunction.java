@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -34,13 +34,13 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
 
   private final AllFirstBytesRefByLongAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  AllFirstBytesRefByLongGroupingAggregatorFunction(List<Integer> channels,
+  AllFirstBytesRefByLongGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
       DriverContext driverContext) {
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = AllFirstBytesRefByLongAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
   }
@@ -57,8 +57,8 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    LongBlock timestampsBlock = page.getBlock(channels.get(1));
+    BytesRefBlock valuesBlock = (BytesRefBlock) inputs.get(0).eval(page);
+    LongBlock timestampsBlock = (LongBlock) inputs.get(1).eval(page);
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock, timestampsBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
@@ -78,6 +78,8 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
 
       @Override
       public void close() {
+        valuesBlock.close();
+        timestampsBlock.close();
       }
     };
   }
@@ -101,27 +103,25 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block observedUncast = page.getBlock(channels.get(0));
-    BooleanBlock observed = (BooleanBlock) observedUncast;
-    Block timestampsPresentUncast = page.getBlock(channels.get(1));
-    BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
-    Block timestampsUncast = page.getBlock(channels.get(2));
-    LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(3));
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
-    BytesRef valuesScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block observedUncast = inputs.get(0).eval(page); Block timestampsPresentUncast = inputs.get(1).eval(page); Block timestampsUncast = inputs.get(2).eval(page); Block valuesUncast = inputs.get(3).eval(page)) {
+      BooleanBlock observed = (BooleanBlock) observedUncast;
+      BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
+      LongBlock timestamps = (LongBlock) timestampsUncast;
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
+      BytesRef valuesScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+        }
       }
     }
   }
@@ -145,27 +145,25 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block observedUncast = page.getBlock(channels.get(0));
-    BooleanBlock observed = (BooleanBlock) observedUncast;
-    Block timestampsPresentUncast = page.getBlock(channels.get(1));
-    BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
-    Block timestampsUncast = page.getBlock(channels.get(2));
-    LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(3));
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
-    BytesRef valuesScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block observedUncast = inputs.get(0).eval(page); Block timestampsPresentUncast = inputs.get(1).eval(page); Block timestampsUncast = inputs.get(2).eval(page); Block valuesUncast = inputs.get(3).eval(page)) {
+      BooleanBlock observed = (BooleanBlock) observedUncast;
+      BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
+      LongBlock timestamps = (LongBlock) timestampsUncast;
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
+      BytesRef valuesScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+        }
       }
     }
   }
@@ -182,21 +180,19 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block observedUncast = page.getBlock(channels.get(0));
-    BooleanBlock observed = (BooleanBlock) observedUncast;
-    Block timestampsPresentUncast = page.getBlock(channels.get(1));
-    BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
-    Block timestampsUncast = page.getBlock(channels.get(2));
-    LongBlock timestamps = (LongBlock) timestampsUncast;
-    Block valuesUncast = page.getBlock(channels.get(3));
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
-    BytesRef valuesScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block observedUncast = inputs.get(0).eval(page); Block timestampsPresentUncast = inputs.get(1).eval(page); Block timestampsUncast = inputs.get(2).eval(page); Block valuesUncast = inputs.get(3).eval(page)) {
+      BooleanBlock observed = (BooleanBlock) observedUncast;
+      BooleanBlock timestampsPresent = (BooleanBlock) timestampsPresentUncast;
+      LongBlock timestamps = (LongBlock) timestampsUncast;
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      assert observed.getPositionCount() == timestampsPresent.getPositionCount() && observed.getPositionCount() == timestamps.getPositionCount() && observed.getPositionCount() == values.getPositionCount();
+      BytesRef valuesScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        AllFirstBytesRefByLongAggregator.combineIntermediate(state, groupId, observed, timestampsPresent, timestamps, values, valuesPosition);
+      }
     }
   }
 
@@ -230,7 +226,7 @@ public final class AllFirstBytesRefByLongGroupingAggregatorFunction implements G
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

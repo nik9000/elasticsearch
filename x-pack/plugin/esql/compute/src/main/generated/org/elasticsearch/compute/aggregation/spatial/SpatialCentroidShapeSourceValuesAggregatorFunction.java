@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation.spatial;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -22,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -41,12 +41,12 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements
 
   private final CentroidShapeAggregator.ShapeCentroidState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   SpatialCentroidShapeSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels) {
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SpatialCentroidShapeSourceValuesAggregator.initSingle();
   }
 
@@ -71,23 +71,25 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
-    BytesRefVector wkbVector = wkbBlock.asVector();
-    if (wkbVector == null) {
-      addRawBlock(wkbBlock, mask);
-      return;
+    try (BytesRefBlock wkbBlock = (BytesRefBlock) inputs.get(0).eval(page)) {
+      BytesRefVector wkbVector = wkbBlock.asVector();
+      if (wkbVector == null) {
+        addRawBlock(wkbBlock, mask);
+        return;
+      }
+      addRawVector(wkbVector, mask);
     }
-    addRawVector(wkbVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
-    BytesRefVector wkbVector = wkbBlock.asVector();
-    if (wkbVector == null) {
-      addRawBlock(wkbBlock);
-      return;
+    try (BytesRefBlock wkbBlock = (BytesRefBlock) inputs.get(0).eval(page)) {
+      BytesRefVector wkbVector = wkbBlock.asVector();
+      if (wkbVector == null) {
+        addRawBlock(wkbBlock);
+        return;
+      }
+      addRawVector(wkbVector);
     }
-    addRawVector(wkbVector);
   }
 
   private void addRawVector(BytesRefVector wkbVector) {
@@ -146,45 +148,40 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block xValUncast = page.getBlock(channels.get(0));
-    if (xValUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block xValUncast = inputs.get(0).eval(page); Block xDelUncast = inputs.get(1).eval(page); Block yValUncast = inputs.get(2).eval(page); Block yDelUncast = inputs.get(3).eval(page); Block weightUncast = inputs.get(4).eval(page); Block shapeTypeUncast = inputs.get(5).eval(page)) {
+      if (xValUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
+      assert xVal.getPositionCount() == 1;
+      if (xDelUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
+      assert xDel.getPositionCount() == 1;
+      if (yValUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
+      assert yVal.getPositionCount() == 1;
+      if (yDelUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
+      assert yDel.getPositionCount() == 1;
+      if (weightUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
+      assert weight.getPositionCount() == 1;
+      if (shapeTypeUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();
+      assert shapeType.getPositionCount() == 1;
+      SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), weight.getDouble(0), shapeType.getInt(0));
     }
-    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
-    assert xVal.getPositionCount() == 1;
-    Block xDelUncast = page.getBlock(channels.get(1));
-    if (xDelUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
-    assert xDel.getPositionCount() == 1;
-    Block yValUncast = page.getBlock(channels.get(2));
-    if (yValUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
-    assert yVal.getPositionCount() == 1;
-    Block yDelUncast = page.getBlock(channels.get(3));
-    if (yDelUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
-    assert yDel.getPositionCount() == 1;
-    Block weightUncast = page.getBlock(channels.get(4));
-    if (weightUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
-    assert weight.getPositionCount() == 1;
-    Block shapeTypeUncast = page.getBlock(channels.get(5));
-    if (shapeTypeUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();
-    assert shapeType.getPositionCount() == 1;
-    SpatialCentroidShapeSourceValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0), weight.getDouble(0), shapeType.getInt(0));
   }
 
   @Override
@@ -201,7 +198,7 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunction implements
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

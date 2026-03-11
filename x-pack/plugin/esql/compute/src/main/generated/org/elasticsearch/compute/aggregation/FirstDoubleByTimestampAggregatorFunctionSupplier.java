@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class FirstDoubleByTimestampAggregatorFunctionSupplier implements A
   @Override
   public FirstDoubleByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new FirstDoubleByTimestampAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new FirstDoubleByTimestampAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public FirstDoubleByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new FirstDoubleByTimestampGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new FirstDoubleByTimestampGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class AllLastFloatByLongAggregatorFunctionSupplier implements Aggre
   @Override
   public AllLastFloatByLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllLastFloatByLongAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new AllLastFloatByLongAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public AllLastFloatByLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new AllLastFloatByLongGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new AllLastFloatByLongGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

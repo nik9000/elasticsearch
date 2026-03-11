@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class LastLongByTimestampAggregatorFunctionSupplier implements Aggr
   @Override
   public LastLongByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new LastLongByTimestampAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new LastLongByTimestampAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public LastLongByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new LastLongByTimestampGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new LastLongByTimestampGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,18 +32,18 @@ public final class TopLongIntAggregatorFunction implements AggregatorFunction {
 
   private final TopLongIntAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final int limit;
 
   private final boolean ascending;
 
-  TopLongIntAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
-      boolean ascending) {
+  TopLongIntAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs,
+      int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = TopLongIntAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
   }
 
@@ -68,35 +68,35 @@ public final class TopLongIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    LongBlock vBlock = page.getBlock(channels.get(0));
-    IntBlock outputValueBlock = page.getBlock(channels.get(1));
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, outputValueBlock, mask);
-      return;
+    try (LongBlock vBlock = (LongBlock) inputs.get(0).eval(page); IntBlock outputValueBlock = (IntBlock) inputs.get(1).eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, outputValueBlock, mask);
+        return;
+      }
+      IntVector outputValueVector = outputValueBlock.asVector();
+      if (outputValueVector == null) {
+        addRawBlock(vBlock, outputValueBlock, mask);
+        return;
+      }
+      addRawVector(vVector, outputValueVector, mask);
     }
-    IntVector outputValueVector = outputValueBlock.asVector();
-    if (outputValueVector == null) {
-      addRawBlock(vBlock, outputValueBlock, mask);
-      return;
-    }
-    addRawVector(vVector, outputValueVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    LongBlock vBlock = page.getBlock(channels.get(0));
-    IntBlock outputValueBlock = page.getBlock(channels.get(1));
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, outputValueBlock);
-      return;
+    try (LongBlock vBlock = (LongBlock) inputs.get(0).eval(page); IntBlock outputValueBlock = (IntBlock) inputs.get(1).eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, outputValueBlock);
+        return;
+      }
+      IntVector outputValueVector = outputValueBlock.asVector();
+      if (outputValueVector == null) {
+        addRawBlock(vBlock, outputValueBlock);
+        return;
+      }
+      addRawVector(vVector, outputValueVector);
     }
-    IntVector outputValueVector = outputValueBlock.asVector();
-    if (outputValueVector == null) {
-      addRawBlock(vBlock, outputValueBlock);
-      return;
-    }
-    addRawVector(vVector, outputValueVector);
   }
 
   private void addRawVector(LongVector vVector, IntVector outputValueVector) {
@@ -171,21 +171,20 @@ public final class TopLongIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block outputUncast = inputs.get(1).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
+      }
+      LongBlock top = (LongBlock) topUncast;
+      assert top.getPositionCount() == 1;
+      if (outputUncast.areAllValuesNull()) {
+        return;
+      }
+      IntBlock output = (IntBlock) outputUncast;
+      assert output.getPositionCount() == 1;
+      TopLongIntAggregator.combineIntermediate(state, top, output);
     }
-    LongBlock top = (LongBlock) topUncast;
-    assert top.getPositionCount() == 1;
-    Block outputUncast = page.getBlock(channels.get(1));
-    if (outputUncast.areAllValuesNull()) {
-      return;
-    }
-    IntBlock output = (IntBlock) outputUncast;
-    assert output.getPositionCount() == 1;
-    TopLongIntAggregator.combineIntermediate(state, top, output);
   }
 
   @Override
@@ -202,7 +201,7 @@ public final class TopLongIntAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

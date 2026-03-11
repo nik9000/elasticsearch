@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,13 +30,13 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
   private final CountDistinctBooleanAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  CountDistinctBooleanGroupingAggregatorFunction(List<Integer> channels,
+  CountDistinctBooleanGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
       DriverContext driverContext) {
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = CountDistinctBooleanAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
   }
@@ -53,7 +53,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BooleanBlock vBlock = page.getBlock(channels.get(0));
+    BooleanBlock vBlock = (BooleanBlock) inputs.get(0).eval(page);
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -75,6 +75,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
     }
@@ -96,6 +97,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
   }
@@ -142,28 +144,28 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block fbitUncast = page.getBlock(channels.get(0));
-    if (fbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
-    Block tbitUncast = page.getBlock(channels.get(1));
-    if (tbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
-    assert fbit.getPositionCount() == tbit.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block fbitUncast = inputs.get(0).eval(page); Block tbitUncast = inputs.get(1).eval(page)) {
+      if (fbitUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+      BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
+      if (tbitUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
+      assert fbit.getPositionCount() == tbit.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+        }
       }
     }
   }
@@ -210,28 +212,28 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block fbitUncast = page.getBlock(channels.get(0));
-    if (fbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
-    Block tbitUncast = page.getBlock(channels.get(1));
-    if (tbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
-    assert fbit.getPositionCount() == tbit.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block fbitUncast = inputs.get(0).eval(page); Block tbitUncast = inputs.get(1).eval(page)) {
+      if (fbitUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+      BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
+      if (tbitUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
+      assert fbit.getPositionCount() == tbit.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+        }
       }
     }
   }
@@ -264,22 +266,22 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block fbitUncast = page.getBlock(channels.get(0));
-    if (fbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
-    Block tbitUncast = page.getBlock(channels.get(1));
-    if (tbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
-    assert fbit.getPositionCount() == tbit.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block fbitUncast = inputs.get(0).eval(page); Block tbitUncast = inputs.get(1).eval(page)) {
+      if (fbitUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
+      if (tbitUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
+      assert fbit.getPositionCount() == tbit.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        CountDistinctBooleanAggregator.combineIntermediate(state, groupId, fbit.getBoolean(valuesPosition), tbit.getBoolean(valuesPosition));
+      }
     }
   }
 
@@ -309,7 +311,7 @@ public final class CountDistinctBooleanGroupingAggregatorFunction implements Gro
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

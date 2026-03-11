@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class AnyDoubleAggregatorFunctionSupplier implements AggregatorFunc
   @Override
   public AnyDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new AnyDoubleAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new AnyDoubleAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public AnyDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new AnyDoubleGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new AnyDoubleGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

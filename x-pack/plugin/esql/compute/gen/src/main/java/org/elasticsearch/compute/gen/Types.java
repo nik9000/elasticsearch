@@ -35,6 +35,7 @@ public class Types {
     public static final TypeName STRING = ClassName.get("java.lang", "String");
 
     public static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
+    public static final ClassName LOAD_FROM_PAGE = ClassName.get(EXPRESSION_PACKAGE, "LoadFromPage");
 
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
     static final ClassName BLOCK = ClassName.get(DATA_PACKAGE, "Block");
@@ -112,6 +113,7 @@ public class Types {
     );
 
     public static final ClassName EXPRESSION_EVALUATOR = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator");
+    public static final TypeName LIST_EXPRESSION_EVALUATOR = ParameterizedTypeName.get(ClassName.get(List.class), EXPRESSION_EVALUATOR);
     public static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(EXPRESSION_PACKAGE, "ExpressionEvaluator", "Factory");
     public static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",

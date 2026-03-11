@@ -10,6 +10,8 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,13 +35,15 @@ public final class SpatialCentroidShapeSourceValuesAggregatorFunctionSupplier im
   @Override
   public SpatialCentroidShapeSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new SpatialCentroidShapeSourceValuesAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new SpatialCentroidShapeSourceValuesAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public SpatialCentroidShapeSourceValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new SpatialCentroidShapeSourceValuesGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

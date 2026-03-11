@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,16 +31,16 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
   private final HllStates.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
   private final int precision;
 
-  CountDistinctIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      int precision) {
+  CountDistinctIntGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext, int precision) {
     this.precision = precision;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = CountDistinctIntAggregator.initGrouping(driverContext, precision);
     this.driverContext = driverContext;
   }
@@ -57,7 +57,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock vBlock = page.getBlock(channels.get(0));
+    IntBlock vBlock = (IntBlock) inputs.get(0).eval(page);
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -79,6 +79,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
     }
@@ -100,6 +101,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
   }
@@ -146,23 +148,24 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef hllScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block hllUncast = inputs.get(0).eval(page)) {
+      if (hllUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+      BytesRef hllScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+        }
       }
     }
   }
@@ -209,23 +212,24 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef hllScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block hllUncast = inputs.get(0).eval(page)) {
+      if (hllUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+      BytesRef hllScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+        }
       }
     }
   }
@@ -258,17 +262,18 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef hllScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block hllUncast = inputs.get(0).eval(page)) {
+      if (hllUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+      BytesRef hllScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        CountDistinctIntAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      }
     }
   }
 
@@ -298,7 +303,7 @@ public final class CountDistinctIntGroupingAggregatorFunction implements Groupin
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

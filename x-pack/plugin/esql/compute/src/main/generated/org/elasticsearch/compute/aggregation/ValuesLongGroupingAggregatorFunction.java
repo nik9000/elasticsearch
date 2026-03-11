@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -29,12 +29,13 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
   private final ValuesLongAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  ValuesLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-    this.channels = channels;
+  ValuesLongGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext) {
+    this.inputs = inputs;
     this.state = ValuesLongAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
   }
@@ -51,7 +52,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongBlock vBlock = (LongBlock) inputs.get(0).eval(page);
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -73,6 +74,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
     }
@@ -94,6 +96,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
   }
@@ -140,22 +143,23 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    LongBlock values = (LongBlock) valuesUncast;
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        ValuesLongAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+      LongBlock values = (LongBlock) valuesUncast;
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          ValuesLongAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+        }
       }
     }
   }
@@ -202,22 +206,23 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    LongBlock values = (LongBlock) valuesUncast;
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        ValuesLongAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+      LongBlock values = (LongBlock) valuesUncast;
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          ValuesLongAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+        }
       }
     }
   }
@@ -250,16 +255,17 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    LongBlock values = (LongBlock) valuesUncast;
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      ValuesLongAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      LongBlock values = (LongBlock) valuesUncast;
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        ValuesLongAggregator.combineIntermediate(state, groupId, values, valuesPosition);
+      }
     }
   }
 
@@ -289,7 +295,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

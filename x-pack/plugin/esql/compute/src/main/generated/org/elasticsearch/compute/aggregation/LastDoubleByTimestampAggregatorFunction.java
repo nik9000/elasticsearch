@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -34,11 +34,12 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
 
   private final LongDoubleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  LastDoubleByTimestampAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  LastDoubleByTimestampAggregatorFunction(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = LastDoubleByTimestampAggregator.initSingle(driverContext);
   }
 
@@ -63,35 +64,35 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    DoubleBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    DoubleVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, timestampBlock, mask);
-      return;
+    try (DoubleBlock valueBlock = (DoubleBlock) inputs.get(0).eval(page); LongBlock timestampBlock = (LongBlock) inputs.get(1).eval(page)) {
+      DoubleVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, timestampBlock, mask);
+        return;
+      }
+      LongVector timestampVector = timestampBlock.asVector();
+      if (timestampVector == null) {
+        addRawBlock(valueBlock, timestampBlock, mask);
+        return;
+      }
+      addRawVector(valueVector, timestampVector, mask);
     }
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      addRawBlock(valueBlock, timestampBlock, mask);
-      return;
-    }
-    addRawVector(valueVector, timestampVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    DoubleBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    DoubleVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, timestampBlock);
-      return;
+    try (DoubleBlock valueBlock = (DoubleBlock) inputs.get(0).eval(page); LongBlock timestampBlock = (LongBlock) inputs.get(1).eval(page)) {
+      DoubleVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, timestampBlock);
+        return;
+      }
+      LongVector timestampVector = timestampBlock.asVector();
+      if (timestampVector == null) {
+        addRawBlock(valueBlock, timestampBlock);
+        return;
+      }
+      addRawVector(valueVector, timestampVector);
     }
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      addRawBlock(valueBlock, timestampBlock);
-      return;
-    }
-    addRawVector(valueVector, timestampVector);
   }
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector) {
@@ -206,27 +207,25 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block timestampsUncast = inputs.get(0).eval(page); Block valuesUncast = inputs.get(1).eval(page); Block seenUncast = inputs.get(2).eval(page)) {
+      if (timestampsUncast.areAllValuesNull()) {
+        return;
+      }
+      LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
+      assert timestamps.getPositionCount() == 1;
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector values = ((DoubleBlock) valuesUncast).asVector();
+      assert values.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      LastDoubleByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getDouble(0), seen.getBoolean(0));
     }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
-    assert timestamps.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector values = ((DoubleBlock) valuesUncast).asVector();
-    assert values.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    LastDoubleByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getDouble(0), seen.getBoolean(0));
   }
 
   @Override
@@ -247,7 +246,7 @@ public final class LastDoubleByTimestampAggregatorFunction implements Aggregator
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

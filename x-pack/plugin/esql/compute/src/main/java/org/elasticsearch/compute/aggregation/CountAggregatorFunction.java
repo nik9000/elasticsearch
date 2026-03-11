@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -29,13 +31,13 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     private final LongState state;
-    private final List<Integer> channels;
+    private final List<ExpressionEvaluator> inputs;
     private final boolean countAll;
 
-    CountAggregatorFunction(List<Integer> channels) {
-        this.channels = channels;
+    CountAggregatorFunction(List<ExpressionEvaluator> inputs) {
+        this.inputs = inputs;
         this.state = new LongState(0);
-        this.countAll = channels.isEmpty();
+        this.countAll = inputs.isEmpty();
     }
 
     @Override
@@ -43,18 +45,9 @@ public class CountAggregatorFunction implements AggregatorFunction {
         return intermediateStateDesc().size();
     }
 
-    private int blockIndex() {
-        // In case of countAll, block index is irrelevant.
-        // Page.positionCount should be used instead,
-        // because the page could have zero blocks
-        // (drop all columns scenario)
-        return countAll ? -1 : channels.get(0);
-    }
-
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
         if (countAll) {
-            // this will work also when the page has no blocks
             if (mask.isConstant() && mask.getBoolean(0)) {
                 state.longValue(state.longValue() + page.getPositionCount());
             } else {
@@ -67,18 +60,19 @@ public class CountAggregatorFunction implements AggregatorFunction {
                 state.longValue(state.longValue() + count);
             }
         } else {
-            Block block = page.getBlock(blockIndex());
-            LongState state = this.state;
-            int count;
-            if (mask.isConstant()) {
-                if (mask.getBoolean(0) == false) {
-                    return;
+            try (Block block = inputs.get(0).eval(page)) {
+                LongState state = this.state;
+                int count;
+                if (mask.isConstant()) {
+                    if (mask.getBoolean(0) == false) {
+                        return;
+                    }
+                    count = getBlockTotalValueCount(block);
+                } else {
+                    count = countMasked(block, mask);
                 }
-                count = getBlockTotalValueCount(block);
-            } else {
-                count = countMasked(block, mask);
+                state.longValue(state.longValue() + count);
             }
-            state.longValue(state.longValue() + count);
         }
     }
 
@@ -121,18 +115,17 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Page page) {
-        assert channels.size() == intermediateBlockCount();
-        var blockIndex = blockIndex();
-        assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
-        Block uncastBlock = page.getBlock(channels.get(0));
-        if (uncastBlock.areAllValuesNull()) {
-            return;
+        assert inputs.size() == intermediateBlockCount();
+        try (Block countUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+            if (countUncast.areAllValuesNull()) {
+                return;
+            }
+            LongVector count = ((LongBlock) countUncast).asVector();
+            BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+            assert count.getPositionCount() == 1;
+            assert count.getPositionCount() == seen.getPositionCount();
+            state.longValue(state.longValue() + count.getLong(0));
         }
-        LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
-        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
-        assert count.getPositionCount() == 1;
-        assert count.getPositionCount() == seen.getPositionCount();
-        state.longValue(state.longValue() + count.getLong(0));
     }
 
     @Override
@@ -149,7 +142,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channels=").append(channels);
+        sb.append("inputs=").append(inputs);
         sb.append("]");
         return sb.toString();
     }
@@ -176,12 +169,14 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
         @Override
         public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return new CountAggregatorFunction(channels);
+            List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+            return new CountAggregatorFunction(inputs);
         }
 
         @Override
         public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new CountGroupingAggregatorFunction(channels, driverContext);
+            List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+            return new CountGroupingAggregatorFunction(inputs, driverContext);
         }
 
         @Override

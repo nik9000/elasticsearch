@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,12 +32,13 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
   private final FloatArrayState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  MinFloatGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-    this.channels = channels;
+  MinFloatGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext) {
+    this.inputs = inputs;
     this.state = new FloatArrayState(driverContext.bigArrays(), MinFloatAggregator.init());
     this.driverContext = driverContext;
   }
@@ -54,7 +55,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    FloatBlock vBlock = page.getBlock(channels.get(0));
+    FloatBlock vBlock = (FloatBlock) inputs.get(0).eval(page);
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -76,6 +77,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
     }
@@ -97,6 +99,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
   }
@@ -143,29 +146,29 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
-    }
-    FloatVector min = ((FloatBlock) minUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
+      FloatVector min = ((FloatBlock) minUncast).asVector();
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert min.getPositionCount() == seen.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          if (seen.getBoolean(valuesPosition)) {
+            state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
+          }
         }
       }
     }
@@ -213,29 +216,29 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
-    }
-    FloatVector min = ((FloatBlock) minUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
+      FloatVector min = ((FloatBlock) minUncast).asVector();
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert min.getPositionCount() == seen.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          if (seen.getBoolean(valuesPosition)) {
+            state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
+          }
         }
       }
     }
@@ -269,23 +272,23 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
-    }
-    FloatVector min = ((FloatBlock) minUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
+      }
+      FloatVector min = ((FloatBlock) minUncast).asVector();
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert min.getPositionCount() == seen.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        if (seen.getBoolean(valuesPosition)) {
+          state.set(groupId, MinFloatAggregator.combine(state.getOrDefault(groupId), min.getFloat(valuesPosition)));
+        }
       }
     }
   }
@@ -316,7 +319,7 @@ public final class MinFloatGroupingAggregatorFunction implements GroupingAggrega
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

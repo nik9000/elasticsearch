@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -37,13 +39,15 @@ public final class TopBooleanAggregatorFunctionSupplier implements AggregatorFun
   @Override
   public TopBooleanAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new TopBooleanAggregatorFunction(driverContext, channels, limit, ascending);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new TopBooleanAggregatorFunction(driverContext, inputs, limit, ascending);
   }
 
   @Override
   public TopBooleanGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new TopBooleanGroupingAggregatorFunction(channels, driverContext, limit, ascending);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new TopBooleanGroupingAggregatorFunction(inputs, driverContext, limit, ascending);
   }
 
   @Override

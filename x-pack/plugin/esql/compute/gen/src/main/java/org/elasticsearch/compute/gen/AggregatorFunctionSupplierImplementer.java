@@ -36,8 +36,11 @@ import static org.elasticsearch.compute.gen.Methods.requireName;
 import static org.elasticsearch.compute.gen.Methods.requireType;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
+import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
+import static org.elasticsearch.compute.gen.Types.LIST_EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
+import static org.elasticsearch.compute.gen.Types.LOAD_FROM_PAGE;
 import static org.elasticsearch.compute.gen.Types.STRING;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.WARNING_SOURCE_LOCATION;
@@ -165,10 +168,17 @@ public class AggregatorFunctionSupplierImplementer {
         }
 
         builder.addStatement(
+            "$T inputs = channels.stream().<$T>map($T::new).toList()",
+            LIST_EXPRESSION_EVALUATOR,
+            EXPRESSION_EVALUATOR,
+            LOAD_FROM_PAGE
+        );
+
+        builder.addStatement(
             "return new $T($L)",
             aggregatorImplementer.implementation(),
             Stream.concat(
-                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, channels")),
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, inputs")),
                 aggregatorImplementer.createParameters().stream().map(Parameter::name)
             ).collect(Collectors.joining(", "))
         );
@@ -188,10 +198,17 @@ public class AggregatorFunctionSupplierImplementer {
         }
 
         builder.addStatement(
+            "$T inputs = channels.stream().<$T>map($T::new).toList()",
+            LIST_EXPRESSION_EVALUATOR,
+            EXPRESSION_EVALUATOR,
+            LOAD_FROM_PAGE
+        );
+
+        builder.addStatement(
             "return new $T($L)",
             groupingAggregatorImplementer.implementation(),
             Stream.concat(
-                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("channels, driverContext")),
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("inputs, driverContext")),
                 groupingAggregatorImplementer.createParameters().stream().map(Parameter::name)
             ).collect(Collectors.joining(", "))
         );

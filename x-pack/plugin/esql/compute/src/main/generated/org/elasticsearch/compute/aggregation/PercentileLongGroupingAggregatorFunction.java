@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -20,6 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,16 +32,16 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
   private final QuantileStates.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
   private final double percentile;
 
-  PercentileLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      double percentile) {
+  PercentileLongGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext, double percentile) {
     this.percentile = percentile;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = PercentileLongAggregator.initGrouping(driverContext, percentile);
     this.driverContext = driverContext;
   }
@@ -58,7 +58,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    LongBlock vBlock = page.getBlock(channels.get(0));
+    LongBlock vBlock = (LongBlock) inputs.get(0).eval(page);
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -80,6 +80,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
     }
@@ -101,6 +102,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
   }
@@ -147,23 +149,24 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block quartUncast = page.getBlock(channels.get(0));
-    if (quartUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef quartScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block quartUncast = inputs.get(0).eval(page)) {
+      if (quartUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+      BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+      BytesRef quartScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+        }
       }
     }
   }
@@ -210,23 +213,24 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block quartUncast = page.getBlock(channels.get(0));
-    if (quartUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef quartScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block quartUncast = inputs.get(0).eval(page)) {
+      if (quartUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+      BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+      BytesRef quartScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+        }
       }
     }
   }
@@ -259,17 +263,18 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block quartUncast = page.getBlock(channels.get(0));
-    if (quartUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    BytesRef quartScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block quartUncast = inputs.get(0).eval(page)) {
+      if (quartUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+      BytesRef quartScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        PercentileLongAggregator.combineIntermediate(state, groupId, quart.getBytesRef(valuesPosition, quartScratch));
+      }
     }
   }
 
@@ -299,7 +304,7 @@ public final class PercentileLongGroupingAggregatorFunction implements GroupingA
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -31,12 +33,14 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
             @Override
             public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-                return new PresentAggregatorFunction(channels);
+                List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+                return new PresentAggregatorFunction(inputs);
             }
 
             @Override
             public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-                return new PresentGroupingAggregatorFunction(channels, driverContext);
+                List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+                return new PresentGroupingAggregatorFunction(inputs, driverContext);
             }
 
             @Override
@@ -54,12 +58,12 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    private final List<Integer> channels;
+    private final List<ExpressionEvaluator> inputs;
 
     private boolean state;
 
-    PresentAggregatorFunction(List<Integer> channels) {
-        this.channels = channels;
+    PresentAggregatorFunction(List<ExpressionEvaluator> inputs) {
+        this.inputs = inputs;
         this.state = false;
     }
 
@@ -68,18 +72,14 @@ public class PresentAggregatorFunction implements AggregatorFunction {
         return intermediateStateDesc().size();
     }
 
-    private int blockIndex() {
-        return channels.get(0);
-    }
-
     @Override
     public void addRawInput(Page page, BooleanVector mask) {
-        // is a previous page has non-null values we can return immediately
         if (state) return;
         if (mask.isConstant() && mask.getBoolean(0) == false) return;
 
-        Block block = page.getBlock(blockIndex());
-        this.state = mask.isConstant() ? block.getTotalValueCount() > 0 : presentMasked(block, mask);
+        try (Block block = inputs.get(0).eval(page)) {
+            this.state = mask.isConstant() ? block.getTotalValueCount() > 0 : presentMasked(block, mask);
+        }
     }
 
     private boolean presentMasked(Block block, BooleanVector mask) {
@@ -93,17 +93,16 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Page page) {
-        assert channels.size() == intermediateBlockCount();
-        var blockIndex = blockIndex();
-        assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
-        Block uncastBlock = page.getBlock(channels.get(0));
-        if (uncastBlock.areAllValuesNull()) {
-            return;
-        }
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        assert present.getPositionCount() == 1;
-        if (present.getBoolean(0)) {
-            this.state = true;
+        assert inputs.size() == intermediateBlockCount();
+        try (Block presentUncast = inputs.get(0).eval(page)) {
+            if (presentUncast.areAllValuesNull()) {
+                return;
+            }
+            BooleanVector present = ((BooleanBlock) presentUncast).asVector();
+            assert present.getPositionCount() == 1;
+            if (present.getBoolean(0)) {
+                this.state = true;
+            }
         }
     }
 
@@ -121,7 +120,7 @@ public class PresentAggregatorFunction implements AggregatorFunction {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channels=").append(channels);
+        sb.append("inputs=").append(inputs);
         sb.append("]");
         return sb.toString();
     }

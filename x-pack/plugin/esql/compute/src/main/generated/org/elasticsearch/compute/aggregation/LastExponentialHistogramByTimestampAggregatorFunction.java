@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
@@ -35,12 +35,12 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
 
   private final ExponentialHistogramStates.WithLongSingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   LastExponentialHistogramByTimestampAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels) {
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = LastExponentialHistogramByTimestampAggregator.initSingle(driverContext);
   }
 
@@ -65,15 +65,15 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock, mask);
+    try (ExponentialHistogramBlock valueBlock = (ExponentialHistogramBlock) inputs.get(0).eval(page); LongBlock timestampBlock = (LongBlock) inputs.get(1).eval(page)) {
+      addRawBlock(valueBlock, timestampBlock, mask);
+    }
   }
 
   private void addRawInputNotMasked(Page page) {
-    ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock);
+    try (ExponentialHistogramBlock valueBlock = (ExponentialHistogramBlock) inputs.get(0).eval(page); LongBlock timestampBlock = (LongBlock) inputs.get(1).eval(page)) {
+      addRawBlock(valueBlock, timestampBlock);
+    }
   }
 
   private void addRawBlock(ExponentialHistogramBlock valueBlock, LongBlock timestampBlock) {
@@ -132,28 +132,26 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block timestampsUncast = inputs.get(0).eval(page); Block valuesUncast = inputs.get(1).eval(page); Block seenUncast = inputs.get(2).eval(page)) {
+      if (timestampsUncast.areAllValuesNull()) {
+        return;
+      }
+      LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
+      assert timestamps.getPositionCount() == 1;
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      ExponentialHistogramBlock values = (ExponentialHistogramBlock) valuesUncast;
+      assert values.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      ExponentialHistogramScratch valuesScratch = new ExponentialHistogramScratch();
+      LastExponentialHistogramByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getExponentialHistogram(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
     }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
-    assert timestamps.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    ExponentialHistogramBlock values = (ExponentialHistogramBlock) valuesUncast;
-    assert values.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    ExponentialHistogramScratch valuesScratch = new ExponentialHistogramScratch();
-    LastExponentialHistogramByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getExponentialHistogram(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
   }
 
   @Override
@@ -170,7 +168,7 @@ public final class LastExponentialHistogramByTimestampAggregatorFunction impleme
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

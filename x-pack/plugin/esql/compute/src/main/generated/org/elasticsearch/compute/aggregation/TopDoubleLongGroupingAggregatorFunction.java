@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,7 +32,7 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
 
   private final TopDoubleLongAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
@@ -40,11 +40,11 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
 
   private final boolean ascending;
 
-  TopDoubleLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      int limit, boolean ascending) {
+  TopDoubleLongGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext, int limit, boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = TopDoubleLongAggregator.initGrouping(driverContext.bigArrays(), limit, ascending);
     this.driverContext = driverContext;
   }
@@ -61,8 +61,8 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    DoubleBlock vBlock = page.getBlock(channels.get(0));
-    LongBlock outputValueBlock = page.getBlock(channels.get(1));
+    DoubleBlock vBlock = (DoubleBlock) inputs.get(0).eval(page);
+    LongBlock outputValueBlock = (LongBlock) inputs.get(1).eval(page);
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock, outputValueBlock);
@@ -84,6 +84,8 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
 
         @Override
         public void close() {
+          vBlock.close();
+          outputValueBlock.close();
         }
       };
     }
@@ -108,6 +110,8 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
 
         @Override
         public void close() {
+          vBlock.close();
+          outputValueBlock.close();
         }
       };
     }
@@ -129,6 +133,8 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
 
       @Override
       public void close() {
+        vBlock.close();
+        outputValueBlock.close();
       }
     };
   }
@@ -186,28 +192,28 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleBlock top = (DoubleBlock) topUncast;
-    Block outputUncast = page.getBlock(channels.get(1));
-    if (outputUncast.areAllValuesNull()) {
-      return;
-    }
-    LongBlock output = (LongBlock) outputUncast;
-    assert top.getPositionCount() == output.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block outputUncast = inputs.get(1).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+      DoubleBlock top = (DoubleBlock) topUncast;
+      if (outputUncast.areAllValuesNull()) {
+        return;
+      }
+      LongBlock output = (LongBlock) outputUncast;
+      assert top.getPositionCount() == output.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+        }
       }
     }
   }
@@ -265,28 +271,28 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleBlock top = (DoubleBlock) topUncast;
-    Block outputUncast = page.getBlock(channels.get(1));
-    if (outputUncast.areAllValuesNull()) {
-      return;
-    }
-    LongBlock output = (LongBlock) outputUncast;
-    assert top.getPositionCount() == output.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block outputUncast = inputs.get(1).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+      DoubleBlock top = (DoubleBlock) topUncast;
+      if (outputUncast.areAllValuesNull()) {
+        return;
+      }
+      LongBlock output = (LongBlock) outputUncast;
+      assert top.getPositionCount() == output.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+        }
       }
     }
   }
@@ -330,22 +336,22 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleBlock top = (DoubleBlock) topUncast;
-    Block outputUncast = page.getBlock(channels.get(1));
-    if (outputUncast.areAllValuesNull()) {
-      return;
-    }
-    LongBlock output = (LongBlock) outputUncast;
-    assert top.getPositionCount() == output.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block outputUncast = inputs.get(1).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleBlock top = (DoubleBlock) topUncast;
+      if (outputUncast.areAllValuesNull()) {
+        return;
+      }
+      LongBlock output = (LongBlock) outputUncast;
+      assert top.getPositionCount() == output.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        TopDoubleLongAggregator.combineIntermediate(state, groupId, top, output, valuesPosition);
+      }
     }
   }
 
@@ -379,7 +385,7 @@ public final class TopDoubleLongGroupingAggregatorFunction implements GroupingAg
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class MinFloatAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public MinFloatAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new MinFloatAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new MinFloatAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public MinFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new MinFloatGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new MinFloatGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

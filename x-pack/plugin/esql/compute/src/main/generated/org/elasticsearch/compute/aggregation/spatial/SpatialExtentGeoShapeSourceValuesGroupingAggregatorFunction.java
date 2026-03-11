@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation.spatial;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -23,6 +22,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -40,13 +40,13 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
 
   private final SpatialExtentGroupingStateWrappedLongitudeState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction(List<Integer> channels,
+  SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
       DriverContext driverContext) {
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SpatialExtentGeoShapeSourceValuesAggregator.initGrouping();
     this.driverContext = driverContext;
   }
@@ -63,7 +63,7 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
+    BytesRefBlock bytesBlock = (BytesRefBlock) inputs.get(0).eval(page);
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, bytesBlock);
@@ -85,6 +85,7 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
 
         @Override
         public void close() {
+          bytesBlock.close();
         }
       };
     }
@@ -106,6 +107,7 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
 
       @Override
       public void close() {
+        bytesBlock.close();
       }
     };
   }
@@ -154,48 +156,44 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector top = ((IntBlock) topUncast).asVector();
-    Block bottomUncast = page.getBlock(channels.get(1));
-    if (bottomUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector bottom = ((IntBlock) bottomUncast).asVector();
-    Block negLeftUncast = page.getBlock(channels.get(2));
-    if (negLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
-    Block negRightUncast = page.getBlock(channels.get(3));
-    if (negRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector negRight = ((IntBlock) negRightUncast).asVector();
-    Block posLeftUncast = page.getBlock(channels.get(4));
-    if (posLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
-    Block posRightUncast = page.getBlock(channels.get(5));
-    if (posRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posRight = ((IntBlock) posRightUncast).asVector();
-    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block bottomUncast = inputs.get(1).eval(page); Block negLeftUncast = inputs.get(2).eval(page); Block negRightUncast = inputs.get(3).eval(page); Block posLeftUncast = inputs.get(4).eval(page); Block posRightUncast = inputs.get(5).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+      IntVector top = ((IntBlock) topUncast).asVector();
+      if (bottomUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector bottom = ((IntBlock) bottomUncast).asVector();
+      if (negLeftUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+      if (negRightUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector negRight = ((IntBlock) negRightUncast).asVector();
+      if (posLeftUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+      if (posRightUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector posRight = ((IntBlock) posRightUncast).asVector();
+      assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+        }
       }
     }
   }
@@ -245,48 +243,44 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector top = ((IntBlock) topUncast).asVector();
-    Block bottomUncast = page.getBlock(channels.get(1));
-    if (bottomUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector bottom = ((IntBlock) bottomUncast).asVector();
-    Block negLeftUncast = page.getBlock(channels.get(2));
-    if (negLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
-    Block negRightUncast = page.getBlock(channels.get(3));
-    if (negRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector negRight = ((IntBlock) negRightUncast).asVector();
-    Block posLeftUncast = page.getBlock(channels.get(4));
-    if (posLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
-    Block posRightUncast = page.getBlock(channels.get(5));
-    if (posRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posRight = ((IntBlock) posRightUncast).asVector();
-    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block bottomUncast = inputs.get(1).eval(page); Block negLeftUncast = inputs.get(2).eval(page); Block negRightUncast = inputs.get(3).eval(page); Block posLeftUncast = inputs.get(4).eval(page); Block posRightUncast = inputs.get(5).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+      IntVector top = ((IntBlock) topUncast).asVector();
+      if (bottomUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector bottom = ((IntBlock) bottomUncast).asVector();
+      if (negLeftUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+      if (negRightUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector negRight = ((IntBlock) negRightUncast).asVector();
+      if (posLeftUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+      if (posRightUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector posRight = ((IntBlock) posRightUncast).asVector();
+      assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+        }
       }
     }
   }
@@ -321,42 +315,38 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector top = ((IntBlock) topUncast).asVector();
-    Block bottomUncast = page.getBlock(channels.get(1));
-    if (bottomUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector bottom = ((IntBlock) bottomUncast).asVector();
-    Block negLeftUncast = page.getBlock(channels.get(2));
-    if (negLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
-    Block negRightUncast = page.getBlock(channels.get(3));
-    if (negRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector negRight = ((IntBlock) negRightUncast).asVector();
-    Block posLeftUncast = page.getBlock(channels.get(4));
-    if (posLeftUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
-    Block posRightUncast = page.getBlock(channels.get(5));
-    if (posRightUncast.areAllValuesNull()) {
-      return;
-    }
-    IntVector posRight = ((IntBlock) posRightUncast).asVector();
-    assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page); Block bottomUncast = inputs.get(1).eval(page); Block negLeftUncast = inputs.get(2).eval(page); Block negRightUncast = inputs.get(3).eval(page); Block posLeftUncast = inputs.get(4).eval(page); Block posRightUncast = inputs.get(5).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector top = ((IntBlock) topUncast).asVector();
+      if (bottomUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector bottom = ((IntBlock) bottomUncast).asVector();
+      if (negLeftUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector negLeft = ((IntBlock) negLeftUncast).asVector();
+      if (negRightUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector negRight = ((IntBlock) negRightUncast).asVector();
+      if (posLeftUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector posLeft = ((IntBlock) posLeftUncast).asVector();
+      if (posRightUncast.areAllValuesNull()) {
+        return;
+      }
+      IntVector posRight = ((IntBlock) posRightUncast).asVector();
+      assert top.getPositionCount() == bottom.getPositionCount() && top.getPositionCount() == negLeft.getPositionCount() && top.getPositionCount() == negRight.getPositionCount() && top.getPositionCount() == posLeft.getPositionCount() && top.getPositionCount() == posRight.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        SpatialExtentGeoShapeSourceValuesAggregator.combineIntermediate(state, groupId, top.getInt(valuesPosition), bottom.getInt(valuesPosition), negLeft.getInt(valuesPosition), negRight.getInt(valuesPosition), posLeft.getInt(valuesPosition), posRight.getInt(valuesPosition));
+      }
     }
   }
 
@@ -386,7 +376,7 @@ public final class SpatialExtentGeoShapeSourceValuesGroupingAggregatorFunction i
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

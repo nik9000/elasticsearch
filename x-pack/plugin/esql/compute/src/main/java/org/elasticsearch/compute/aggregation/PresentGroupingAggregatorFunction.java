@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -27,21 +28,17 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     );
 
     private final BitArray state;
-    private final List<Integer> channels;
+    private final List<ExpressionEvaluator> inputs;
     private final DriverContext driverContext;
 
     public static List<IntermediateStateDesc> intermediateStateDesc() {
         return INTERMEDIATE_STATE_DESC;
     }
 
-    PresentGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-        this.channels = channels;
+    PresentGroupingAggregatorFunction(List<ExpressionEvaluator> inputs, DriverContext driverContext) {
+        this.inputs = inputs;
         this.state = new BitArray(1, driverContext.bigArrays());
         this.driverContext = driverContext;
-    }
-
-    private int blockIndex() {
-        return channels.get(0);
     }
 
     @Override
@@ -51,7 +48,7 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        Block valuesBlock = page.getBlock(blockIndex());
+        Block valuesBlock = inputs.get(0).eval(page);
 
         return new AddInput() {
             @Override
@@ -70,7 +67,9 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
             }
 
             @Override
-            public void close() {}
+            public void close() {
+                valuesBlock.close();
+            }
         };
     }
 
@@ -117,47 +116,49 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
 
     @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-        assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
-                continue;
-            }
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                state.set(groups.getInt(g), true);
+        assert inputs.size() == intermediateBlockCount();
+        try (Block presentUncast = inputs.get(0).eval(page)) {
+            BooleanVector present = ((BooleanBlock) presentUncast).asVector();
+            for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+                if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
+                    continue;
+                }
+                int groupStart = groups.getFirstValueIndex(groupPosition);
+                int groupEnd = groupStart + groups.getValueCount(groupPosition);
+                for (int g = groupStart; g < groupEnd; g++) {
+                    state.set(groups.getInt(g), true);
+                }
             }
         }
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-        assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
-                continue;
-            }
-
-            int groupStart = groups.getFirstValueIndex(groupPosition);
-            int groupEnd = groupStart + groups.getValueCount(groupPosition);
-            for (int g = groupStart; g < groupEnd; g++) {
-                state.set(groups.getInt(g), true);
+        assert inputs.size() == intermediateBlockCount();
+        try (Block presentUncast = inputs.get(0).eval(page)) {
+            BooleanVector present = ((BooleanBlock) presentUncast).asVector();
+            for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+                if (groups.isNull(groupPosition) || present.getBoolean(groupPosition + positionOffset) == false) {
+                    continue;
+                }
+                int groupStart = groups.getFirstValueIndex(groupPosition);
+                int groupEnd = groupStart + groups.getValueCount(groupPosition);
+                for (int g = groupStart; g < groupEnd; g++) {
+                    state.set(groups.getInt(g), true);
+                }
             }
         }
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-        assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= blockIndex() + intermediateStateDesc().size();
-        BooleanVector present = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
-        for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-            if (present.getBoolean(groupPosition + positionOffset)) {
-                state.set(groups.getInt(groupPosition), true);
+        assert inputs.size() == intermediateBlockCount();
+        try (Block presentUncast = inputs.get(0).eval(page)) {
+            BooleanVector present = ((BooleanBlock) presentUncast).asVector();
+            for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+                if (present.getBoolean(groupPosition + positionOffset)) {
+                    state.set(groups.getInt(groupPosition), true);
+                }
             }
         }
     }
@@ -188,7 +189,7 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channels=").append(channels);
+        sb.append("inputs=").append(inputs);
         sb.append("]");
         return sb.toString();
     }

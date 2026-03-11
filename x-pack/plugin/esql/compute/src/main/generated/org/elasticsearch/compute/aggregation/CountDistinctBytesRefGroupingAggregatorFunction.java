@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,16 +30,16 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   private final HllStates.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
   private final int precision;
 
-  CountDistinctBytesRefGroupingAggregatorFunction(List<Integer> channels,
+  CountDistinctBytesRefGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
       DriverContext driverContext, int precision) {
     this.precision = precision;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = CountDistinctBytesRefAggregator.initGrouping(driverContext, precision);
     this.driverContext = driverContext;
   }
@@ -56,7 +56,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefBlock vBlock = (BytesRefBlock) inputs.get(0).eval(page);
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -78,6 +78,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
     }
@@ -99,6 +100,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
   }
@@ -147,23 +149,24 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef hllScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block hllUncast = inputs.get(0).eval(page)) {
+      if (hllUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+      BytesRef hllScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+        }
       }
     }
   }
@@ -212,23 +215,24 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef hllScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block hllUncast = inputs.get(0).eval(page)) {
+      if (hllUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+      BytesRef hllScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+        }
       }
     }
   }
@@ -263,17 +267,18 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block hllUncast = page.getBlock(channels.get(0));
-    if (hllUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
-    BytesRef hllScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block hllUncast = inputs.get(0).eval(page)) {
+      if (hllUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
+      BytesRef hllScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        CountDistinctBytesRefAggregator.combineIntermediate(state, groupId, hll.getBytesRef(valuesPosition, hllScratch));
+      }
     }
   }
 
@@ -303,7 +308,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

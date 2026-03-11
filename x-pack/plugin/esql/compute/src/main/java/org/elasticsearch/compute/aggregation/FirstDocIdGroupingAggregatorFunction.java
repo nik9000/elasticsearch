@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.RefCounted;
@@ -49,7 +51,8 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
         @Override
         public FirstDocIdGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new FirstDocIdGroupingAggregatorFunction(channels, driverContext);
+            List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+            return new FirstDocIdGroupingAggregatorFunction(inputs, driverContext);
         }
 
         @Override
@@ -60,15 +63,15 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(new IntermediateStateDesc("_doc", ElementType.DOC));
 
-    private final int channel;
+    private final ExpressionEvaluator input;
     private final DriverContext driverContext;
     private int maxGroupId = -1;
     private final BigArrays bigArrays;
     private IntArray docs;
     private final Map<Integer, RefCounted> contextRefs = new HashMap<>();
 
-    public FirstDocIdGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-        this.channel = channels.getFirst();
+    public FirstDocIdGroupingAggregatorFunction(List<ExpressionEvaluator> inputs, DriverContext driverContext) {
+        this.input = inputs.getFirst();
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         boolean success = false;
@@ -89,7 +92,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        DocBlock docBlock = page.getBlock(channel);
+        DocBlock docBlock = (DocBlock) input.eval(page);
         if (docBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
@@ -109,7 +112,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
                 @Override
                 public void close() {
-
+                    docBlock.close();
                 }
             };
         }
@@ -136,7 +139,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
 
             @Override
             public void close() {
-
+                docBlock.close();
             }
         };
     }
@@ -283,7 +286,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(getClass().getSimpleName()).append("[");
-        sb.append("channel=").append(channel);
+        sb.append("input=").append(input);
         sb.append("]");
         return sb.toString();
     }

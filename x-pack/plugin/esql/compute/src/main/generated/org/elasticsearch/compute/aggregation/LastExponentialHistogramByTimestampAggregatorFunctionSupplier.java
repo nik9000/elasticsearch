@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class LastExponentialHistogramByTimestampAggregatorFunctionSupplier
   @Override
   public LastExponentialHistogramByTimestampAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new LastExponentialHistogramByTimestampAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new LastExponentialHistogramByTimestampAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public LastExponentialHistogramByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new LastExponentialHistogramByTimestampGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new LastExponentialHistogramByTimestampGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

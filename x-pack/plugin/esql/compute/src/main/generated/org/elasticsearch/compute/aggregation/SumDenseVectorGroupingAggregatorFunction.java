@@ -5,7 +5,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import java.lang.ArithmeticException;
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 
@@ -35,14 +35,14 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
 
   private final Warnings warnings;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+  SumDenseVectorGroupingAggregatorFunction(Warnings warnings, List<ExpressionEvaluator> inputs,
       DriverContext driverContext) {
     this.warnings = warnings;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SumDenseVectorAggregator.initGrouping(driverContext.bigArrays());
     this.driverContext = driverContext;
   }
@@ -59,7 +59,7 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    FloatBlock vectorBlock = (FloatBlock) inputs.get(0).eval(page);
     maybeEnableGroupIdTracking(seenGroupIds, vectorBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override
@@ -79,6 +79,7 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
 
       @Override
       public void close() {
+        vectorBlock.close();
       }
     };
   }
@@ -109,28 +110,28 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block sumUncast = page.getBlock(channels.get(0));
-    if (sumUncast.areAllValuesNull()) {
-      return;
-    }
-    FloatBlock sum = (FloatBlock) sumUncast;
-    Block failedUncast = page.getBlock(channels.get(1));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert sum.getPositionCount() == failed.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sumUncast = inputs.get(0).eval(page); Block failedUncast = inputs.get(1).eval(page)) {
+      if (sumUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
+      FloatBlock sum = (FloatBlock) sumUncast;
+      if (failedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+      assert sum.getPositionCount() == failed.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
+        }
       }
     }
   }
@@ -161,28 +162,28 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block sumUncast = page.getBlock(channels.get(0));
-    if (sumUncast.areAllValuesNull()) {
-      return;
-    }
-    FloatBlock sum = (FloatBlock) sumUncast;
-    Block failedUncast = page.getBlock(channels.get(1));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert sum.getPositionCount() == failed.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sumUncast = inputs.get(0).eval(page); Block failedUncast = inputs.get(1).eval(page)) {
+      if (sumUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
+      FloatBlock sum = (FloatBlock) sumUncast;
+      if (failedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+      assert sum.getPositionCount() == failed.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
+        }
       }
     }
   }
@@ -206,22 +207,22 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block sumUncast = page.getBlock(channels.get(0));
-    if (sumUncast.areAllValuesNull()) {
-      return;
-    }
-    FloatBlock sum = (FloatBlock) sumUncast;
-    Block failedUncast = page.getBlock(channels.get(1));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert sum.getPositionCount() == failed.getPositionCount();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sumUncast = inputs.get(0).eval(page); Block failedUncast = inputs.get(1).eval(page)) {
+      if (sumUncast.areAllValuesNull()) {
+        return;
+      }
+      FloatBlock sum = (FloatBlock) sumUncast;
+      if (failedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+      assert sum.getPositionCount() == failed.getPositionCount();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        SumDenseVectorAggregator.combineIntermediate(state, groupId, sum, failed.getBoolean(valuesPosition), valuesPosition);
+      }
     }
   }
 
@@ -251,7 +252,7 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

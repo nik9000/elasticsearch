@@ -5,7 +5,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import java.lang.ArithmeticException;
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 
@@ -34,13 +34,13 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   private final SumDenseVectorAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   SumDenseVectorAggregatorFunction(Warnings warnings, DriverContext driverContext,
-      List<Integer> channels) {
+      List<ExpressionEvaluator> inputs) {
     this.warnings = warnings;
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SumDenseVectorAggregator.initSingle();
   }
 
@@ -65,13 +65,15 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    FloatBlock vectorBlock = page.getBlock(channels.get(0));
-    addRawBlock(vectorBlock, mask);
+    try (FloatBlock vectorBlock = (FloatBlock) inputs.get(0).eval(page)) {
+      addRawBlock(vectorBlock, mask);
+    }
   }
 
   private void addRawInputNotMasked(Page page) {
-    FloatBlock vectorBlock = page.getBlock(channels.get(0));
-    addRawBlock(vectorBlock);
+    try (FloatBlock vectorBlock = (FloatBlock) inputs.get(0).eval(page)) {
+      addRawBlock(vectorBlock);
+    }
   }
 
   private void addRawBlock(FloatBlock vectorBlock) {
@@ -103,21 +105,20 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block sumUncast = page.getBlock(channels.get(0));
-    if (sumUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sumUncast = inputs.get(0).eval(page); Block failedUncast = inputs.get(1).eval(page)) {
+      if (sumUncast.areAllValuesNull()) {
+        return;
+      }
+      FloatBlock sum = (FloatBlock) sumUncast;
+      assert sum.getPositionCount() == 1;
+      if (failedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+      assert failed.getPositionCount() == 1;
+      SumDenseVectorAggregator.combineIntermediate(state, sum, failed.getBoolean(0));
     }
-    FloatBlock sum = (FloatBlock) sumUncast;
-    assert sum.getPositionCount() == 1;
-    Block failedUncast = page.getBlock(channels.get(1));
-    if (failedUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
-    assert failed.getPositionCount() == 1;
-    SumDenseVectorAggregator.combineIntermediate(state, sum, failed.getBoolean(0));
   }
 
   @Override
@@ -134,7 +135,7 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class FirstIntByTimestampAggregatorFunctionSupplier implements Aggr
   @Override
   public FirstIntByTimestampAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new FirstIntByTimestampAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new FirstIntByTimestampAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public FirstIntByTimestampGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new FirstIntByTimestampGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new FirstIntByTimestampGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

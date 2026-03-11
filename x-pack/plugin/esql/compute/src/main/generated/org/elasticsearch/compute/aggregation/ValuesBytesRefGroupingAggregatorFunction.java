@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,12 +30,13 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   private final ValuesBytesRefAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  ValuesBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-    this.channels = channels;
+  ValuesBytesRefGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext) {
+    this.inputs = inputs;
     this.state = ValuesBytesRefAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
   }
@@ -52,7 +53,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock vBlock = page.getBlock(channels.get(0));
+    BytesRefBlock vBlock = (BytesRefBlock) inputs.get(0).eval(page);
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock);
@@ -74,6 +75,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
         @Override
         public void close() {
+          vBlock.close();
         }
       };
       return ValuesBytesRefAggregator.wrapAddInput(addInput, state, vBlock);
@@ -96,6 +98,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
       @Override
       public void close() {
+        vBlock.close();
       }
     };
     return ValuesBytesRefAggregator.wrapAddInput(addInput, state, vVector);
@@ -145,13 +148,14 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
     }
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock vBlock) {
@@ -198,13 +202,14 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
     }
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock vBlock) {
@@ -237,13 +242,14 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock values = (BytesRefBlock) valuesUncast;
+      ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
     }
-    BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock vBlock) {
@@ -272,7 +278,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class ValuesBytesRefAggregatorFunctionSupplier implements Aggregato
   @Override
   public ValuesBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new ValuesBytesRefAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new ValuesBytesRefAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public ValuesBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new ValuesBytesRefGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new ValuesBytesRefGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

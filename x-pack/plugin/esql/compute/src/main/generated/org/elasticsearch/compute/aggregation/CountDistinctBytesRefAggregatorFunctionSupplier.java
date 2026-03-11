@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -34,13 +36,15 @@ public final class CountDistinctBytesRefAggregatorFunctionSupplier implements Ag
   @Override
   public CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new CountDistinctBytesRefAggregatorFunction(driverContext, channels, precision);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new CountDistinctBytesRefAggregatorFunction(driverContext, inputs, precision);
   }
 
   @Override
   public CountDistinctBytesRefGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, driverContext, precision);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new CountDistinctBytesRefGroupingAggregatorFunction(inputs, driverContext, precision);
   }
 
   @Override

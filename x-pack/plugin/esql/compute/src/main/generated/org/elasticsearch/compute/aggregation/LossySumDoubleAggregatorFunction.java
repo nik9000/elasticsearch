@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,11 +32,11 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
 
   private final LossySumDoubleAggregator.SumState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  LossySumDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  LossySumDoubleAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = LossySumDoubleAggregator.initSingle();
   }
 
@@ -61,23 +61,25 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    DoubleBlock vBlock = page.getBlock(channels.get(0));
-    DoubleVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, mask);
-      return;
+    try (DoubleBlock vBlock = (DoubleBlock) inputs.get(0).eval(page)) {
+      DoubleVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, mask);
+        return;
+      }
+      addRawVector(vVector, mask);
     }
-    addRawVector(vVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    DoubleBlock vBlock = page.getBlock(channels.get(0));
-    DoubleVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock);
-      return;
+    try (DoubleBlock vBlock = (DoubleBlock) inputs.get(0).eval(page)) {
+      DoubleVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock);
+        return;
+      }
+      addRawVector(vVector);
     }
-    addRawVector(vVector);
   }
 
   private void addRawVector(DoubleVector vVector) {
@@ -136,27 +138,25 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block valueUncast = page.getBlock(channels.get(0));
-    if (valueUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valueUncast = inputs.get(0).eval(page); Block unusedDeltasUncast = inputs.get(1).eval(page); Block seenUncast = inputs.get(2).eval(page)) {
+      if (valueUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector value = ((DoubleBlock) valueUncast).asVector();
+      assert value.getPositionCount() == 1;
+      if (unusedDeltasUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
+      assert unusedDeltas.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      LossySumDoubleAggregator.combineIntermediate(state, value.getDouble(0), unusedDeltas.getDouble(0), seen.getBoolean(0));
     }
-    DoubleVector value = ((DoubleBlock) valueUncast).asVector();
-    assert value.getPositionCount() == 1;
-    Block unusedDeltasUncast = page.getBlock(channels.get(1));
-    if (unusedDeltasUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector unusedDeltas = ((DoubleBlock) unusedDeltasUncast).asVector();
-    assert unusedDeltas.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    LossySumDoubleAggregator.combineIntermediate(state, value.getDouble(0), unusedDeltas.getDouble(0), seen.getBoolean(0));
   }
 
   @Override
@@ -177,7 +177,7 @@ public final class LossySumDoubleAggregatorFunction implements AggregatorFunctio
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

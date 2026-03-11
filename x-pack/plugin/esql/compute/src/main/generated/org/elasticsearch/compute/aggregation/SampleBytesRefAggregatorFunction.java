@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,14 +30,15 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
 
   private final SampleBytesRefAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final int limit;
 
-  SampleBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+  SampleBytesRefAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs,
+      int limit) {
     this.limit = limit;
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SampleBytesRefAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
@@ -62,23 +63,25 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
-    BytesRefVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, mask);
-      return;
+    try (BytesRefBlock valueBlock = (BytesRefBlock) inputs.get(0).eval(page)) {
+      BytesRefVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, mask);
+        return;
+      }
+      addRawVector(valueVector, mask);
     }
-    addRawVector(valueVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
-    BytesRefVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock);
-      return;
+    try (BytesRefBlock valueBlock = (BytesRefBlock) inputs.get(0).eval(page)) {
+      BytesRefVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock);
+        return;
+      }
+      addRawVector(valueVector);
     }
-    addRawVector(valueVector);
   }
 
   private void addRawVector(BytesRefVector valueVector) {
@@ -137,16 +140,16 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sampleUncast = inputs.get(0).eval(page)) {
+      if (sampleUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock sample = (BytesRefBlock) sampleUncast;
+      assert sample.getPositionCount() == 1;
+      BytesRef sampleScratch = new BytesRef();
+      SampleBytesRefAggregator.combineIntermediate(state, sample);
     }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    assert sample.getPositionCount() == 1;
-    BytesRef sampleScratch = new BytesRef();
-    SampleBytesRefAggregator.combineIntermediate(state, sample);
   }
 
   @Override
@@ -163,7 +166,7 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

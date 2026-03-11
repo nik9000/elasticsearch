@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -14,6 +13,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -29,11 +29,12 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   private final CountDistinctBooleanAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  CountDistinctBooleanAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  CountDistinctBooleanAggregatorFunction(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = CountDistinctBooleanAggregator.initSingle();
   }
 
@@ -58,23 +59,25 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BooleanBlock vBlock = page.getBlock(channels.get(0));
-    BooleanVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, mask);
-      return;
+    try (BooleanBlock vBlock = (BooleanBlock) inputs.get(0).eval(page)) {
+      BooleanVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, mask);
+        return;
+      }
+      addRawVector(vVector, mask);
     }
-    addRawVector(vVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BooleanBlock vBlock = page.getBlock(channels.get(0));
-    BooleanVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock);
-      return;
+    try (BooleanBlock vBlock = (BooleanBlock) inputs.get(0).eval(page)) {
+      BooleanVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock);
+        return;
+      }
+      addRawVector(vVector);
     }
-    addRawVector(vVector);
   }
 
   private void addRawVector(BooleanVector vVector) {
@@ -129,21 +132,20 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block fbitUncast = page.getBlock(channels.get(0));
-    if (fbitUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block fbitUncast = inputs.get(0).eval(page); Block tbitUncast = inputs.get(1).eval(page)) {
+      if (fbitUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
+      assert fbit.getPositionCount() == 1;
+      if (tbitUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
+      assert tbit.getPositionCount() == 1;
+      CountDistinctBooleanAggregator.combineIntermediate(state, fbit.getBoolean(0), tbit.getBoolean(0));
     }
-    BooleanVector fbit = ((BooleanBlock) fbitUncast).asVector();
-    assert fbit.getPositionCount() == 1;
-    Block tbitUncast = page.getBlock(channels.get(1));
-    if (tbitUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector tbit = ((BooleanBlock) tbitUncast).asVector();
-    assert tbit.getPositionCount() == 1;
-    CountDistinctBooleanAggregator.combineIntermediate(state, fbit.getBoolean(0), tbit.getBoolean(0));
   }
 
   @Override
@@ -160,7 +162,7 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

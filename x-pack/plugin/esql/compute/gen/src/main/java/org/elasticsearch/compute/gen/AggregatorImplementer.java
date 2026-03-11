@@ -58,7 +58,7 @@ import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
-import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
+import static org.elasticsearch.compute.gen.Types.LIST_EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -190,7 +190,7 @@ public class AggregatorImplementer {
 
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(aggState.type, "state", Modifier.PRIVATE, Modifier.FINAL);
-        builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(LIST_EXPRESSION_EVALUATOR, "inputs", Modifier.PRIVATE, Modifier.FINAL);
 
         for (Parameter p : createParameters) {
             builder.addField(p.type(), p.name(), Modifier.PRIVATE, Modifier.FINAL);
@@ -235,7 +235,7 @@ public class AggregatorImplementer {
             builder.addParameter(WARNINGS, "warnings");
         }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(LIST_EXPRESSION_EVALUATOR, "inputs");
 
         for (Parameter p : createParameters()) {
             p.buildCtor(builder);
@@ -245,7 +245,7 @@ public class AggregatorImplementer {
             builder.addStatement("this.warnings = warnings");
         }
         builder.addStatement("this.driverContext = driverContext");
-        builder.addStatement("this.channels = channels");
+        builder.addStatement("this.inputs = inputs");
         builder.addStatement("this.state = $L", initState());
         return builder.build();
     }
@@ -307,10 +307,19 @@ public class AggregatorImplementer {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }
 
+        StringBuilder tryPattern = new StringBuilder("try (");
+        List<Object> tryArgs = new ArrayList<>();
         for (int i = 0; i < aggParams.size(); i++) {
+            if (i > 0) tryPattern.append("; ");
             Argument a = aggParams.get(i);
-            builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
+            tryPattern.append("$T $L = ($T) inputs.get($L).eval(page)");
+            tryArgs.add(a.dataType(true));
+            tryArgs.add(a.blockName());
+            tryArgs.add(a.dataType(true));
+            tryArgs.add(i);
         }
+        tryPattern.append(")");
+        builder.beginControlFlow(tryPattern.toString(), tryArgs.toArray());
 
         if (tryToUseVectors) {
             for (Argument a : aggParams) {
@@ -324,6 +333,7 @@ public class AggregatorImplementer {
         }
 
         builder.addStatement(invokeAddRaw(tryToUseVectors == false, hasMask));
+        builder.endControlFlow();
         return builder.build();
     }
 
@@ -522,8 +532,7 @@ public class AggregatorImplementer {
     private MethodSpec addIntermediateInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        builder.addStatement("assert channels.size() == intermediateBlockCount()");
-        builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+        builder.addStatement("assert inputs.size() == intermediateBlockCount()");
 
         // NOTE:
         // In FIRST & LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
@@ -536,9 +545,23 @@ public class AggregatorImplementer {
         // are still used by some functions.
         boolean isFirstLast = aggregatorName.startsWith("AllFirst") || aggregatorName.startsWith("AllLast");
 
+        StringBuilder tryPattern = new StringBuilder("try (");
+        for (int i = 0; i < intermediateState.size(); i++) {
+            if (i > 0) tryPattern.append("; ");
+            tryPattern.append("$T $L = inputs.get($L).eval(page)");
+        }
+        tryPattern.append(")");
+        List<Object> tryArgs = new ArrayList<>();
+        for (int i = 0; i < intermediateState.size(); i++) {
+            tryArgs.add(BLOCK);
+            tryArgs.add(intermediateState.get(i).name() + "Uncast");
+            tryArgs.add(i);
+        }
+        builder.beginControlFlow(tryPattern.toString(), tryArgs.toArray());
+
         for (int i = 0; i < intermediateState.size(); i++) {
             var interState = intermediateState.get(i);
-            interState.assignToVariable(builder, i, isFirstLast);
+            interState.castFromVariable(builder, isFirstLast);
             builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
         if (aggState.declaredType().isPrimitive()) {
@@ -590,6 +613,7 @@ public class AggregatorImplementer {
             }
             builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
         }
+        builder.endControlFlow();
         return builder.build();
     }
 
@@ -653,7 +677,7 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(String.class);
         builder.addStatement("$T sb = new $T()", StringBuilder.class, StringBuilder.class);
         builder.addStatement("sb.append(getClass().getSimpleName()).append($S)", "[");
-        builder.addStatement("sb.append($S).append(channels)", "channels=");
+        builder.addStatement("sb.append($S).append(inputs)", "inputs=");
         builder.addStatement("sb.append($S)", "]");
         builder.addStatement("return sb.toString()");
         return builder.build();
@@ -701,7 +725,15 @@ public class AggregatorImplementer {
         }
 
         public void assignToVariable(MethodSpec.Builder builder, int offset, boolean forcePassDown) {
-            builder.addStatement("Block $L = page.getBlock(channels.get($L))", name + "Uncast", offset);
+            builder.addStatement("Block $L = inputs.get($L).eval(page)", name + "Uncast", offset);
+            castFromVariable(builder, forcePassDown);
+        }
+
+        /**
+         * Emits the null check and type conversion for an already-loaded {@code xxxUncast}
+         * variable. Used when the load happens in a try-with-resources declaration.
+         */
+        public void castFromVariable(MethodSpec.Builder builder, boolean forcePassDown) {
             ClassName blockType = blockType(elementType());
             if (forcePassDown == false) {
                 builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");

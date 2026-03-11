@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -22,8 +24,8 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
         return new DenseVectorCountAggregatorFunctionSupplier();
     }
 
-    DenseVectorCountAggregatorFunction(List<Integer> channels) {
-        super(channels);
+    DenseVectorCountAggregatorFunction(List<ExpressionEvaluator> inputs) {
+        super(inputs);
     }
 
     @Override
@@ -51,12 +53,14 @@ public class DenseVectorCountAggregatorFunction extends CountAggregatorFunction 
     private static class DenseVectorCountAggregatorFunctionSupplier extends CountAggregatorFunctionSupplier {
         @Override
         public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return new DenseVectorCountAggregatorFunction(channels);
+            List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+            return new DenseVectorCountAggregatorFunction(inputs);
         }
 
         @Override
         public DenseVectorCountGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new DenseVectorCountGroupingAggregatorFunction(channels, driverContext);
+            List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+            return new DenseVectorCountGroupingAggregatorFunction(inputs, driverContext);
         }
     }
 }

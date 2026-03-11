@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -20,6 +19,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,12 +33,13 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   private final MinBytesRefAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
-  MinBytesRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-    this.channels = channels;
+  MinBytesRefGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext) {
+    this.inputs = inputs;
     this.state = MinBytesRefAggregator.initGrouping(driverContext);
     this.driverContext = driverContext;
   }
@@ -55,7 +56,7 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
+    BytesRefBlock valueBlock = (BytesRefBlock) inputs.get(0).eval(page);
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
@@ -77,6 +78,7 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
         @Override
         public void close() {
+          valueBlock.close();
         }
       };
     }
@@ -98,6 +100,7 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
       @Override
       public void close() {
+        valueBlock.close();
       }
     };
   }
@@ -146,29 +149,29 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
-    BytesRef minScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+      BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert min.getPositionCount() == seen.getPositionCount();
+      BytesRef minScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+        }
       }
     }
   }
@@ -218,29 +221,29 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
-    BytesRef minScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+      BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert min.getPositionCount() == seen.getPositionCount();
+      BytesRef minScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+        }
       }
     }
   }
@@ -275,23 +278,23 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert min.getPositionCount() == seen.getPositionCount();
-    BytesRef minScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert min.getPositionCount() == seen.getPositionCount();
+      BytesRef minScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        MinBytesRefAggregator.combineIntermediate(state, groupId, min.getBytesRef(valuesPosition, minScratch), seen.getBoolean(valuesPosition));
+      }
     }
   }
 
@@ -321,7 +324,7 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

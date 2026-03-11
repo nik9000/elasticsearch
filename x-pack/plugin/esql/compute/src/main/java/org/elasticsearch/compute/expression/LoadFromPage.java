@@ -15,11 +15,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 /**
  * {@link ExpressionEvaluator} that loads from the {@link Page} directly.
  */
-public record LoadBlock(int channel) implements ExpressionEvaluator {
+public record LoadFromPage(int channel) implements ExpressionEvaluator {
     public record Factory(int channel) implements ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext driverContext) {
-            return new LoadBlock(channel);
+            return new LoadFromPage(channel);
         }
 
         @Override
@@ -27,7 +27,7 @@ public record LoadBlock(int channel) implements ExpressionEvaluator {
             /*
              * ESQL uses this name for the output of a command, and we use it here
              * because it's the name we've always used. It'd be more descriptive
-             * to make it LoadChannel, but that'd change a ton of tests. And, like,
+             * to make it LoadFromPage, but that'd change a ton of tests. And, like,
              * traditions are fun.
              */
             return "Attribute[channel=" + channel + "]";
@@ -39,7 +39,7 @@ public record LoadBlock(int channel) implements ExpressionEvaluator {
         }
     }
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LoadBlock.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LoadFromPage.class);
 
     @Override
     public Block eval(Page page) {

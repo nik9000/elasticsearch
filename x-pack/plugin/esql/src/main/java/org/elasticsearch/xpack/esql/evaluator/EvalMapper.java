@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.expression.LoadBlock;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -202,7 +202,7 @@ public final class EvalMapper {
             Layout layout,
             IndexedByShardId<? extends ShardContext> shardContexts
         ) {
-            return new LoadBlock.Factory(layout.get(attr.id()).channel());
+            return new LoadFromPage.Factory(layout.get(attr.id()).channel());
         }
     }
 

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,13 +33,15 @@ public final class MedianAbsoluteDeviationLongAggregatorFunctionSupplier impleme
   @Override
   public MedianAbsoluteDeviationLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new MedianAbsoluteDeviationLongAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public MedianAbsoluteDeviationLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

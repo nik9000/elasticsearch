@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -18,6 +17,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,12 +32,12 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   private final QuantileStates.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   MedianAbsoluteDeviationLongAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels) {
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = MedianAbsoluteDeviationLongAggregator.initSingle(driverContext);
   }
 
@@ -62,23 +62,25 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    LongBlock vBlock = page.getBlock(channels.get(0));
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, mask);
-      return;
+    try (LongBlock vBlock = (LongBlock) inputs.get(0).eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, mask);
+        return;
+      }
+      addRawVector(vVector, mask);
     }
-    addRawVector(vVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    LongBlock vBlock = page.getBlock(channels.get(0));
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock);
-      return;
+    try (LongBlock vBlock = (LongBlock) inputs.get(0).eval(page)) {
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock);
+        return;
+      }
+      addRawVector(vVector);
     }
-    addRawVector(vVector);
   }
 
   private void addRawVector(LongVector vVector) {
@@ -133,16 +135,16 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block quartUncast = page.getBlock(channels.get(0));
-    if (quartUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block quartUncast = inputs.get(0).eval(page)) {
+      if (quartUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+      assert quart.getPositionCount() == 1;
+      BytesRef quartScratch = new BytesRef();
+      MedianAbsoluteDeviationLongAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
     }
-    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
-    assert quart.getPositionCount() == 1;
-    BytesRef quartScratch = new BytesRef();
-    MedianAbsoluteDeviationLongAggregator.combineIntermediate(state, quart.getBytesRef(0, quartScratch));
   }
 
   @Override
@@ -159,7 +161,7 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

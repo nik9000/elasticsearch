@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -34,13 +36,15 @@ public final class CountDistinctDoubleAggregatorFunctionSupplier implements Aggr
   @Override
   public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new CountDistinctDoubleAggregatorFunction(driverContext, channels, precision);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new CountDistinctDoubleAggregatorFunction(driverContext, inputs, precision);
   }
 
   @Override
   public CountDistinctDoubleGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new CountDistinctDoubleGroupingAggregatorFunction(channels, driverContext, precision);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new CountDistinctDoubleGroupingAggregatorFunction(inputs, driverContext, precision);
   }
 
   @Override

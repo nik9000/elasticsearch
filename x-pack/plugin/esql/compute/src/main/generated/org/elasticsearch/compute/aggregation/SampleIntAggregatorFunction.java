@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,14 +31,15 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
 
   private final SampleIntAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final int limit;
 
-  SampleIntAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit) {
+  SampleIntAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs,
+      int limit) {
     this.limit = limit;
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SampleIntAggregator.initSingle(driverContext.bigArrays(), limit);
   }
 
@@ -63,23 +64,25 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
-    IntVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, mask);
-      return;
+    try (IntBlock valueBlock = (IntBlock) inputs.get(0).eval(page)) {
+      IntVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, mask);
+        return;
+      }
+      addRawVector(valueVector, mask);
     }
-    addRawVector(valueVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
-    IntVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock);
-      return;
+    try (IntBlock valueBlock = (IntBlock) inputs.get(0).eval(page)) {
+      IntVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock);
+        return;
+      }
+      addRawVector(valueVector);
     }
-    addRawVector(valueVector);
   }
 
   private void addRawVector(IntVector valueVector) {
@@ -134,16 +137,16 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sampleUncast = inputs.get(0).eval(page)) {
+      if (sampleUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock sample = (BytesRefBlock) sampleUncast;
+      assert sample.getPositionCount() == 1;
+      BytesRef sampleScratch = new BytesRef();
+      SampleIntAggregator.combineIntermediate(state, sample);
     }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    assert sample.getPositionCount() == 1;
-    BytesRef sampleScratch = new BytesRef();
-    SampleIntAggregator.combineIntermediate(state, sample);
   }
 
   @Override
@@ -160,7 +163,7 @@ public final class SampleIntAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

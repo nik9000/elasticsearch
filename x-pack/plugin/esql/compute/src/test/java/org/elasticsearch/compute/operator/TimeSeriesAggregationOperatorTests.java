@@ -14,6 +14,8 @@ import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSup
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
 import java.util.List;
@@ -29,7 +31,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             (channels, ctx) -> new ValuesIntAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
             (channels, ctx) -> new ValuesLongAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
             (channels, ctx) -> new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
-            DimensionValuesByteRefGroupingAggregatorFunction::new
+            (channels, ctx) -> new DimensionValuesByteRefGroupingAggregatorFunction(
+                channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList(),
+                ctx
+            )
         );
         for (var fn : functions) {
             try (GroupingAggregatorFunction aggregator = fn.apply(List.of(randomNonNegativeInt()), driverContext)) {

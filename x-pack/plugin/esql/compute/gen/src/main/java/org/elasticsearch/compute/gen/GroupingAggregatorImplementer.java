@@ -62,7 +62,7 @@ import static org.elasticsearch.compute.gen.Types.INT_BIG_ARRAY_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
-import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
+import static org.elasticsearch.compute.gen.Types.LIST_EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
@@ -191,7 +191,7 @@ public class GroupingAggregatorImplementer {
         if (warnExceptions.isEmpty() == false) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
-        builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(LIST_EXPRESSION_EVALUATOR, "inputs", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         for (Parameter p : createParameters) {
@@ -236,7 +236,7 @@ public class GroupingAggregatorImplementer {
         if (warnExceptions.isEmpty() == false) {
             builder.addParameter(WARNINGS, "warnings");
         }
-        builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(LIST_EXPRESSION_EVALUATOR, "inputs");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
 
         for (Parameter p : createParameters) {
@@ -247,7 +247,7 @@ public class GroupingAggregatorImplementer {
         if (warnExceptions.isEmpty() == false) {
             builder.addStatement("this.warnings = warnings");
         }
-        builder.addStatement("this.channels = channels");
+        builder.addStatement("this.inputs = inputs");
         builder.addStatement("this.state = $L", initState());
         builder.addStatement("this.driverContext = driverContext");
         return builder.build();
@@ -297,7 +297,7 @@ public class GroupingAggregatorImplementer {
 
         for (int i = 0; i < aggParams.size(); i++) {
             Argument a = aggParams.get(i);
-            builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
+            builder.addStatement("$T $L = ($T) inputs.get($L).eval(page)", a.dataType(true), a.blockName(), a.dataType(true), i);
         }
 
         String groupIdTrackingStatement = "maybeEnableGroupIdTracking(seenGroupIds, "
@@ -393,6 +393,9 @@ public class GroupingAggregatorImplementer {
         }
 
         MethodSpec.Builder close = MethodSpec.methodBuilder("close").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        for (Argument a : aggParams) {
+            close.addStatement("$L.close()", a.blockName());
+        }
         typeBuilder.addMethod(close.build());
 
         return typeBuilder.build();
@@ -580,7 +583,7 @@ public class GroupingAggregatorImplementer {
         builder.addParameter(PAGE, "page");
 
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
-        builder.addStatement("assert channels.size() == intermediateBlockCount()");
+        builder.addStatement("assert inputs.size() == intermediateBlockCount()");
 
         // NOTE:
         // In FIRST & LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
@@ -593,10 +596,22 @@ public class GroupingAggregatorImplementer {
         // are still used by some functions.
         boolean isFirstLast = aggregatorName.startsWith("AllFirst") || aggregatorName.startsWith("AllLast");
 
-        int count = 0;
+        StringBuilder tryPattern = new StringBuilder("try (");
+        for (int i = 0; i < intermediateState.size(); i++) {
+            if (i > 0) tryPattern.append("; ");
+            tryPattern.append("$T $L = inputs.get($L).eval(page)");
+        }
+        tryPattern.append(")");
+        List<Object> tryArgs = new ArrayList<>();
+        for (int i = 0; i < intermediateState.size(); i++) {
+            tryArgs.add(BLOCK);
+            tryArgs.add(intermediateState.get(i).name() + "Uncast");
+            tryArgs.add(i);
+        }
+        builder.beginControlFlow(tryPattern.toString(), tryArgs.toArray());
+
         for (var interState : intermediateState) {
-            interState.assignToVariable(builder, count, isFirstLast);
-            count++;
+            interState.castFromVariable(builder, isFirstLast);
         }
         final String first = intermediateState.get(0).name();
         if (intermediateState.size() > 1) {
@@ -699,6 +714,7 @@ public class GroupingAggregatorImplementer {
                 builder.endControlFlow();
             }
         }
+        builder.endControlFlow();
         return builder.build();
     }
 
@@ -745,7 +761,7 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).returns(String.class);
         builder.addStatement("$T sb = new $T()", StringBuilder.class, StringBuilder.class);
         builder.addStatement("sb.append(getClass().getSimpleName()).append($S)", "[");
-        builder.addStatement("sb.append($S).append(channels)", "channels=");
+        builder.addStatement("sb.append($S).append(inputs)", "inputs=");
         builder.addStatement("sb.append($S)", "]");
         builder.addStatement("return sb.toString()");
         return builder.build();

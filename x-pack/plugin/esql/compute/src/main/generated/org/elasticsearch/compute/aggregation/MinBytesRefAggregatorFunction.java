@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -32,11 +32,11 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
 
   private final MinBytesRefAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  MinBytesRefAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  MinBytesRefAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = MinBytesRefAggregator.initSingle(driverContext);
   }
 
@@ -61,23 +61,25 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
-    BytesRefVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock, mask);
-      return;
+    try (BytesRefBlock valueBlock = (BytesRefBlock) inputs.get(0).eval(page)) {
+      BytesRefVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock, mask);
+        return;
+      }
+      addRawVector(valueVector, mask);
     }
-    addRawVector(valueVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
-    BytesRefVector valueVector = valueBlock.asVector();
-    if (valueVector == null) {
-      addRawBlock(valueBlock);
-      return;
+    try (BytesRefBlock valueBlock = (BytesRefBlock) inputs.get(0).eval(page)) {
+      BytesRefVector valueVector = valueBlock.asVector();
+      if (valueVector == null) {
+        addRawBlock(valueBlock);
+        return;
+      }
+      addRawVector(valueVector);
     }
-    addRawVector(valueVector);
   }
 
   private void addRawVector(BytesRefVector valueVector) {
@@ -136,22 +138,21 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block minUncast = page.getBlock(channels.get(0));
-    if (minUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block minUncast = inputs.get(0).eval(page); Block seenUncast = inputs.get(1).eval(page)) {
+      if (minUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
+      assert min.getPositionCount() == 1;
+      if (seenUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+      assert seen.getPositionCount() == 1;
+      BytesRef minScratch = new BytesRef();
+      MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, minScratch), seen.getBoolean(0));
     }
-    BytesRefVector min = ((BytesRefBlock) minUncast).asVector();
-    assert min.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(1));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    BytesRef minScratch = new BytesRef();
-    MinBytesRefAggregator.combineIntermediate(state, min.getBytesRef(0, minScratch), seen.getBoolean(0));
   }
 
   @Override
@@ -168,7 +169,7 @@ public final class MinBytesRefAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

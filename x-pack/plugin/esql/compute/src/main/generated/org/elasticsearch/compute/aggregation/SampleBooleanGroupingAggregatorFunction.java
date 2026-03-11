@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -31,16 +31,16 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
 
   private final SampleBooleanAggregator.GroupingState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final DriverContext driverContext;
 
   private final int limit;
 
-  SampleBooleanGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext,
-      int limit) {
+  SampleBooleanGroupingAggregatorFunction(List<ExpressionEvaluator> inputs,
+      DriverContext driverContext, int limit) {
     this.limit = limit;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = SampleBooleanAggregator.initGrouping(driverContext.bigArrays(), limit);
     this.driverContext = driverContext;
   }
@@ -57,7 +57,7 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BooleanBlock valueBlock = page.getBlock(channels.get(0));
+    BooleanBlock valueBlock = (BooleanBlock) inputs.get(0).eval(page);
     BooleanVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
@@ -79,6 +79,7 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
 
         @Override
         public void close() {
+          valueBlock.close();
         }
       };
     }
@@ -100,6 +101,7 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
 
       @Override
       public void close() {
+        valueBlock.close();
       }
     };
   }
@@ -146,23 +148,24 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef sampleScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sampleUncast = inputs.get(0).eval(page)) {
+      if (sampleUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+      BytesRefBlock sample = (BytesRefBlock) sampleUncast;
+      BytesRef sampleScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+        }
       }
     }
   }
@@ -209,23 +212,24 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef sampleScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sampleUncast = inputs.get(0).eval(page)) {
+      if (sampleUncast.areAllValuesNull()) {
+        return;
       }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+      BytesRefBlock sample = (BytesRefBlock) sampleUncast;
+      BytesRef sampleScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        if (groups.isNull(groupPosition)) {
+          continue;
+        }
+        int groupStart = groups.getFirstValueIndex(groupPosition);
+        int groupEnd = groupStart + groups.getValueCount(groupPosition);
+        for (int g = groupStart; g < groupEnd; g++) {
+          int groupId = groups.getInt(g);
+          int valuesPosition = groupPosition + positionOffset;
+          SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+        }
       }
     }
   }
@@ -258,17 +262,18 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    assert channels.size() == intermediateBlockCount();
-    Block sampleUncast = page.getBlock(channels.get(0));
-    if (sampleUncast.areAllValuesNull()) {
-      return;
-    }
-    BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef sampleScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block sampleUncast = inputs.get(0).eval(page)) {
+      if (sampleUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock sample = (BytesRefBlock) sampleUncast;
+      BytesRef sampleScratch = new BytesRef();
+      for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+        int groupId = groups.getInt(groupPosition);
+        int valuesPosition = groupPosition + positionOffset;
+        SampleBooleanAggregator.combineIntermediate(state, groupId, sample, valuesPosition);
+      }
     }
   }
 
@@ -298,7 +303,7 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

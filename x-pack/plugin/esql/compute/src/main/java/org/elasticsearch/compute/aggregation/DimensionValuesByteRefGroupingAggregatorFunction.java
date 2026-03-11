@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -44,7 +46,8 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
         @Override
         public DimensionValuesByteRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new DimensionValuesByteRefGroupingAggregatorFunction(channels, driverContext);
+            List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+            return new DimensionValuesByteRefGroupingAggregatorFunction(inputs, driverContext);
         }
 
         @Override
@@ -56,12 +59,12 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(new IntermediateStateDesc("values", ElementType.BYTES_REF));
 
     private final BytesRefBlock.Builder builder;
-    private final int channel;
+    private final ExpressionEvaluator input;
     private final DriverContext driverContext;
     private int maxGroupId = -1;
 
-    public DimensionValuesByteRefGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-        this.channel = channels.getFirst();
+    public DimensionValuesByteRefGroupingAggregatorFunction(List<ExpressionEvaluator> inputs, DriverContext driverContext) {
+        this.input = inputs.getFirst();
         this.driverContext = driverContext;
         this.builder = driverContext.blockFactory().newBytesRefBlockBuilder(4096);
     }
@@ -73,7 +76,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        BytesRefBlock valuesBlock = page.getBlock(channel);
+        BytesRefBlock valuesBlock = (BytesRefBlock) input.eval(page);
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
@@ -93,7 +96,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
                 @Override
                 public void close() {
-
+                    valuesBlock.close();
                 }
             };
         }
@@ -110,7 +113,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
             @Override
             public void add(int positionOffset, IntVector groupIds) {
-                var valuesVector = valuesBlock.asVector();
+                BytesRefVector valuesVector = valuesBlock.asVector();
                 if (valuesVector != null) {
                     addInputValuesVector(positionOffset, groupIds, valuesVector);
                 } else {
@@ -120,7 +123,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
             @Override
             public void close() {
-
+                valuesBlock.close();
             }
         };
     }
@@ -204,33 +207,36 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
 
     @Override
     public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-        BytesRefBlock valuesBlock = page.getBlock(channel);
-        if (valuesBlock.areAllValuesNull()) {
-            return;
+        try (BytesRefBlock valuesBlock = (BytesRefBlock) input.eval(page)) {
+            if (valuesBlock.areAllValuesNull()) {
+                return;
+            }
+            addInputValuesBlock(positionOffset, groups, valuesBlock);
         }
-        addInputValuesBlock(positionOffset, groups, valuesBlock);
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-        BytesRefBlock valuesBlock = page.getBlock(channel);
-        if (valuesBlock.areAllValuesNull()) {
-            return;
+        try (BytesRefBlock valuesBlock = (BytesRefBlock) input.eval(page)) {
+            if (valuesBlock.areAllValuesNull()) {
+                return;
+            }
+            addInputValuesBlock(positionOffset, groups, valuesBlock);
         }
-        addInputValuesBlock(positionOffset, groups, valuesBlock);
     }
 
     @Override
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-        BytesRefBlock valuesBlock = page.getBlock(channel);
-        if (valuesBlock.areAllValuesNull()) {
-            return;
-        }
-        var valuesVector = valuesBlock.asVector();
-        if (valuesVector != null) {
-            addInputValuesVector(positionOffset, groups, valuesVector);
-        } else {
-            addInputValuesBlock(positionOffset, groups, valuesBlock);
+        try (BytesRefBlock valuesBlock = (BytesRefBlock) input.eval(page)) {
+            if (valuesBlock.areAllValuesNull()) {
+                return;
+            }
+            BytesRefVector valuesVector = valuesBlock.asVector();
+            if (valuesVector != null) {
+                addInputValuesVector(positionOffset, groups, valuesVector);
+            } else {
+                addInputValuesBlock(positionOffset, groups, valuesBlock);
+            }
         }
     }
 
@@ -279,7 +285,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(getClass().getSimpleName()).append("[");
-        sb.append("channels=").append(channel);
+        sb.append("input=").append(input);
         sb.append("]");
         return sb.toString();
     }

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -42,7 +44,8 @@ public final class IrateDoubleAggregatorFunctionSupplier implements AggregatorFu
   @Override
   public IrateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new IrateDoubleGroupingAggregatorFunction(channels, driverContext, isDelta, isDateNanos);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new IrateDoubleGroupingAggregatorFunction(inputs, driverContext, isDelta, isDateNanos);
   }
 
   @Override

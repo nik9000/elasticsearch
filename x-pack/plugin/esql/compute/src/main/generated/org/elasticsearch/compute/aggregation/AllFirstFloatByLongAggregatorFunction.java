@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,6 +15,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -33,11 +33,12 @@ public final class AllFirstFloatByLongAggregatorFunction implements AggregatorFu
 
   private final AllLongFloatState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  AllFirstFloatByLongAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  AllFirstFloatByLongAggregatorFunction(DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = AllFirstFloatByLongAggregator.initSingle(driverContext);
   }
 
@@ -62,15 +63,15 @@ public final class AllFirstFloatByLongAggregatorFunction implements AggregatorFu
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    FloatBlock valuesBlock = page.getBlock(channels.get(0));
-    LongBlock timestampsBlock = page.getBlock(channels.get(1));
-    addRawBlock(valuesBlock, timestampsBlock, mask);
+    try (FloatBlock valuesBlock = (FloatBlock) inputs.get(0).eval(page); LongBlock timestampsBlock = (LongBlock) inputs.get(1).eval(page)) {
+      addRawBlock(valuesBlock, timestampsBlock, mask);
+    }
   }
 
   private void addRawInputNotMasked(Page page) {
-    FloatBlock valuesBlock = page.getBlock(channels.get(0));
-    LongBlock timestampsBlock = page.getBlock(channels.get(1));
-    addRawBlock(valuesBlock, timestampsBlock);
+    try (FloatBlock valuesBlock = (FloatBlock) inputs.get(0).eval(page); LongBlock timestampsBlock = (LongBlock) inputs.get(1).eval(page)) {
+      addRawBlock(valuesBlock, timestampsBlock);
+    }
   }
 
   private void addRawBlock(FloatBlock valuesBlock, LongBlock timestampsBlock) {
@@ -90,21 +91,18 @@ public final class AllFirstFloatByLongAggregatorFunction implements AggregatorFu
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block observedUncast = page.getBlock(channels.get(0));
-    BooleanBlock observed = (BooleanBlock) observedUncast;
-    assert observed.getPositionCount() == 1;
-    Block timestampPresentUncast = page.getBlock(channels.get(1));
-    BooleanBlock timestampPresent = (BooleanBlock) timestampPresentUncast;
-    assert timestampPresent.getPositionCount() == 1;
-    Block timestampUncast = page.getBlock(channels.get(2));
-    LongBlock timestamp = (LongBlock) timestampUncast;
-    assert timestamp.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(3));
-    FloatBlock values = (FloatBlock) valuesUncast;
-    assert values.getPositionCount() == 1;
-    AllFirstFloatByLongAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getLong(0), values);
+    assert inputs.size() == intermediateBlockCount();
+    try (Block observedUncast = inputs.get(0).eval(page); Block timestampPresentUncast = inputs.get(1).eval(page); Block timestampUncast = inputs.get(2).eval(page); Block valuesUncast = inputs.get(3).eval(page)) {
+      BooleanBlock observed = (BooleanBlock) observedUncast;
+      assert observed.getPositionCount() == 1;
+      BooleanBlock timestampPresent = (BooleanBlock) timestampPresentUncast;
+      assert timestampPresent.getPositionCount() == 1;
+      LongBlock timestamp = (LongBlock) timestampUncast;
+      assert timestamp.getPositionCount() == 1;
+      FloatBlock values = (FloatBlock) valuesUncast;
+      assert values.getPositionCount() == 1;
+      AllFirstFloatByLongAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getLong(0), values);
+    }
   }
 
   @Override
@@ -121,7 +119,7 @@ public final class AllFirstFloatByLongAggregatorFunction implements AggregatorFu
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -18,8 +19,8 @@ import java.util.List;
  */
 public class DenseVectorCountGroupingAggregatorFunction extends CountGroupingAggregatorFunction {
 
-    DenseVectorCountGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
-        super(channels, driverContext);
+    DenseVectorCountGroupingAggregatorFunction(List<ExpressionEvaluator> inputs, DriverContext driverContext) {
+        super(inputs, driverContext);
     }
 
     @Override

@@ -8,6 +8,8 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPage;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,13 +32,15 @@ public final class MaxIpAggregatorFunctionSupplier implements AggregatorFunction
 
   @Override
   public MaxIpAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return new MaxIpAggregatorFunction(driverContext, channels);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new MaxIpAggregatorFunction(driverContext, inputs);
   }
 
   @Override
   public MaxIpGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new MaxIpGroupingAggregatorFunction(channels, driverContext);
+    List<ExpressionEvaluator> inputs = channels.stream().<ExpressionEvaluator>map(LoadFromPage::new).toList();
+    return new MaxIpGroupingAggregatorFunction(inputs, driverContext);
   }
 
   @Override

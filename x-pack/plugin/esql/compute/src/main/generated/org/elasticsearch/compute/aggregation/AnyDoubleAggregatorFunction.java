@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -15,6 +14,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -30,11 +30,11 @@ public final class AnyDoubleAggregatorFunction implements AggregatorFunction {
 
   private final AnyDoubleAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  AnyDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  AnyDoubleAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = AnyDoubleAggregator.initSingle(driverContext);
   }
 
@@ -59,13 +59,15 @@ public final class AnyDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
-    addRawBlock(valuesBlock, mask);
+    try (DoubleBlock valuesBlock = (DoubleBlock) inputs.get(0).eval(page)) {
+      addRawBlock(valuesBlock, mask);
+    }
   }
 
   private void addRawInputNotMasked(Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
-    addRawBlock(valuesBlock);
+    try (DoubleBlock valuesBlock = (DoubleBlock) inputs.get(0).eval(page)) {
+      addRawBlock(valuesBlock);
+    }
   }
 
   private void addRawBlock(DoubleBlock valuesBlock) {
@@ -85,21 +87,20 @@ public final class AnyDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block observedUncast = page.getBlock(channels.get(0));
-    if (observedUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block observedUncast = inputs.get(0).eval(page); Block valuesUncast = inputs.get(1).eval(page)) {
+      if (observedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector observed = ((BooleanBlock) observedUncast).asVector();
+      assert observed.getPositionCount() == 1;
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      DoubleBlock values = (DoubleBlock) valuesUncast;
+      assert values.getPositionCount() == 1;
+      AnyDoubleAggregator.combineIntermediate(state, observed.getBoolean(0), values);
     }
-    BooleanVector observed = ((BooleanBlock) observedUncast).asVector();
-    assert observed.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleBlock values = (DoubleBlock) valuesUncast;
-    assert values.getPositionCount() == 1;
-    AnyDoubleAggregator.combineIntermediate(state, observed.getBoolean(0), values);
   }
 
   @Override
@@ -116,7 +117,7 @@ public final class AnyDoubleAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
