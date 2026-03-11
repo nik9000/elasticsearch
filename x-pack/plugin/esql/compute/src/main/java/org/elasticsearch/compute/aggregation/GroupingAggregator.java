@@ -20,9 +20,7 @@ import java.util.function.Function;
 
 public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) implements Releasable {
 
-    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {
-
-    }
+    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
 
     /**
      * The number of Blocks required for evaluation.
@@ -65,11 +63,11 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
+            aggregatorFunction.prepareEvaluateIntermediate(selected).evaluate(blocks, offset, selected, ctx);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
+            aggregatorFunction.prepareEvaluateFinal(selected, ctx).evaluate(blocks, offset, selected, ctx);
         }
     }
 

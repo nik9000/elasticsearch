@@ -115,8 +115,8 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Call this to signal to the aggregation that the {@code selected}
-     * parameter that's passed to {@link #evaluateIntermediate} or
-     * {@link #evaluateFinal} may reference groups that haven't been
+     * parameter that's passed to {@link #prepareEvaluateIntermediate} or
+     * {@link #prepareEvaluateFinal} may reference groups that haven't been
      * seen. This puts the underlying storage into a mode where it'll
      * track which group ids have been seen, even if that increases the
      * overhead.
@@ -124,37 +124,57 @@ public interface GroupingAggregatorFunction extends Releasable {
     void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds);
 
     /**
-     * Add data produced by {@link #evaluateIntermediate}.
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
      */
     void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
 
     /**
-     * Add data produced by {@link #evaluateIntermediate}.
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
      */
     void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
 
     /**
-     * Add data produced by {@link #evaluateIntermediate}.
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
      */
     void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**
-     * Build the intermediate results for this aggregation.
+     * Prepare to build the intermediate results for this aggregation.
+     * <p>
+     *     This will be called on the data node to produce intermediate results
+     *     to send to the coordinating node.
+     * </p>
      * @param selected the groupIds that have been selected to be included in
-     *                 the results. Always ascending.
+     *                 the results. Always ascending. The result will be called
+     *                 one more time with a subset of selected ids.
      */
-    void evaluateIntermediate(Block[] blocks, int offset, IntVector selected);
+    PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected);
 
     /**
-     * Build the final results for this aggregation.
+     * Prepare to build the final results for this aggregation.
+     * <p>
+     *     This is called in the coordinator node after all intermediate
+     *     results have been gathered from the worker nodes, and aggregated into
+     *     intermediate blocks.
+     * </p>
      * @param selected the groupIds that have been selected to be included in
-     *                 the results. Always ascending.
-     *
-     * <p>This function is called in the coordinator node after all intermediate
-     *    results have been gathered from the worker nodes, and aggregated into
-     *    intermediate blocks.</p>
+     *                 the results. Always ascending. The result will be called
+     *                 one more time with a subset of selected ids.
      */
-    void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
+    PreparedToEvaluate prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
+
+    /**
+     * Results arranged to be easily turned into {@link Block}s.
+     */
+    interface PreparedToEvaluate extends Releasable {
+        /**
+         * Build the results for this aggregation.
+         * @param selected the groupIds that have been selected to be included in
+         *                 the results. Always ascending. The result will be called
+         *                 one more time with a subset of selected ids.
+         */
+        void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
+    }
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();

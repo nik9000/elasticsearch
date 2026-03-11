@@ -167,25 +167,47 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int group = selected.getInt(i);
-                builder.appendBoolean(state.get(group));
+    public PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected) {
+        return new PreparedToEvaluate() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+                try (
+                    BooleanVector.FixedBuilder builder = driverContext.blockFactory()
+                        .newBooleanVectorFixedBuilder(selected.getPositionCount())
+                ) {
+                    for (int i = 0; i < selected.getPositionCount(); i++) {
+                        int group = selected.getInt(i);
+                        builder.appendBoolean(state.get(group));
+                    }
+                    blocks[offset] = builder.build().asBlock();
+                }
             }
-            blocks[offset] = builder.build().asBlock();
-        }
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (BooleanVector.Builder builder = evaluationContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
-                builder.appendBoolean(state.get(si));
+    public PreparedToEvaluate prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        return new PreparedToEvaluate() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+                try (
+                    BooleanVector.Builder builder = evaluationContext.blockFactory()
+                        .newBooleanVectorFixedBuilder(selected.getPositionCount())
+                ) {
+                    for (int i = 0; i < selected.getPositionCount(); i++) {
+                        int si = selected.getInt(i);
+                        builder.appendBoolean(state.get(si));
+                    }
+                    blocks[offset] = builder.build().asBlock();
+                }
             }
-            blocks[offset] = builder.build().asBlock();
-        }
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Override

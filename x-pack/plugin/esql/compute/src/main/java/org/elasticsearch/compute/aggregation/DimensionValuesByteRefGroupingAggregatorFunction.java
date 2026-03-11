@@ -235,34 +235,42 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        int positionCount = selected.getPositionCount();
-        boolean allSelected = positionCount > maxGroupId;
-        if (allSelected) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                if (selected.getInt(i) != i) {
-                    allSelected = false;
-                    break;
+    public PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected) {
+        return new PreparedToEvaluate() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+                int positionCount = selected.getPositionCount();
+                boolean allSelected = positionCount > maxGroupId;
+                if (allSelected) {
+                    for (int i = 0; i < selected.getPositionCount(); i++) {
+                        if (selected.getInt(i) != i) {
+                            allSelected = false;
+                            break;
+                        }
+                    }
+                }
+                if (allSelected) {
+                    fillNullsUpTo(positionCount);
+                    blocks[offset] = builder.build();
+                    return;
+                }
+                BytesRef scratch = new BytesRef();
+                try (var block = builder.build(); var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        int groupId = selected.getInt(p);
+                        if (groupId <= maxGroupId) {
+                            outputBuilder.copyFrom(block, groupId, scratch);
+                        } else {
+                            outputBuilder.appendNull();
+                        }
+                    }
+                    blocks[offset] = outputBuilder.build();
                 }
             }
-        }
-        if (allSelected) {
-            fillNullsUpTo(positionCount);
-            blocks[offset] = builder.build();
-            return;
-        }
-        BytesRef scratch = new BytesRef();
-        try (var block = builder.build(); var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                int groupId = selected.getInt(p);
-                if (groupId <= maxGroupId) {
-                    outputBuilder.copyFrom(block, groupId, scratch);
-                } else {
-                    outputBuilder.appendNull();
-                }
-            }
-            blocks[offset] = outputBuilder.build();
-        }
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Override
@@ -271,8 +279,8 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        evaluateIntermediate(blocks, offset, selected);
+    public PreparedToEvaluate prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        return prepareEvaluateIntermediate(selected);
     }
 
     @Override

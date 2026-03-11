@@ -359,45 +359,53 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        BlockFactory blockFactory = driverContext.blockFactory();
-        int positionCount = selected.getPositionCount();
-        try (
-            var flushQueues = rawBuffer.prepareForFlush();
-            var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-            var values = blockFactory.newLongBlockBuilder(positionCount * 2);
-            var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
-            var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
-        ) {
-            for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
-                var state = flushAndCombineState(flushQueues, group);
-                // Do not combine intervals across shards because intervals from different indices may overlap.
-                if (state != null && state.samples > 0) {
-                    timestamps.beginPositionEntry();
-                    values.beginPositionEntry();
-                    for (Interval interval : state.intervals) {
-                        timestamps.appendLong(interval.t1);
-                        timestamps.appendLong(interval.t2);
-                        values.appendLong(interval.v1);
-                        values.appendLong(interval.v2);
+    public PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected) {
+        return new PreparedToEvaluate() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+                BlockFactory blockFactory = driverContext.blockFactory();
+                int positionCount = selected.getPositionCount();
+                try (
+                    var flushQueues = rawBuffer.prepareForFlush();
+                    var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
+                    var values = blockFactory.newLongBlockBuilder(positionCount * 2);
+                    var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
+                    var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
+                ) {
+                    for (int p = 0; p < positionCount; p++) {
+                        int group = selected.getInt(p);
+                        var state = flushAndCombineState(flushQueues, group);
+                        // Do not combine intervals across shards because intervals from different indices may overlap.
+                        if (state != null && state.samples > 0) {
+                            timestamps.beginPositionEntry();
+                            values.beginPositionEntry();
+                            for (Interval interval : state.intervals) {
+                                timestamps.appendLong(interval.t1);
+                                timestamps.appendLong(interval.t2);
+                                values.appendLong(interval.v1);
+                                values.appendLong(interval.v2);
+                            }
+                            timestamps.endPositionEntry();
+                            values.endPositionEntry();
+                            sampleCounts.appendLong(state.samples);
+                            resets.appendDouble(state.resets);
+                        } else {
+                            timestamps.appendLong(0);
+                            values.appendLong(0);
+                            sampleCounts.appendLong(0);
+                            resets.appendDouble(0);
+                        }
                     }
-                    timestamps.endPositionEntry();
-                    values.endPositionEntry();
-                    sampleCounts.appendLong(state.samples);
-                    resets.appendDouble(state.resets);
-                } else {
-                    timestamps.appendLong(0);
-                    values.appendLong(0);
-                    sampleCounts.appendLong(0);
-                    resets.appendDouble(0);
+                    blocks[offset] = timestamps.build();
+                    blocks[offset + 1] = values.build();
+                    blocks[offset + 2] = sampleCounts.build().asBlock();
+                    blocks[offset + 3] = resets.build().asBlock();
                 }
             }
-            blocks[offset] = timestamps.build();
-            blocks[offset + 1] = values.build();
-            blocks[offset + 2] = sampleCounts.build().asBlock();
-            blocks[offset + 3] = resets.build().asBlock();
-        }
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Override
@@ -561,59 +569,67 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        BlockFactory blockFactory = driverContext.blockFactory();
-        int positionCount = selected.getPositionCount();
-        try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
-            for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                var flushQueue = flushQueues.getFlushQueue(group);
-                if (flushQueue != null) {
-                    if (state == null) {
-                        state = new ReducedState();
-                        reducedStates = bigArrays.grow(reducedStates, group + 1);
-                        reducedStates.set(group, state);
-                    }
-                    flushGroup(state, rawBuffer, flushQueue);
-                }
-                if (state != null && state.samples > 1 && state.intervals.length > 1) {
-                    // combine intervals for the final evaluation
-                    Interval[] intervals = state.intervals;
-                    ArrayUtil.timSort(intervals);
-                    for (int i = 1; i < intervals.length; i++) {
-                        Interval next = intervals[i - 1]; // reversed
-                        Interval prev = intervals[i];
-                        if (prev.v1 > next.v2) {
-                            state.resets += prev.v1;
+    public PreparedToEvaluate prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        return new PreparedToEvaluate() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+                BlockFactory blockFactory = driverContext.blockFactory();
+                int positionCount = selected.getPositionCount();
+                try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        int group = selected.getInt(p);
+                        var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+                        var flushQueue = flushQueues.getFlushQueue(group);
+                        if (flushQueue != null) {
+                            if (state == null) {
+                                state = new ReducedState();
+                                reducedStates = bigArrays.grow(reducedStates, group + 1);
+                                reducedStates.set(group, state);
+                            }
+                            flushGroup(state, rawBuffer, flushQueue);
+                        }
+                        if (state != null && state.samples > 1 && state.intervals.length > 1) {
+                            // combine intervals for the final evaluation
+                            Interval[] intervals = state.intervals;
+                            ArrayUtil.timSort(intervals);
+                            for (int i = 1; i < intervals.length; i++) {
+                                Interval next = intervals[i - 1]; // reversed
+                                Interval prev = intervals[i];
+                                if (prev.v1 > next.v2) {
+                                    state.resets += prev.v1;
+                                }
+                            }
                         }
                     }
-                }
-            }
-            if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                tsContext.computeAdjacentGroupIds();
-            }
-            for (int p = 0; p < positionCount; p++) {
-                int group = selected.getInt(p);
-                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
+                    if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                        tsContext.computeAdjacentGroupIds();
+                    }
+                    for (int p = 0; p < positionCount; p++) {
+                        int group = selected.getInt(p);
+                        var state = group < reducedStates.size() ? reducedStates.get(group) : null;
 
-                final double rate;
-                if (state == null || state.samples == 0) {
-                    rate = Double.NaN;
-                } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
-                } else {
-                    rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
-                }
+                        final double rate;
+                        if (state == null || state.samples == 0) {
+                            rate = Double.NaN;
+                        } else if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                            rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
+                        } else {
+                            rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
+                        }
 
-                if (Double.isNaN(rate)) {
-                    rates.appendNull();
-                } else {
-                    rates.appendDouble(rate);
+                        if (Double.isNaN(rate)) {
+                            rates.appendNull();
+                        } else {
+                            rates.appendDouble(rate);
+                        }
+                    }
+                    blocks[offset] = rates.build();
                 }
             }
-            blocks[offset] = rates.build();
-        }
+
+            @Override
+            public void close() {}
+        };
     }
 
     ReducedState flushAndCombineState(FlushQueues flushQueues, int groupId) {

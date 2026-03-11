@@ -212,8 +212,8 @@ public class GroupingAggregatorImplementer {
         }
         builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
-        builder.addMethod(evaluateIntermediate());
-        builder.addMethod(evaluateFinal());
+        builder.addMethod(prepareEvaluateIntermediate());
+        builder.addMethod(prepareEvaluateFinal());
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         return builder.build();
@@ -733,41 +733,74 @@ public class GroupingAggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec evaluateIntermediate() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateIntermediate");
+    private MethodSpec prepareEvaluateIntermediate() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareEvaluateIntermediate");
         builder.addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
-            .addParameter(BLOCK_ARRAY, "blocks")
-            .addParameter(TypeName.INT, "offset")
-            .addParameter(INT_VECTOR, "selected");
-        builder.addStatement("state.toIntermediate(blocks, offset, selected, driverContext)");
+            .addParameter(INT_VECTOR, "selected")
+            .returns(Types.GROUPING_AGGREGATOR_FUNCTION_PREPARED_TO_EVALUATE);
+        TypeSpec.Builder anon = TypeSpec.anonymousClassBuilder("");
+        anon.addSuperinterface(Types.GROUPING_AGGREGATOR_FUNCTION_PREPARED_TO_EVALUATE);
+        {
+            MethodSpec.Builder eval = MethodSpec.methodBuilder("evaluate");
+            eval.addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(BLOCK_ARRAY, "blocks")
+                .addParameter(TypeName.INT, "offset")
+                .addParameter(INT_VECTOR, "selected")
+                .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluationContext");
+            eval.addStatement("state.toIntermediate(blocks, offset, selected, driverContext)");
+            anon.addMethod(eval.build());
+        }
+        {
+            MethodSpec.Builder close = MethodSpec.methodBuilder("close");
+            close.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+            anon.addMethod(close.build());
+        }
+        builder.addStatement("return $L", anon.build());
         return builder.build();
     }
 
-    private MethodSpec evaluateFinal() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("evaluateFinal");
+    private MethodSpec prepareEvaluateFinal() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareEvaluateFinal");
         builder.addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
-            .addParameter(BLOCK_ARRAY, "blocks")
-            .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected")
-            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
-
-        if (aggState.declaredType().isPrimitive()) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, ctx.driverContext())");
-        } else {
-            requireStaticMethod(
-                declarationType,
-                requireType(BLOCK),
-                requireName("evaluateFinal"),
-                requireArgs(
-                    requireType(aggState.declaredType()),
-                    requireType(INT_VECTOR),
-                    requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
-                )
-            );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, ctx)", declarationType);
+            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluationContext")
+            .returns(Types.GROUPING_AGGREGATOR_FUNCTION_PREPARED_TO_EVALUATE);
+        TypeSpec.Builder anon = TypeSpec.anonymousClassBuilder("");
+        anon.addSuperinterface(Types.GROUPING_AGGREGATOR_FUNCTION_PREPARED_TO_EVALUATE);
+        {
+            MethodSpec.Builder eval = MethodSpec.methodBuilder("evaluate");
+            eval.addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(BLOCK_ARRAY, "blocks")
+                .addParameter(TypeName.INT, "offset")
+                .addParameter(INT_VECTOR, "selected")
+                .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
+            if (aggState.declaredType().isPrimitive()) {
+                eval.addStatement("blocks[offset] = state.toValuesBlock(selected, ctx.driverContext())");
+            } else {
+                requireStaticMethod(
+                    declarationType,
+                    requireType(BLOCK),
+                    requireName("evaluateFinal"),
+                    requireArgs(
+                        requireType(aggState.declaredType()),
+                        requireType(INT_VECTOR),
+                        requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
+                    )
+                );
+                eval.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, ctx)", declarationType);
+            }
+            anon.addMethod(eval.build());
         }
+        {
+            MethodSpec.Builder close = MethodSpec.methodBuilder("close");
+            close.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+            anon.addMethod(close.build());
+        }
+        builder.addStatement("return $L", anon.build());
         return builder.build();
     }
 

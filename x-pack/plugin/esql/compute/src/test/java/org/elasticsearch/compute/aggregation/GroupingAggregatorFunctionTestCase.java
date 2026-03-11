@@ -848,18 +848,16 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-                        delegate.evaluateIntermediate(blocks, offset, selected);
+                    public PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected) {
+                        return delegate.prepareEvaluateIntermediate(selected);
                     }
 
                     @Override
-                    public void evaluateFinal(
-                        Block[] blocks,
-                        int offset,
+                    public PreparedToEvaluate prepareEvaluateFinal(
                         IntVector selected,
                         GroupingAggregatorEvaluationContext evaluationContext
                     ) {
-                        delegate.evaluateFinal(blocks, offset, selected, evaluationContext);
+                        return delegate.prepareEvaluateFinal(selected, evaluationContext);
                     }
 
                     @Override

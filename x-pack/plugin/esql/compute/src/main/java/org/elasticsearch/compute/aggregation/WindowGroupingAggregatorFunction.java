@@ -52,22 +52,20 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
+    public PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected) {
+        return next.prepareEvaluateIntermediate(selected);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+    public PreparedToEvaluate prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
         if (evaluationContext instanceof TimeSeriesGroupingAggregatorEvaluationContext timeSeriesContext) {
-            evaluateFinalWithWindow(blocks, offset, selected, timeSeriesContext);
+            return prepareEvaluateFinalWithWindow(selected, timeSeriesContext);
         } else {
-            next.evaluateFinal(blocks, offset, selected, evaluationContext);
+            return next.prepareEvaluateFinal(selected, evaluationContext);
         }
     }
 
-    private void evaluateFinalWithWindow(
-        Block[] blocks,
-        int offset,
+    private PreparedToEvaluate prepareEvaluateFinalWithWindow(
         IntVector selected,
         TimeSeriesGroupingAggregatorEvaluationContext evaluationContext
     ) {
@@ -77,70 +75,77 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             long startTime = evaluationContext.rangeStartInMillis(groupId);
             long endTime = evaluationContext.rangeEndInMillis(groupId);
             if (endTime - startTime == window.toMillis()) {
-                next.evaluateFinal(blocks, offset, selected, evaluationContext);
-                return;
+                return next.prepareEvaluateFinal(selected, evaluationContext);
             }
         }
-        int blockCount = next.intermediateBlockCount();
-        List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
-        GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
-        try (GroupingAggregator finalAgg = aggregatorFactory.apply(evaluationContext.driverContext())) {
-            Block[] intermediateBlocks = new Block[blockCount];
-            int[] backwards = new int[selected.getPositionCount()];
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int groupId = selected.getInt(i);
-                backwards = ArrayUtil.grow(backwards, groupId + 1);
-                backwards[groupId] = i;
-            }
-            try {
-                next.evaluateIntermediate(intermediateBlocks, 0, selected);
-                Page page = new Page(intermediateBlocks);
-                finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
-                for (int i = 0; i < selected.getPositionCount(); i++) {
-                    int groupId = selected.getInt(i);
-                    mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), evaluationContext);
+        return new PreparedToEvaluate() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalCtx) {
+                int blockCount = next.intermediateBlockCount();
+                List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
+                GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
+                try (GroupingAggregator finalAgg = aggregatorFactory.apply(evaluationContext.driverContext())) {
+                    Block[] intermediateBlocks = new Block[blockCount];
+                    int[] backwards = new int[selected.getPositionCount()];
+                    for (int i = 0; i < selected.getPositionCount(); i++) {
+                        int groupId = selected.getInt(i);
+                        backwards = ArrayUtil.grow(backwards, groupId + 1);
+                        backwards[groupId] = i;
+                    }
+                    try {
+                        next.prepareEvaluateIntermediate(selected).evaluate(intermediateBlocks, 0, selected, evaluationContext);
+                        Page page = new Page(intermediateBlocks);
+                        finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
+                        for (int i = 0; i < selected.getPositionCount(); i++) {
+                            int groupId = selected.getInt(i);
+                            mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), evaluationContext);
+                        }
+                    } finally {
+                        Releasables.close(intermediateBlocks);
+                    }
+                    finalAgg.evaluate(
+                        blocks,
+                        offset,
+                        selected,
+                        // expand the window to cover the new range
+                        new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
+                            @Override
+                            public long rangeStartInMillis(int groupId) {
+                                return evaluationContext.rangeStartInMillis(groupId);
+                            }
+
+                            @Override
+                            public long rangeEndInMillis(int groupId) {
+                                return rangeStartInMillis(groupId) + window.toMillis();
+                            }
+
+                            @Override
+                            public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public int previousGroupId(int currentGroupId) {
+                                return -1;
+                            }
+
+                            @Override
+                            public int nextGroupId(int currentGroupId) {
+                                return -1;
+                            }
+
+                            @Override
+                            public void computeAdjacentGroupIds() {
+                                // not used by #nextGroupId and #previousGroupId
+                            }
+                        }
+                    );
                 }
-            } finally {
-                Releasables.close(intermediateBlocks);
             }
-            finalAgg.evaluate(
-                blocks,
-                offset,
-                selected,
-                // expand the window to cover the new range
-                new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
-                    @Override
-                    public long rangeStartInMillis(int groupId) {
-                        return evaluationContext.rangeStartInMillis(groupId);
-                    }
 
-                    @Override
-                    public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
-                    }
-
-                    @Override
-                    public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public int previousGroupId(int currentGroupId) {
-                        return -1;
-                    }
-
-                    @Override
-                    public int nextGroupId(int currentGroupId) {
-                        return -1;
-                    }
-
-                    @Override
-                    public void computeAdjacentGroupIds() {
-                        // not used by #nextGroupId and #previousGroupId
-                    }
-                }
-            );
-        }
+            @Override
+            public void close() {}
+        };
     }
 
     private void mergeBucketsFromWindow(

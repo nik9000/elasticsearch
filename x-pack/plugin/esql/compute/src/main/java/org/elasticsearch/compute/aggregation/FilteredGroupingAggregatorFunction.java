@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -117,13 +116,13 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
+    public PreparedToEvaluate prepareEvaluateIntermediate(IntVector selected) {
+        return next.prepareEvaluateIntermediate(selected);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        next.evaluateFinal(blocks, offset, selected, evaluationContext);
+    public PreparedToEvaluate prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+        return next.prepareEvaluateFinal(selected, evaluationContext);
     }
 
     @Override

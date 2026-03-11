@@ -371,14 +371,35 @@ public final class TopFloatDoubleGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedToEvaluate prepareEvaluateIntermediate(
+      IntVector selected) {
+    return new GroupingAggregatorFunction.PreparedToEvaluate() {
+      @Override
+      public void evaluate(Block[] blocks, int offset, IntVector selected,
+          GroupingAggregatorEvaluationContext evaluationContext) {
+        state.toIntermediate(blocks, offset, selected, driverContext);
+      }
+
+      @Override
+      public void close() {
+      }
+    };
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = TopFloatDoubleAggregator.evaluateFinal(state, selected, ctx);
+  public GroupingAggregatorFunction.PreparedToEvaluate prepareEvaluateFinal(IntVector selected,
+      GroupingAggregatorEvaluationContext evaluationContext) {
+    return new GroupingAggregatorFunction.PreparedToEvaluate() {
+      @Override
+      public void evaluate(Block[] blocks, int offset, IntVector selected,
+          GroupingAggregatorEvaluationContext ctx) {
+        blocks[offset] = TopFloatDoubleAggregator.evaluateFinal(state, selected, ctx);
+      }
+
+      @Override
+      public void close() {
+      }
+    };
   }
 
   @Override
