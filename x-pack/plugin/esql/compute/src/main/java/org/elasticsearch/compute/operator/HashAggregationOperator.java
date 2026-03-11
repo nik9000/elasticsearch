@@ -293,7 +293,9 @@ public class HashAggregationOperator implements Operator {
             try (var evaluationContext = evaluationContext(blockHash, keys)) {
                 for (int i = 0; i < aggregators.size(); i++) {
                     var aggregator = aggregators.get(i);
-                    evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
+                    try (IntVector customSelected = customizeSelected(aggregator, selected)) {
+                        aggregator.evaluate(blocks, offset, customSelected, evaluationContext);
+                    }
                     offset += aggBlockCounts[i];
                 }
                 output = new Page(blocks);
@@ -325,14 +327,13 @@ public class HashAggregationOperator implements Operator {
         return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
     }
 
-    protected void evaluateAggregator(
-        GroupingAggregator aggregator,
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext evaluationContext
-    ) {
-        aggregator.evaluate(blocks, offset, selected, evaluationContext);
+    /**
+     * Customize the {@code selected} positions to return. If this doesn't build a custom
+     * selected then it must increment the ref count.
+     */
+    protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
+        selected.incRef();
+        return selected;
     }
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
