@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadBlock;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -201,41 +202,7 @@ public final class EvalMapper {
             Layout layout,
             IndexedByShardId<? extends ShardContext> shardContexts
         ) {
-            record Attribute(int channel) implements ExpressionEvaluator {
-                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Attribute.class);
-
-                @Override
-                public Block eval(Page page) {
-                    Block block = page.getBlock(channel);
-                    block.incRef();
-                    return block;
-                }
-
-                @Override
-                public long baseRamBytesUsed() {
-                    return BASE_RAM_BYTES_USED;
-                }
-
-                @Override
-                public void close() {}
-            }
-            record AttributeFactory(int channel) implements ExpressionEvaluator.Factory {
-                @Override
-                public ExpressionEvaluator get(DriverContext driverContext) {
-                    return new Attribute(channel);
-                }
-
-                @Override
-                public String toString() {
-                    return "Attribute[channel=" + channel + "]";
-                }
-
-                @Override
-                public boolean eagerEvalSafeInLazy() {
-                    return true;
-                }
-            }
-            return new AttributeFactory(layout.get(attr.id()).channel());
+            return new LoadBlock.Factory(layout.get(attr.id()).channel());
         }
     }
 
