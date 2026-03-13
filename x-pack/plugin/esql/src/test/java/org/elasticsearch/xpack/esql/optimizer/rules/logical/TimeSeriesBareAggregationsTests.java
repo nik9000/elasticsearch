@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -64,7 +65,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                 TEST_FUNCTION_REGISTRY,
                 resolutions,
                 defaultLookupResolution(),
-                enrichResolution,
+                new EnrichResolution(),
                 emptyInferenceResolution(),
                 TransportVersion.minimumCompatible(),
                 UNMAPPED_FIELDS.defaultValue()

@@ -12,6 +12,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -62,7 +63,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
                 TEST_FUNCTION_REGISTRY,
                 Map.of(new IndexPattern(Source.EMPTY, "k8s"), timeSeriesIndex),
                 emptyMap(),
-                enrichResolution,
+                new EnrichResolution(),
                 emptyInferenceResolution(),
                 TransportVersion.current(),
                 UNMAPPED_FIELDS.defaultValue()

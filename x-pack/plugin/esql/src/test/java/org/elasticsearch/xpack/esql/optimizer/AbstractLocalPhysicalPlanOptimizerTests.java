@@ -15,13 +15,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,21 +31,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     protected final Configuration config;
@@ -101,16 +92,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         var timeSeriesIndex = IndexResolution.valid(
             EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES))
         );
-        timeSeriesAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(timeSeriesIndex),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        timeSeriesAnalyzer = analyzer().enrichResolution(enrichResolution).addIndex(timeSeriesIndex).buildAnalyzer();
         plannerOptimizerTimeSeries = new TestPlannerOptimizer(
             config,
             timeSeriesAnalyzer,
@@ -122,17 +104,11 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         var mapping = loadMapping(mappingFileName);
         EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
 
-        return new Analyzer(
-            testAnalyzerContext(
-                config,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(test),
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), new XPackLicenseState(() -> 0L))
-        );
+        return analyzer().configuration(config)
+            .enrichResolution(enrichResolution)
+            .addIndex(test)
+            .addAnalysisTestsLookupResolutions()
+            .buildAnalyzer();
     }
 
     protected Analyzer makeAnalyzer(String mappingFileName) {
@@ -140,16 +116,7 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
     }
 
     protected Analyzer makeAnalyzer(IndexResolution indexResolution) {
-        return new Analyzer(
-            testAnalyzerContext(
-                config,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(indexResolution),
-                new EnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), new XPackLicenseState(() -> 0L))
-        );
+        return analyzer().configuration(config).addIndex(indexResolution).buildAnalyzer();
     }
 
     /**

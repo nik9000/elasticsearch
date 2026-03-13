@@ -45,7 +45,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -83,8 +82,6 @@ import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -98,7 +95,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
-import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -118,7 +114,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -128,7 +123,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -226,7 +220,6 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -533,81 +526,11 @@ public final class EsqlTestUtils {
         return TransportVersionUtils.randomCompatibleVersion();
     }
 
-    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        return testAnalyzerContext(configuration, functionRegistry, indexResolutions, Map.of(), enrichResolution, inferenceResolution);
-    }
-
     /**
-     * Analyzer context for a random (but compatible) minimum transport version.
+     * Returns a new builder for constructing test analyzer context instances.
      */
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        return testAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            UNMAPPED_FIELDS.defaultValue()
-        );
-    }
-
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        UnmappedResolution unmappedResolution
-    ) {
-        return testAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            unmappedResolution,
-            null
-        );
-    }
-
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        UnmappedResolution unmappedResolution,
-        @Nullable TimestampBounds timestampBounds
-    ) {
-        return new MutableAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            randomMinimumVersion(),
-            unmappedResolution,
-            timestampBounds
-        );
+    public static TestAnalyzerBuilder analyzer() {
+        return new TestAnalyzerBuilder();
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
@@ -1309,6 +1232,19 @@ public final class EsqlTestUtils {
 
     public static QueryParam paramAsConstant(String name, Object value) {
         return new QueryParam(name, value, DataType.fromJava(value), VALUE);
+    }
+
+    public static QueryParams toQueryParams(Object... params) {
+        List<QueryParam> parameters = new ArrayList<>();
+        for (Object param : params) {
+            switch (param) {
+                case null -> parameters.add(paramAsConstant(null, null));
+                case String s -> parameters.add(paramAsConstant(null, s));
+                case Number number -> parameters.add(paramAsConstant(null, number));
+                default -> throw new IllegalArgumentException("Don't support params of type " + param.getClass());
+            }
+        }
+        return new QueryParams(parameters);
     }
 
     public static QueryParam paramAsIdentifier(String name, Object value) {

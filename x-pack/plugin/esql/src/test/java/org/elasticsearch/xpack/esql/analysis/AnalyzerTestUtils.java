@@ -14,6 +14,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzerBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
@@ -50,16 +51,27 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 public final class AnalyzerTestUtils {
 
     private AnalyzerTestUtils() {}
+
+    /**
+     * Returns a builder pre-initialized with default lookup, enrich, inference,
+     * and subquery resolutions.
+     */
+    public static TestAnalyzerBuilder fullyLoadedAnalyzer() {
+        var builder = EsqlTestUtils.analyzer()
+            .addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsEnrichResolution()
+            .inferenceResolution(defaultInferenceResolution());
+        builder.addAnalysisTestsIndexResolutions();
+        return builder;
+    }
 
     public static Analyzer defaultAnalyzer() {
         return analyzer(analyzerDefaultMapping());
@@ -82,7 +94,7 @@ public final class AnalyzerTestUtils {
             defaultEnrichResolution(),
             TEST_VERIFIER,
             TEST_CFG,
-            UNMAPPED_FIELDS.defaultValue(),
+            null,
             timestampBounds
         );
     }
@@ -120,7 +132,7 @@ public final class AnalyzerTestUtils {
         Verifier verifier,
         Configuration config
     ) {
-        return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, UNMAPPED_FIELDS.defaultValue());
+        return analyzer(indexResolutions, lookupResolution, enrichResolution, verifier, config, null, null);
     }
 
     public static Analyzer analyzer(
@@ -140,22 +152,20 @@ public final class AnalyzerTestUtils {
         EnrichResolution enrichResolution,
         Verifier verifier,
         Configuration config,
-        UnmappedResolution unmappedResolution,
+        @Nullable UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds
     ) {
-        return new Analyzer(
-            testAnalyzerContext(
-                config,
-                TEST_FUNCTION_REGISTRY,
-                mergeIndexResolutions(indexResolutions, defaultSubqueryResolution()),
-                lookupResolution,
-                enrichResolution,
-                defaultInferenceResolution(),
-                unmappedResolution,
-                timestampBounds
-            ),
-            verifier
-        );
+        var builder = EsqlTestUtils.analyzer()
+            .configuration(config)
+            .enrichResolution(enrichResolution)
+            .inferenceResolution(defaultInferenceResolution())
+            .timestampBounds(timestampBounds);
+        mergeIndexResolutions(indexResolutions, defaultSubqueryResolution()).forEach(builder::addIndex);
+        lookupResolution.forEach(builder::lookupResolution);
+        if (unmappedResolution != null) {
+            builder.unmappedResolution(unmappedResolution);
+        }
+        return builder.buildAnalyzer(verifier);
     }
 
     public static Map<IndexPattern, IndexResolution> mergeIndexResolutions(
@@ -340,6 +350,7 @@ public final class AnalyzerTestUtils {
     }
 
     public static Map<String, IndexResolution> defaultLookupResolution() {
+        // NOCOMMIT remove this
         return Map.of(
             "languages_lookup",
             loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP),

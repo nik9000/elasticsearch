@@ -8,10 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -27,15 +23,10 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -117,29 +108,12 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
 
     private LogicalPlan planWithPolicyOverride(String query) {
         // Set up index and enrich policy with overlapping fields
-        var enrichResolution = new EnrichResolution();
-        AnalyzerTestUtils.loadEnrichPolicyResolution(
-            enrichResolution,
-            Enrich.Mode.REMOTE,
-            MATCH_TYPE,
-            "hosts",
-            "host",
-            "hosts",
-            "mapping-hosts.json"
-        );
         var mapping = loadMapping("mapping-host_inventory.json");
         EsIndex inventory = EsIndexGenerator.esIndex("host_inventory", mapping, Map.of("host_inventory", IndexMode.STANDARD));
-        var analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(inventory),
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        var builder = analyzer().addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "hosts", "host", "hosts", "mapping-hosts.json")
+            .addIndex(inventory)
+            .addAnalysisTestsLookupResolutions();
+        var analyzer = builder.buildAnalyzer();
 
         var analyzed = analyzer.analyze(TEST_PARSER.parseQuery(query));
         return logicalOptimizer.optimize(analyzed);

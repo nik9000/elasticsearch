@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
-import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -26,18 +25,12 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 
 public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
 
@@ -54,30 +47,11 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
 
-        analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(test),
-                defaultLookupResolution(),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        analyzer = analyzer().addIndex(test).addAnalysisTestsLookupResolutions().buildAnalyzer();
 
         var allTypesMapping = loadMapping("mapping-all-types.json");
         EsIndex testAll = EsIndexGenerator.esIndex("test_all", allTypesMapping, Map.of("test_all", IndexMode.STANDARD));
-        allTypesAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(testAll),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        allTypesAnalyzer = analyzer().addIndex(testAll).buildAnalyzer();
 
         var tsMapping = loadMapping("k8s-mappings.json");
         var tsIndex = EsIndexGenerator.esIndex("k8s", tsMapping, Map.of("k8s", IndexMode.TIME_SERIES));
@@ -88,19 +62,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("k8s-downsampled", IndexMode.TIME_SERIES)
         );
 
-        tsAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(tsIndex, tsDownsampledIndex),
-                emptyPolicyResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-
-        EnrichResolution enrichResolution = new EnrichResolution();
-        AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
+        tsAnalyzer = analyzer().addIndex(tsIndex).addIndex(tsDownsampledIndex).buildAnalyzer();
 
         Map<String, EsField> mapping = Map.of(
             "dimension_1",
@@ -117,17 +79,13 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
             new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
         var metricsIndex = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.TIME_SERIES));
-        metricsAnalyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(metricsIndex),
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        metricsAnalyzer = analyzer().addEnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            "languages_idx",
+            "id",
+            "languages_idx",
+            "mapping-languages.json"
+        ).addIndex(metricsIndex).addAnalysisTestsLookupResolutions().buildAnalyzer();
     }
 
     protected LogicalPlan plan(String query) {

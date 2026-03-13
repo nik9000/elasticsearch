@@ -8,23 +8,14 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.LoadMapping;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
-import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 
 /**
  * Parses a plan, builds an AST for it, and then runs logical analysis on it.
@@ -35,19 +26,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResol
  *  For testing parsing <b>only</b>, use {@link StatementParserTests} or a subclass of {@link AbstractStatementParserTests}.
  */
 public class AnalyzerParsingTests extends ESTestCase {
-    private static final String INDEX_NAME = "test";
-
-    private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
-    private final Analyzer defaultAnalyzer = new Analyzer(
-        testAnalyzerContext(
-            TEST_CFG,
-            TEST_FUNCTION_REGISTRY,
-            indexResolutions(defaultIndex),
-            emptyPolicyResolution(),
-            emptyInferenceResolution()
-        ),
-        TEST_VERIFIER
-    );
+    private final Analyzer defaultAnalyzer = analyzer().addEmployees("test").buildAnalyzer();
 
     public void testCaseFunctionInvalidInputs() {
         assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case()"));
@@ -86,10 +65,6 @@ public class AnalyzerParsingTests extends ESTestCase {
 
     private String error(String query) {
         return error(query, new QueryParams());
-    }
-
-    private static IndexResolution loadIndexResolution(String name) {
-        return IndexResolution.valid(EsIndexGenerator.esIndex(INDEX_NAME, LoadMapping.loadMapping(name)));
     }
 
 }

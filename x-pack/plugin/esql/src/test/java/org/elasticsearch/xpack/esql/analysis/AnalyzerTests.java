@@ -154,22 +154,20 @@ import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getAttributeByName;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
@@ -1891,18 +1889,13 @@ public class AnalyzerTests extends ESTestCase {
                 languageIndex.get().mapping()
             )
         );
-        enrichResolution.addError("languages", Enrich.Mode.REMOTE, "error-1");
-        enrichResolution.addError("languages", Enrich.Mode.ANY, "error-2");
-        enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
-
-        AnalyzerContext context = testAnalyzerContext(
-            configuration("from test"),
-            TEST_FUNCTION_REGISTRY,
-            indexResolutions(testIndex),
-            enrichResolution,
-            emptyInferenceResolution()
-        );
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        var enrichBuilder = analyzer().configuration(configuration("from test"))
+            .enrichResolution(enrichResolution)
+            .addEnrichError("languages", Enrich.Mode.REMOTE, "error-1")
+            .addEnrichError("languages", Enrich.Mode.ANY, "error-2")
+            .addEnrichError("foo", Enrich.Mode.ANY, "foo-error-101")
+            .addIndex(testIndex);
+        Analyzer analyzer = enrichBuilder.buildAnalyzer();
         {
             LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
             List<Enrich> resolved = new ArrayList<>();
@@ -2051,14 +2044,10 @@ public class AnalyzerTests extends ESTestCase {
                 languageIndex.get().mapping()
             )
         );
-        AnalyzerContext context = testAnalyzerContext(
-            configuration(query),
-            TEST_FUNCTION_REGISTRY,
-            indexResolutions(testIndex),
-            enrichResolution,
-            emptyInferenceResolution()
-        );
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        var analyzer = analyzer().configuration(configuration(query))
+            .enrichResolution(enrichResolution)
+            .addIndex(testIndex)
+            .buildAnalyzer();
         LogicalPlan plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
@@ -2446,17 +2435,9 @@ public class AnalyzerTests extends ESTestCase {
         String errorMessage = "Unknown index [foobar]";
         IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
 
-        Analyzer analyzerMissingLookupIndex = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                analyzerDefaultMapping(),
-                Map.of("foobar", missingLookupIndex),
-                defaultEnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        Analyzer analyzerMissingLookupIndex = analyzer().lookupResolution("foobar", missingLookupIndex)
+            .addEmployees("test")
+            .buildAnalyzer();
 
         String query = "FROM test | LOOKUP JOIN foobar ON last_name";
 
@@ -5194,16 +5175,10 @@ public class AnalyzerTests extends ESTestCase {
             Map.of(),
             Set.of()
         );
-        var analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(esIndex),
-                defaultEnrichResolution(),
-                defaultInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        var analyzer = analyzer().addAnalysisTestsEnrichResolution()
+            .inferenceResolution(defaultInferenceResolution())
+            .addIndex(esIndex)
+            .buildAnalyzer();
         var stddevPlan = analyze("""
             from k8s* | stats std_dev = std_dev(metric_field)
             """, analyzer);
