@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis.promql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.TestAnalyzerBuilder;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 
 import java.time.Instant;
@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PromqlVerifierTests extends ESTestCase {
 
-    private final TestAnalyzerBuilder tsdb = analyzer().addIndex("test", "tsdb-mapping.json");
+    private final TestAnalyzer tsdb = analyzer().stripErrorPrefix(true).addIndex("test", "tsdb-mapping.json");
 
     public void testPromqlRangeVector() {
         assertThat(

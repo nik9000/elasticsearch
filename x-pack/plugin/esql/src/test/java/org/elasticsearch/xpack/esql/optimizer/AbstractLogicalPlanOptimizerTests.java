@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.TestAnalyzerBuilder;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
+import static org.elasticsearch.xpack.esql.TestAnalyzer.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.containsString;
 
@@ -225,7 +225,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    protected static TestAnalyzerBuilder analyzerWithEnrichPolicies() {
+    protected static TestAnalyzer analyzerWithEnrichPolicies() {
         return analyzer().addEnrichPolicy(MATCH_TYPE, "languages_idx", "id", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages_remote", "id", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages_coordinator", "id", "languages_idx", "mapping-languages.json");

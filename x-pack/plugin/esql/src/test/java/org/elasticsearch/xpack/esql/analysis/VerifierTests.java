@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.TestAnalyzerBuilder;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -42,8 +42,8 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fullyLoadedAnalyzer;
+import static org.elasticsearch.xpack.esql.TestAnalyzer.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.fullyLoadedAnalyzer;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -83,13 +83,16 @@ public class VerifierTests extends ESTestCase {
     private static final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private static final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
 
-    private final TestAnalyzerBuilder defaultAnalyzer = fullyLoadedAnalyzer().addIndex("test", "mapping-default.json");
-    private final TestAnalyzerBuilder fullTextAnalyzer = analyzer().addAnalysisTestsEnrichResolution()
+    private final TestAnalyzer defaultAnalyzer = fullyLoadedAnalyzer().stripErrorPrefix(true)
+        .addIndex("test", "mapping-default.json");
+    private final TestAnalyzer fullTextAnalyzer = analyzer().stripErrorPrefix(true)
+        .addAnalysisTestsEnrichResolution()
         .addIndex("test", "mapping-full_text_search.json");
-    private final TestAnalyzerBuilder sampleDataAnalyzer = analyzer().addIndex("test", "mapping-sample_data.json");
-    private final TestAnalyzerBuilder oddSampleDataAnalyzer = analyzer().addIndex("test", "mapping-odd-timestamp.json");
-    private final TestAnalyzerBuilder tsdb = analyzer().addIndex("test", "tsdb-mapping.json");
-    private final TestAnalyzerBuilder k8s = analyzer().addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
+    private final TestAnalyzer sampleDataAnalyzer = analyzer().stripErrorPrefix(true).addIndex("test", "mapping-sample_data.json");
+    private final TestAnalyzer oddSampleDataAnalyzer = analyzer().stripErrorPrefix(true)
+        .addIndex("test", "mapping-odd-timestamp.json");
+    private final TestAnalyzer tsdb = analyzer().stripErrorPrefix(true).addIndex("test", "tsdb-mapping.json");
+    private final TestAnalyzer k8s = analyzer().stripErrorPrefix(true).addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
@@ -127,7 +130,9 @@ public class VerifierTests extends ESTestCase {
                 Map.of(unsupported, unsupportedField, multiTyped, multiTypedField, "int", unsupportedField, "double", multiTypedField)
             )
         );
-        TestAnalyzerBuilder analyzer = analyzer().addAnalysisTestsEnrichResolution().addIndex(indexWithUnsupportedAndMultiTypedField);
+        TestAnalyzer analyzer = analyzer().stripErrorPrefix(true)
+            .addAnalysisTestsEnrichResolution()
+            .addIndex(indexWithUnsupportedAndMultiTypedField);
 
         assertEquals(
             "1:22: Cannot use field [unsupported] with unsupported type [flattened]",
@@ -1221,10 +1226,11 @@ public class VerifierTests extends ESTestCase {
             "1:136: cannot sort on cartesian_shape",
             defaultAnalyzer.error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
         );
-        TestAnalyzerBuilder airports = analyzer().addIndex("airports", "mapping-airports.json");
-        TestAnalyzerBuilder airportsWeb = analyzer().addIndex("airports_web", "mapping-airports_web.json");
-        TestAnalyzerBuilder countriesBbox = analyzer().addIndex("countries_bbox", "mapping-countries_bbox.json");
-        TestAnalyzerBuilder countriesBboxWeb = analyzer().addIndex("countries_bbox_web", "mapping-countries_bbox_web.json");
+        TestAnalyzer airports = analyzer().stripErrorPrefix(true).addIndex("airports", "mapping-airports.json");
+        TestAnalyzer airportsWeb = analyzer().stripErrorPrefix(true).addIndex("airports_web", "mapping-airports_web.json");
+        TestAnalyzer countriesBbox = analyzer().stripErrorPrefix(true).addIndex("countries_bbox", "mapping-countries_bbox.json");
+        TestAnalyzer countriesBboxWeb = analyzer().stripErrorPrefix(true)
+            .addIndex("countries_bbox_web", "mapping-countries_bbox_web.json");
         assertEquals("1:32: cannot sort on geo_point", airports.error("FROM airports | LIMIT 5 | sort location"));
         assertEquals("1:36: cannot sort on cartesian_point", airportsWeb.error("FROM airports_web | LIMIT 5 | sort location"));
         assertEquals("1:38: cannot sort on geo_shape", countriesBbox.error("FROM countries_bbox | LIMIT 5 | sort shape"));
@@ -2442,7 +2448,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testChangePoint() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        TestAnalyzerBuilder airports = analyzer().addIndex("airports", "mapping-airports.json");
+        TestAnalyzer airports = analyzer().stripErrorPrefix(true).addIndex("airports", "mapping-airports.json");
         assertEquals("1:30: Unknown column [blahblah]", airports.error("FROM airports | CHANGE_POINT blahblah ON scalerank"));
         assertEquals("1:43: Unknown column [blahblah]", airports.error("FROM airports | CHANGE_POINT scalerank ON blahblah"));
         // TODO: nicer error message for missing default column "@timestamp"

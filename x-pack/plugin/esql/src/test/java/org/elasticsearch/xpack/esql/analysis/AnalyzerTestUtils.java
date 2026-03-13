@@ -10,11 +10,10 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestAnalyzerBuilder;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
@@ -24,8 +23,6 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -54,24 +51,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.TestAnalyzer.VALID_INFERENCE_IDS;
+import static org.elasticsearch.xpack.esql.TestAnalyzer.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 public final class AnalyzerTestUtils {
 
     private AnalyzerTestUtils() {}
-
-    /**
-     * Returns a builder pre-initialized with default lookup, enrich, inference,
-     * and subquery resolutions.
-     */
-    public static TestAnalyzerBuilder fullyLoadedAnalyzer() {
-        var builder = EsqlTestUtils.analyzer()
-            .addAnalysisTestsLookupResolutions()
-            .addAnalysisTestsEnrichResolution()
-            .inferenceResolution(defaultInferenceResolution());
-        builder.addAnalysisTestsIndexResolutions();
-        return builder;
-    }
 
     public static Analyzer defaultAnalyzer() {
         return analyzer(analyzerDefaultMapping());
@@ -196,10 +182,6 @@ public final class AnalyzerTestUtils {
             config,
             statement.setting(UNMAPPED_FIELDS)
         );
-    }
-
-    public static Analyzer analyzer(Verifier verifier) {
-        return analyzer(analyzerDefaultMapping(), defaultLookupResolution(), defaultEnrichResolution(), verifier, EsqlTestUtils.TEST_CFG);
     }
 
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions, Verifier verifier) {
@@ -396,31 +378,6 @@ public final class AnalyzerTestUtils {
             "mapping-languages.json"
         );
         return enrichResolution;
-    }
-
-    public static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
-    public static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
-    public static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
-    public static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
-    public static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
-    public static final List<String> VALID_INFERENCE_IDS = List.of(
-        RERANKING_INFERENCE_ID,
-        COMPLETION_INFERENCE_ID,
-        TEXT_EMBEDDING_INFERENCE_ID,
-        CHAT_COMPLETION_INFERENCE_ID,
-        SPARSE_EMBEDDING_INFERENCE_ID
-    );
-    public static final String ERROR_INFERENCE_ID = "error-inference-id";
-
-    public static InferenceResolution defaultInferenceResolution() {
-        return InferenceResolution.builder()
-            .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
-            .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
-            .withResolvedInference(new ResolvedInference(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING))
-            .withResolvedInference(new ResolvedInference(CHAT_COMPLETION_INFERENCE_ID, TaskType.CHAT_COMPLETION))
-            .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
-            .withError(ERROR_INFERENCE_ID, "error with inference resolution")
-            .build();
     }
 
     public static Map<IndexPattern, IndexResolution> defaultSubqueryResolution() {

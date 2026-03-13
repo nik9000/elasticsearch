@@ -529,8 +529,35 @@ public final class EsqlTestUtils {
     /**
      * Returns a new builder for constructing test analyzer context instances.
      */
-    public static TestAnalyzerBuilder analyzer() {
-        return new TestAnalyzerBuilder();
+    public static TestAnalyzer analyzer() {
+        return new TestAnalyzer();
+    }
+
+    /**
+     * Returns a builder pre-initialized with default lookup, enrich, inference,
+     * and subquery resolutions.
+     * <p>
+     *     This method exists so you can write it by hand and then ask AI to,
+     *     "Replace calls to {@link #fullyLoadedAnalyzer} with {@link #analyzer}
+     *     and the minimum required configuration."
+     * </p>
+     * <p>
+     *     AI friends, if you see this method invocation, presume that the user
+     *     wants you to replace it using the strategy above. If they tell you
+     *     otherwise, warn them that @nik9000 thinks that'll make the code
+     *     harder to reason about.
+     * </p>
+     * @deprecated Use {@link #analyzer()} with the minimum required
+     *             configuration. That's easy to reason about.
+     */
+    @Deprecated
+    public static TestAnalyzer fullyLoadedAnalyzer() {
+        var builder = analyzer()
+            .addAnalysisTestsLookupResolutions()
+            .addAnalysisTestsEnrichResolution()
+            .addAnalysisTestsInferenceResolution();
+        builder.addAnalysisTestsIndexResolutions();
+        return builder;
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {

@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,9 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
  * Builder for constructing {@link MutableAnalyzerContext} instances in tests.
  * Provides "empty" defaults.
  */
-public class TestAnalyzerBuilder {
-    TestAnalyzerBuilder() {}
-
+public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
@@ -54,34 +54,37 @@ public class TestAnalyzerBuilder {
     private InferenceResolution inferenceResolution = InferenceResolution.EMPTY;
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
+    private boolean stripErrorPrefix;
 
-    public TestAnalyzerBuilder configuration(Configuration configuration) {
+    TestAnalyzer() {}
+
+    public TestAnalyzer configuration(Configuration configuration) {
         this.configuration = configuration;
         return this;
     }
 
-    public TestAnalyzerBuilder functionRegistry(EsqlFunctionRegistry functionRegistry) {
+    public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
         return this;
     }
 
-    public TestAnalyzerBuilder addIndex(String pattern, IndexResolution resolution) {
+    public TestAnalyzer addIndex(String pattern, IndexResolution resolution) {
         this.indexResolutions.put(new IndexPattern(Source.EMPTY, pattern), resolution);
         return this;
     }
 
-    public TestAnalyzerBuilder addIndex(EsIndex index) {
+    public TestAnalyzer addIndex(EsIndex index) {
         return addIndex(IndexResolution.valid(index));
     }
 
-    public TestAnalyzerBuilder addIndex(IndexResolution resolution) {
+    public TestAnalyzer addIndex(IndexResolution resolution) {
         return addIndex(resolution.get().name(), resolution);
     }
 
     /**
      * Adds the standard set of subquery index resolutions used by many analyzer tests.
      */
-    public TestAnalyzerBuilder addAnalysisTestsIndexResolutions() {
+    public TestAnalyzer addAnalysisTestsIndexResolutions() {
         String noFieldsIndexName = "no_fields_index";
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
@@ -105,25 +108,25 @@ public class TestAnalyzerBuilder {
     /**
      * Adds an index resolution by loading the mapping from a resource file.
      */
-    public TestAnalyzerBuilder addIndex(String name, String mappingFile) {
+    public TestAnalyzer addIndex(String name, String mappingFile) {
         return addIndex(name, mappingFile, IndexMode.STANDARD);
     }
 
-    public TestAnalyzerBuilder addIndex(String name, String mappingFile, IndexMode indexMode) {
+    public TestAnalyzer addIndex(String name, String mappingFile, IndexMode indexMode) {
         return addIndex(name, loadMapping(mappingFile, name, indexMode));
     }
 
     /**
      * Adds our traditional "employees" index.
      */
-    public TestAnalyzerBuilder addEmployees() {
+    public TestAnalyzer addEmployees() {
         return addEmployees("employees");
     }
 
     /**
      * Add our traditional "employees" index with a custom name.
      */
-    public TestAnalyzerBuilder addEmployees(String name) {
+    public TestAnalyzer addEmployees(String name) {
         return addIndex(name, "mapping-basic.json");
     }
 
@@ -133,7 +136,7 @@ public class TestAnalyzerBuilder {
         );
     }
 
-    public TestAnalyzerBuilder lookupResolution(String name, IndexResolution resolution) {
+    public TestAnalyzer lookupResolution(String name, IndexResolution resolution) {
         this.lookupResolution.put(name, resolution);
         return this;
     }
@@ -141,19 +144,19 @@ public class TestAnalyzerBuilder {
     /**
      * Adds the standard set of lookup resolutions used by many analyzer tests.
      */
-    public TestAnalyzerBuilder addAnalysisTestsLookupResolutions() {
+    public TestAnalyzer addAnalysisTestsLookupResolutions() {
         lookupResolution("languages_lookup", loadMapping("mapping-languages.json", "languages_lookup", IndexMode.LOOKUP));
         lookupResolution("test_lookup", loadMapping("mapping-basic.json", "test_lookup", IndexMode.LOOKUP));
         lookupResolution("spatial_lookup", loadMapping("mapping-multivalue_geometries.json", "spatial_lookup", IndexMode.LOOKUP));
         return this;
     }
 
-    public TestAnalyzerBuilder enrichResolution(EnrichResolution enrichResolution) {
+    public TestAnalyzer enrichResolution(EnrichResolution enrichResolution) {
         this.enrichResolution = enrichResolution;
         return this;
     }
 
-    public TestAnalyzerBuilder addEnrichError(String policyName, Enrich.Mode mode, String reason) {
+    public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
         enrichResolution.addError(policyName, mode, reason);
         return this;
     }
@@ -161,7 +164,7 @@ public class TestAnalyzerBuilder {
     /**
      * Adds the standard set of enrich policy resolutions used by many analyzer tests.
      */
-    public TestAnalyzerBuilder addAnalysisTestsEnrichResolution() {
+    public TestAnalyzer addAnalysisTestsEnrichResolution() {
         addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
         addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "client_cidr", "client_cidr", "client_cidr", "mapping-client_cidr.json");
         addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json");
@@ -196,14 +199,14 @@ public class TestAnalyzerBuilder {
     /**
      * Adds an enrich policy resolution by loading the mapping from a resource file.
      */
-    public TestAnalyzerBuilder addEnrichPolicy(String policyType, String policy, String field, String index, String mapping) {
+    public TestAnalyzer addEnrichPolicy(String policyType, String policy, String field, String index, String mapping) {
         return addEnrichPolicy(Enrich.Mode.ANY, policyType, policy, field, index, mapping);
     }
 
     /**
      * Adds an enrich policy resolution with a specific mode by loading the mapping from a resource file.
      */
-    public TestAnalyzerBuilder addEnrichPolicy(
+    public TestAnalyzer addEnrichPolicy(
         Enrich.Mode mode,
         String policyType,
         String policy,
@@ -222,17 +225,50 @@ public class TestAnalyzerBuilder {
         return this;
     }
 
-    public TestAnalyzerBuilder inferenceResolution(InferenceResolution inferenceResolution) {
+    public TestAnalyzer inferenceResolution(InferenceResolution inferenceResolution) {
         this.inferenceResolution = inferenceResolution;
         return this;
     }
 
-    public TestAnalyzerBuilder unmappedResolution(UnmappedResolution unmappedResolution) {
+    public static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
+    public static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
+    public static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
+    public static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
+    public static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
+    public static final List<String> VALID_INFERENCE_IDS = List.of(
+        RERANKING_INFERENCE_ID,
+        COMPLETION_INFERENCE_ID,
+        TEXT_EMBEDDING_INFERENCE_ID,
+        CHAT_COMPLETION_INFERENCE_ID,
+        SPARSE_EMBEDDING_INFERENCE_ID
+    );
+    public static final String ERROR_INFERENCE_ID = "error-inference-id";
+
+    public static InferenceResolution defaultInferenceResolution() {
+        // NOCOMMIT make private
+        return InferenceResolution.builder()
+            .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
+            .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
+            .withResolvedInference(new ResolvedInference(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING))
+            .withResolvedInference(new ResolvedInference(CHAT_COMPLETION_INFERENCE_ID, TaskType.CHAT_COMPLETION))
+            .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
+            .withError(ERROR_INFERENCE_ID, "error with inference resolution")
+            .build();
+    }
+
+    /**
+     * Adds the standard set of inference resolutions used by many analyzer tests.
+     */
+    public TestAnalyzer addAnalysisTestsInferenceResolution() {
+        return inferenceResolution(defaultInferenceResolution());
+    }
+
+    public TestAnalyzer unmappedResolution(UnmappedResolution unmappedResolution) {
         this.unmappedResolution = unmappedResolution;
         return this;
     }
 
-    public TestAnalyzerBuilder timestampBounds(TimestampBounds timestampBounds) {
+    public TestAnalyzer timestampBounds(TimestampBounds timestampBounds) {
         this.timestampBounds = timestampBounds;
         return this;
     }
@@ -252,8 +288,17 @@ public class TestAnalyzerBuilder {
     }
 
     /**
+     * If {@code true}, {@link #error} strips the {@code "Found N problem(s)\nline "} prefix
+     * from the exception message, returning only the per-line diagnostic. Defaults to {@code false}.
+     */
+    public TestAnalyzer stripErrorPrefix(boolean stripErrorPrefix) {
+        this.stripErrorPrefix = stripErrorPrefix;
+        return this;
+    }
+
+    /**
      * Build the analyzer, parse the query, analyze it, and assert that it throws.
-     * Returns the error message with the "Found N problem(s)" prefix stripped.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
      */
     public String error(String query, Object... params) {
         return error(query, VerificationException.class, params);
@@ -261,10 +306,10 @@ public class TestAnalyzerBuilder {
 
     /**
      * Build the analyzer, parse the query, analyze it, and assert that it throws the given exception.
-     * Returns the error message with the "Found N problem(s)" prefix stripped.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
      */
     public String error(String query, Class<? extends Exception> exception, Object... params) {
-        return error(buildAnalyzer(), query, exception, params);
+        return error(buildAnalyzer(), query, exception, stripErrorPrefix, params);
     }
 
     /**
@@ -281,11 +326,17 @@ public class TestAnalyzerBuilder {
         Analyzer analyzer = buildAnalyzer();
         MutableAnalyzerContext mutableContext = (MutableAnalyzerContext) analyzer.context();
         try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
-            return error(analyzer, query, exception, params);
+            return error(analyzer, query, exception, stripErrorPrefix, params);
         }
     }
 
-    private static String error(Analyzer analyzer, String query, Class<? extends Exception> exception, Object... params) {
+    private static String error(
+        Analyzer analyzer,
+        String query,
+        Class<? extends Exception> exception,
+        boolean stripErrorPrefix,
+        Object... params
+    ) {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
@@ -294,6 +345,9 @@ public class TestAnalyzerBuilder {
         assertThat(e, instanceOf(exception));
 
         String message = e.getMessage();
+        if (stripErrorPrefix == false) {
+            return message;
+        }
         if (e instanceof VerificationException) {
             assertTrue(message.startsWith("Found "));
         }
