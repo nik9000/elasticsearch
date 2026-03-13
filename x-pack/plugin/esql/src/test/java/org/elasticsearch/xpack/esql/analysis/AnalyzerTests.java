@@ -164,12 +164,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.TEXT_EMBEDDING_INFERENCE_ID;
+import static org.elasticsearch.xpack.esql.TestAnalyzer.defaultInferenceResolution;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
-import static org.elasticsearch.xpack.esql.TestAnalyzer.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -1955,8 +1955,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEnrichPolicyMatchFieldName() {
-        TestAnalyzer withEnrich = analyzer().addAnalysisTestsEnrichResolution()
-            .addIndex("test", "mapping-multi-field-variation.json");
+        TestAnalyzer withEnrich = analyzer().addAnalysisTestsEnrichResolution().addIndex("test", "mapping-multi-field-variation.json");
         assertThat(withEnrich.error("from test | enrich languages on bar"), containsString("Unknown column [bar]"));
 
         assertThat(

@@ -23,8 +23,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fullyLoadedAnalyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DISSECT;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.DROP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ENRICH;

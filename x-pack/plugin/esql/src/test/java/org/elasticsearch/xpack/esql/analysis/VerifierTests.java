@@ -41,9 +41,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.TestAnalyzer.TEXT_EMBEDDING_INFERENCE_ID;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.fullyLoadedAnalyzer;
+import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
@@ -83,14 +82,19 @@ public class VerifierTests extends ESTestCase {
     private static final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private static final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
 
-    private final TestAnalyzer defaultAnalyzer = fullyLoadedAnalyzer().stripErrorPrefix(true)
+    private final TestAnalyzer defaultAnalyzer = analyzer().stripErrorPrefix(true)
+        .addAnalysisTestsLookupResolutions()
+        .addAnalysisTestsInferenceResolution()
         .addIndex("test", "mapping-default.json");
+    private final TestAnalyzer mixedTypesAnalyzer = analyzer().stripErrorPrefix(true)
+        .addAnalysisTestsLookupResolutions()
+        .addIndex("test", "mapping-default.json")
+        .addIndex("test_mixed_types", "mapping-default-incompatible.json");
     private final TestAnalyzer fullTextAnalyzer = analyzer().stripErrorPrefix(true)
         .addAnalysisTestsEnrichResolution()
         .addIndex("test", "mapping-full_text_search.json");
     private final TestAnalyzer sampleDataAnalyzer = analyzer().stripErrorPrefix(true).addIndex("test", "mapping-sample_data.json");
-    private final TestAnalyzer oddSampleDataAnalyzer = analyzer().stripErrorPrefix(true)
-        .addIndex("test", "mapping-odd-timestamp.json");
+    private final TestAnalyzer oddSampleDataAnalyzer = analyzer().stripErrorPrefix(true).addIndex("test", "mapping-odd-timestamp.json");
     private final TestAnalyzer tsdb = analyzer().stripErrorPrefix(true).addIndex("test", "tsdb-mapping.json");
     private final TestAnalyzer k8s = analyzer().stripErrorPrefix(true).addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
 
@@ -1229,8 +1233,7 @@ public class VerifierTests extends ESTestCase {
         TestAnalyzer airports = analyzer().stripErrorPrefix(true).addIndex("airports", "mapping-airports.json");
         TestAnalyzer airportsWeb = analyzer().stripErrorPrefix(true).addIndex("airports_web", "mapping-airports_web.json");
         TestAnalyzer countriesBbox = analyzer().stripErrorPrefix(true).addIndex("countries_bbox", "mapping-countries_bbox.json");
-        TestAnalyzer countriesBboxWeb = analyzer().stripErrorPrefix(true)
-            .addIndex("countries_bbox_web", "mapping-countries_bbox_web.json");
+        TestAnalyzer countriesBboxWeb = analyzer().stripErrorPrefix(true).addIndex("countries_bbox_web", "mapping-countries_bbox_web.json");
         assertEquals("1:32: cannot sort on geo_point", airports.error("FROM airports | LIMIT 5 | sort location"));
         assertEquals("1:36: cannot sort on cartesian_point", airportsWeb.error("FROM airports_web | LIMIT 5 | sort location"));
         assertEquals("1:38: cannot sort on geo_shape", countriesBbox.error("FROM countries_bbox | LIMIT 5 | sort shape"));
@@ -3349,7 +3352,7 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBeforeInlineStats_WithTS() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
         assertThat(
-            defaultAnalyzer.error("TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod"),
+            k8s.error("TS k8s | STATS m=max(network.eth0.tx) BY pod, cluster | LIMIT 5 | INLINE STATS max(m) BY pod"),
             containsString(
                 "1:67: INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(m) BY pod] after [LIMIT 5] [@1:57]"
@@ -3516,7 +3519,7 @@ public class VerifierTests extends ESTestCase {
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = defaultAnalyzer.error("""
+        String errorMessage = mixedTypesAnalyzer.error("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | WHERE emp_no > 10000
             | SORT is_rehired, still_hired
@@ -3529,7 +3532,7 @@ public class VerifierTests extends ESTestCase {
     // Fork inside subquery is tested in LogicalPlanOptimizerTests
     public void testSubqueryInFromWithForkInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = defaultAnalyzer.error("""
+        String errorMessage = mixedTypesAnalyzer.error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
@@ -3548,7 +3551,7 @@ public class VerifierTests extends ESTestCase {
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
-        String errorMessage = defaultAnalyzer.error("""
+        String errorMessage = mixedTypesAnalyzer.error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
@@ -3825,7 +3828,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsupportedMetadata() {
         // GroupByAll
         assertThat(
-            defaultAnalyzer.error("FROM k8s METADATA unknown_field"),
+            k8s.error("FROM k8s METADATA unknown_field"),
             equalTo("1:1: unresolved metadata fields: [?unknown_field]\nline 1:19: Unresolved metadata pattern [unknown_field]")
         );
     }
