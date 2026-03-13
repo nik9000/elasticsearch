@@ -24,6 +24,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.TestAnalyzerBuilder;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -89,7 +90,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -174,7 +174,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResol
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -187,6 +186,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.esIndex;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -219,10 +219,11 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final String DENSE_VECTOR_MAPPING_FILE = "mapping-dense_vector-all_element_types.json";
 
+    private final TestAnalyzerBuilder defaultAnalyzer = analyzer().addIndex("test", "mapping-multi-field-variation.json");
+
     public void testIndexResolution() {
-        EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-        var plan = analyzer.analyze(UNRESOLVED_RELATION);
+        EsIndex idx = esIndex("idx");
+        var plan = analyzer().addIndex(idx).query("FROM idx");
         var limit = as(plan, Limit.class);
 
         assertEquals(
@@ -232,18 +233,15 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFailOnUnresolvedIndex() {
-        Analyzer analyzer = analyzer(Map.of(new IndexPattern(Source.EMPTY, "idx"), IndexResolution.invalid("Unknown index [idx]")));
-
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(UNRESOLVED_RELATION));
-
-        assertThat(e.getMessage(), containsString("Unknown index [idx]"));
+        assertThat(
+            analyzer().addIndex("idx", IndexResolution.invalid("Unknown index [idx]")).error("FROM idx"),
+            containsString("Unknown index [idx]")
+        );
     }
 
     public void testIndexWithClusterResolution() {
-        EsIndex idx = EsIndexGenerator.esIndex("cluster:idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-
-        var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
+        EsIndex idx = esIndex("cluster:idx");
+        var plan = analyzer().addIndex(idx).query("FROM cluster:idx");
         var limit = as(plan, Limit.class);
 
         assertEquals(
@@ -253,12 +251,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolution() {
-        EsIndex idx = EsIndexGenerator.esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-
-        var plan = analyzer.analyze(
-            new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
-        );
+        EsIndex idx = esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
+        var plan = analyzer().addIndex(idx).query("FROM idx | EVAL e = emp_no");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -278,15 +272,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolutionOfChainedReferences() {
-        Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
-
-        var plan = analyzer.analyze(
-            new Eval(
-                EMPTY,
-                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))),
-                List.of(new Alias(EMPTY, "ee", new UnresolvedAttribute(EMPTY, "e")))
-            )
-        );
+        var plan = analyzer().addIndex("idx", "mapping-one-field.json").query("FROM idx | EVAL e = emp_no | EVAL ee = e");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -309,16 +295,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowAttributeResolution() {
-        EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-
-        var plan = analyzer.analyze(
-            new Eval(
-                EMPTY,
-                new Row(EMPTY, List.of(new Alias(EMPTY, "emp_no", new Literal(EMPTY, 1, INTEGER)))),
-                List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no")))
-            )
-        );
+        var plan = analyzer().addIndex(esIndex("idx")).query("ROW emp_no = 1 | EVAL e = emp_no");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -342,23 +319,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowWithForwardReferences() {
-        EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
-
-        var plan = analyzer.analyze(
-            new Row(
-                EMPTY,
-                List.of(
-                    new Alias(EMPTY, "x", new Literal(EMPTY, 4, INTEGER)),
-                    new Alias(EMPTY, "y", new Literal(EMPTY, 2, INTEGER)),
-                    new Alias(
-                        EMPTY,
-                        "z",
-                        new Add(EMPTY, new UnresolvedAttribute(EMPTY, "x"), new UnresolvedAttribute(EMPTY, "y"), EsqlTestUtils.TEST_CFG)
-                    )
-                )
-            )
-        );
+        var plan = analyzer().addIndex(esIndex("idx")).query("ROW x = 4, y = 2, z = x + y");
 
         var limit = as(plan, Limit.class);
         var row = as(limit.child(), Row.class);
@@ -388,8 +349,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowWithNonDeterministicReference() {
-        EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer().addIndex(esIndex("idx")).buildAnalyzer();
 
         // row a = random(5), b = a
         // (yes, random() is an internal command, thus why the test builds one "manually")
@@ -420,8 +380,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowAndEvalWithNonDeterministicReference() {
-        EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = analyzer().addIndex(esIndex("idx")).buildAnalyzer();
 
         // row a = random(100), b = a | eval x = random(100), y = x
         // (yes, random() is an internal command, thus why the test builds one "manually")
@@ -484,16 +443,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnresolvableAttribute() {
-        Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
-
-        VerificationException ve = expectThrows(
-            VerificationException.class,
-            () -> analyzer.analyze(
-                new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_nos"))))
-            )
+        assertThat(
+            analyzer().addIndex("idx", "mapping-one-field.json").error("FROM idx | EVAL e = emp_nos"),
+            containsString("Unknown column [emp_nos], did you mean [emp_no]?")
         );
-
-        assertThat(ve.getMessage(), containsString("Unknown column [emp_nos], did you mean [emp_no]?"));
     }
 
     public void testProjectBasic() {
@@ -1079,13 +1032,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedParentField() {
+        TestAnalyzerBuilder multiField = analyzer().addIndex("test", "mapping-multi-field.json");
         verifyUnsupported(
+            multiField,
             """
                 from test
                 | keep text, text.keyword
                 """,
-            "Found 1 problem\n" + "line 2:14: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
-            "mapping-multi-field.json"
+            "Found 1 problem\n" + "line 2:14: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?"
         );
     }
 
@@ -1114,39 +1068,43 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedValidFieldTypeInNestedParentField() {
-        verifyUnsupported("""
+        TestAnalyzerBuilder nested = analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
+        verifyUnsupported(nested, """
             from test
             | keep dep.dep_id.keyword
-            """, "Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]", "mapping-multi-field-with-nested.json");
+            """, "Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]");
     }
 
     public void testUnsupportedObjectAndNested() {
+        TestAnalyzerBuilder nested = analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
         verifyUnsupported(
+            nested,
             """
                 from test
                 | keep dep, some
                 """,
-            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [some]",
-            "mapping-multi-field-with-nested.json"
+            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [some]"
         );
     }
 
     public void testDropNestedField() {
+        TestAnalyzerBuilder nested = analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
         verifyUnsupported(
+            nested,
             """
                 from test
                 | drop dep, dep.dep_id.keyword
                 """,
-            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [dep.dep_id.keyword]",
-            "mapping-multi-field-with-nested.json"
+            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [dep.dep_id.keyword]"
         );
     }
 
     public void testDropNestedWildcardField() {
-        verifyUnsupported("""
+        TestAnalyzerBuilder nested = analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
+        verifyUnsupported(nested, """
             from test
             | drop dep.*
-            """, "Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]", "mapping-multi-field-with-nested.json");
+            """, "Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]");
     }
 
     public void testSupportedDeepHierarchy() {
@@ -1455,8 +1413,7 @@ public class AnalyzerTests extends ESTestCase {
                     | where date COMPARISON "not-a-date"
                     | keep date
                     """.replace("COMPARISON", comparison),
-                "Cannot convert string [not-a-date] to [DATETIME]",
-                "mapping-multi-field-variation.json"
+                "Cannot convert string [not-a-date] to [DATETIME]"
             );
         }
     }
@@ -1923,14 +1880,21 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEnrichPolicyMatchFieldName() {
-        verifyUnsupported("from test | enrich languages on bar", "Unknown column [bar]");
-        verifyUnsupported("from test | enrich languages on keywords", "Unknown column [keywords], did you mean [keyword]?");
-        verifyUnsupported("from test | enrich languages on keyword with foo", "Enrich field [foo] not found in enrich policy [languages]");
+        TestAnalyzerBuilder withEnrich = analyzer().addAnalysisTestsEnrichResolution().addIndex("test", "mapping-multi-field-variation.json");
+        verifyUnsupported(withEnrich, "from test | enrich languages on bar", "Unknown column [bar]");
+        verifyUnsupported(withEnrich, "from test | enrich languages on keywords", "Unknown column [keywords], did you mean [keyword]?");
         verifyUnsupported(
+            withEnrich,
+            "from test | enrich languages on keyword with foo",
+            "Enrich field [foo] not found in enrich policy [languages]"
+        );
+        verifyUnsupported(
+            withEnrich,
             "from test | enrich languages on keyword with language_namez",
             "Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]"
         );
         verifyUnsupported(
+            withEnrich,
             "from test | enrich languages on keyword with x = language_namez",
             "Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]"
         );
@@ -2063,9 +2027,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCounterTypes() {
-        var query = "FROM test | KEEP network.* | LIMIT 10";
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        LogicalPlan plan = analyze(query, analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("FROM test | KEEP network.* | LIMIT 10");
         var limit = as(plan, Limit.class);
         var attributes = limit.output().stream().collect(Collectors.toMap(NamedExpression::name, a -> a));
         assertThat(
@@ -2746,35 +2708,34 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTimeseriesDefaultLimitIs1B() {
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        assertDefaultLimitForQuery(analyzer, "TS test | STATS avg(rate(network.bytes_in))", DEFAULT_TIMESERIES_LIMIT);
-        assertDefaultLimitForQuery(analyzer, "TS test ", DEFAULT_LIMIT);
+        TestAnalyzerBuilder tsdb = analyzer().addIndex("test", "tsdb-mapping.json");
+        assertDefaultLimitForQuery(tsdb, "TS test | STATS avg(rate(network.bytes_in))", DEFAULT_TIMESERIES_LIMIT);
+        assertDefaultLimitForQuery(tsdb, "TS test ", DEFAULT_LIMIT);
         assertDefaultLimitForQuery(
-            analyzer,
+            tsdb,
             "TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket",
             DEFAULT_TIMESERIES_LIMIT
         );
-        assertDefaultLimitForQuery(analyzer, "FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
+        assertDefaultLimitForQuery(tsdb, "FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
     }
 
     public void testLimitForPromQL() {
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        assertDefaultLimitForQuery(analyzer, """
+        TestAnalyzerBuilder tsdb = analyzer().addIndex("test", "tsdb-mapping.json");
+        assertDefaultLimitForQuery(tsdb, """
             PROMQL index=test
                 step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
                 avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
     }
 
-    private static void assertDefaultLimitForQuery(Analyzer analyzer, String query, int expectedLimit) {
-        var plan = analyze(query, analyzer);
+    private static void assertDefaultLimitForQuery(TestAnalyzerBuilder builder, String query, int expectedLimit) {
+        var plan = builder.query(query);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
     }
 
     public void testImplicitTimestampSortForTsQuery() {
         // TS query without STATS or SORT should have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("TS test");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -2790,8 +2751,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testImplicitTimestampSortWithKeep() {
         // TS query with KEEP should have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | KEEP @timestamp, host", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("TS test | KEEP @timestamp, host");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -2806,8 +2766,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testImplicitTimestampSortWithExplicitLimit() {
         // TS query with explicit LIMIT should still have implicit sort below the user's limit
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | KEEP @timestamp, host | LIMIT 5", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("TS test | KEEP @timestamp, host | LIMIT 5");
 
         // AddImplicitLimit wraps the user's Limit in a cap Limit
         var outerLimit = as(plan, Limit.class);
@@ -2825,8 +2784,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortWithStats() {
         // TS query with STATS should NOT have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("TS test | STATS avg(rate(network.bytes_in))");
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
@@ -2834,8 +2792,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortWithExplicitSort() {
         // TS query with explicit sort should keep it
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | SORT host", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("TS test | SORT host");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -2848,8 +2805,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortWhenTimestampDropped() {
         // TS query with @timestamp dropped
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | DROP @timestamp", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("TS test | DROP @timestamp");
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
@@ -2857,19 +2813,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortForNotTsQuery() {
         // Not TS query should NOT have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("FROM test", analyzer);
+        var plan = analyzer().addIndex("test", "tsdb-mapping.json").query("FROM test");
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
     public void testRateRequiresCounterTypes() {
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var query = "TS test | STATS avg(rate(network.connections))";
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
         assertThat(
-            error.getMessage(),
+            analyzer().addIndex("test", "tsdb-mapping.json").error("TS test | STATS avg(rate(network.connections))"),
             containsString(
                 "first argument of [rate(network.connections)] must be"
                     + " [counter_long, counter_integer or counter_double], found value [network.connections] type [long]"
@@ -4143,11 +4095,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void verifyUnsupported(String query, String errorMessage) {
-        verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
+        verifyUnsupported(defaultAnalyzer, query, errorMessage);
     }
 
-    private void verifyUnsupported(String query, String errorMessage, String mappingFileName) {
-        var e = expectThrows(VerificationException.class, () -> analyze(query, mappingFileName));
+    private static void verifyUnsupported(TestAnalyzerBuilder builder, String query, String errorMessage) {
+        var e = expectThrows(VerificationException.class, () -> builder.query(query));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 
@@ -4880,11 +4832,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of(),
             Set.of()
         );
-        IndexResolution resolution = IndexResolution.valid(index);
-        Analyzer analyzer = analyzer(resolution);
-
-        String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id = id::keyword";
-        LogicalPlan plan = analyze(query, analyzer);
+        LogicalPlan plan = analyzer().addIndex(index).query("FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id = id::keyword");
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child().children().getFirst(), Eval.class);
@@ -4924,15 +4872,11 @@ public class AnalyzerTests extends ESTestCase {
             Map.of(),
             Set.of()
         );
-        IndexResolution resolution = IndexResolution.valid(index);
-        Analyzer analyzer = analyzer(resolution);
-
-        String query = """
+        LogicalPlan plan = analyzer().addIndex(index).query("""
             FROM union_index*
             | KEEP id
             | EVAL x = id::long
-            """;
-        LogicalPlan plan = analyze(query, analyzer);
+            """);
 
         Project topProject = as(plan, Project.class);
         var projections = topProject.projections();
@@ -4966,19 +4910,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {
-        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
-
         // Validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again, and include some cases of
         // nested casting as well.
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = analyzer().addIndex(indexWithDateDateNanosUnionType()).query("""
             FROM index*
             | Eval a = date_and_date_nanos, b = date_and_date_nanos::datetime, c = date_and_date_nanos::date_nanos,
                    d = date_and_date_nanos::datetime::datetime, e = date_and_date_nanos::datetime::date_nanos,
                    f = date_and_date_nanos::date_nanos::datetime, g = date_and_date_nanos::date_nanos::date_nanos,
                    h = date_and_date_nanos::datetime::long, i = date_and_date_nanos::date_nanos::long,
                    j = date_and_date_nanos::long::datetime, k = date_and_date_nanos::long::date_nanos
-            """, analyzer);
+            """);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -5084,31 +5025,34 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInStats() {
-        verifyUnsupported("""
+        TestAnalyzerBuilder defaults = analyzer().addIndex("test", "mapping-default.json");
+        verifyUnsupported(defaults, """
             from test
             | stats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
+            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]");
     }
 
     public void testGroupingOverridesInInlineStats() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        verifyUnsupported("""
+        TestAnalyzerBuilder defaults = analyzer().addIndex("test", "mapping-default.json");
+        verifyUnsupported(defaults, """
             from test
             | inline stats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]", "mapping-default.json");
+            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]");
     }
 
     public void testInlineStatsStats() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        verifyUnsupported("""
+        TestAnalyzerBuilder defaults = analyzer().addIndex("test", "mapping-default.json");
+        verifyUnsupported(defaults, """
             from test
             | inline stats stats
-            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
+            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]");
         // TODO: drop after next minor release
-        verifyUnsupported("""
+        verifyUnsupported(defaults, """
             from test
             | inlinestats stats
-            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
+            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]");
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {

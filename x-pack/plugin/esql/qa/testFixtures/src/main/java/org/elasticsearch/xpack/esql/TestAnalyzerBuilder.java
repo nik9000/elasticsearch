@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Builder for constructing {@link MutableAnalyzerContext} instances in tests.
- * Provides sensible defaults so tests only need to specify what they care about.
+ * Provides "empty" defaults.
  */
 public class TestAnalyzerBuilder {
     TestAnalyzerBuilder() {}
@@ -65,8 +65,8 @@ public class TestAnalyzerBuilder {
         return this;
     }
 
-    public TestAnalyzerBuilder addIndex(IndexPattern pattern, IndexResolution resolution) {
-        this.indexResolutions.put(pattern, resolution);
+    public TestAnalyzerBuilder addIndex(String pattern, IndexResolution resolution) {
+        this.indexResolutions.put(new IndexPattern(Source.EMPTY, pattern), resolution);
         return this;
     }
 
@@ -75,7 +75,7 @@ public class TestAnalyzerBuilder {
     }
 
     public TestAnalyzerBuilder addIndex(IndexResolution resolution) {
-        return addIndex(new IndexPattern(Source.EMPTY, resolution.get().name()), resolution);
+        return addIndex(resolution.get().name(), resolution);
     }
 
     /**
@@ -96,9 +96,9 @@ public class TestAnalyzerBuilder {
         addIndex("test_mixed_types", "mapping-default-incompatible.json");
         addIndex("colors", "mapping-colors.json");
         addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
-        addIndex(new IndexPattern(Source.EMPTY, "remote:missingIndex"), IndexResolution.EMPTY_SUBQUERY);
-        addIndex(new IndexPattern(Source.EMPTY, "empty_index"), IndexResolution.empty("empty_index"));
-        addIndex(new IndexPattern(Source.EMPTY, noFieldsIndexName), IndexResolution.valid(noFieldsIndex));
+        addIndex("remote:missingIndex", IndexResolution.EMPTY_SUBQUERY);
+        addIndex("empty_index", IndexResolution.empty("empty_index"));
+        addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
     }
 
@@ -110,7 +110,7 @@ public class TestAnalyzerBuilder {
     }
 
     public TestAnalyzerBuilder addIndex(String name, String mappingFile, IndexMode indexMode) {
-        return addIndex(new IndexPattern(Source.EMPTY, name), loadMapping(mappingFile, name, indexMode));
+        return addIndex(name, loadMapping(mappingFile, name, indexMode));
     }
 
     /**

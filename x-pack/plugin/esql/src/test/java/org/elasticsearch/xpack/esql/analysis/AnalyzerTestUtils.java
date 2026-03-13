@@ -160,7 +160,8 @@ public final class AnalyzerTestUtils {
             .enrichResolution(enrichResolution)
             .inferenceResolution(defaultInferenceResolution())
             .timestampBounds(timestampBounds);
-        mergeIndexResolutions(indexResolutions, defaultSubqueryResolution()).forEach(builder::addIndex);
+        // NOCOMMIT move this
+        mergeIndexResolutions(indexResolutions, defaultSubqueryResolution()).forEach((p, r) -> builder.addIndex(p.indexPattern(), r));
         lookupResolution.forEach(builder::lookupResolution);
         if (unmappedResolution != null) {
             builder.unmappedResolution(unmappedResolution);
