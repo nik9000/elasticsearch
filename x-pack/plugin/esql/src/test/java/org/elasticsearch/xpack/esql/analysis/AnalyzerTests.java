@@ -219,7 +219,9 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final String DENSE_VECTOR_MAPPING_FILE = "mapping-dense_vector-all_element_types.json";
 
-    private final TestAnalyzer defaultAnalyzer = analyzer().addIndex("test", "mapping-multi-field-variation.json");
+    private static TestAnalyzer sampleData() {
+        return analyzer().addIndex("sample_data", "mapping-sample_data.json");
+    }
 
     public void testIndexResolution() {
         EsIndex idx = esIndex("idx");
@@ -427,7 +429,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowWithUnresolvableForwardReferences() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             ROW a = b + c, b = 1, c = 2
             """), containsString("""
             Found 2 problems
@@ -437,7 +439,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowWithSelfReference() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             ROW a = a
             """), containsString("""
             line 1:9: Unknown column [a]"""));
@@ -819,7 +821,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldAfterProject() {
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | keep unsupported
             | eval x = unsupported
@@ -830,7 +832,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldEvalAfterProject() {
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | keep unsupported
             | eval x = unsupported + 1
@@ -841,7 +843,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldFilterAfterProject() {
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | keep unsupported
             | where unsupported == null
@@ -852,7 +854,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldFunctionAfterProject() {
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | keep unsupported
             | where length(unsupported) > 0
@@ -863,7 +865,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldSortAfterProject() {
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | keep unsupported
             | sort unsupported
@@ -912,7 +914,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDropMultipleUnsupportedFieldsExplicitly() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | drop languages, gender
             """), containsString("Unknown column [languages]"));
@@ -1005,7 +1007,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRenameUnsupportedAndUnknown() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | rename text as t, doesnotexist as d
             """), containsString("Found 1 problem\n" + "line 2:21: Unknown column [doesnotexist]"));
@@ -1013,7 +1015,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRenameResolvedAndUnknown() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | rename int as i, doesnotexist as d
             """), containsString("Found 1 problem\n" + "line 2:20: Unknown column [doesnotexist]"));
@@ -1289,7 +1291,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCantFilterAfterDrop() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | stats c = avg(float) by int
             | drop int
@@ -1417,7 +1419,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testCompareDateToStringFails() {
         for (String comparison : COMPARISONS) {
-            assertThat(defaultAnalyzer.error("""
+            assertThat(defaultAnalyzer().error("""
                 from test
                 | where date COMPARISON "not-a-date"
                 | keep date
@@ -1428,7 +1430,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateFormatOnInt() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_format(int)
                 """),
@@ -1439,7 +1441,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateFormatOnFloat() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_format(float)
                 """),
@@ -1450,7 +1452,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateFormatOnText() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_format(keyword)
                 """),
@@ -1462,7 +1464,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDateFormatWithNumericFormat() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval date_format(1, date)
             """), containsString("first argument of [date_format(1, date)] must be [string], found value [1] type [integer]"));
@@ -1470,7 +1472,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDateFormatWithDateFormat() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval date_format(date, date)
             """), containsString("first argument of [date_format(date, date)] must be [string], found value [date] type [datetime]"));
@@ -1478,7 +1480,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDateParseOnInt() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval date_parse(keyword, int)
             """), containsString("second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]"));
@@ -1486,7 +1488,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDateParseOnDate() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval date_parse(keyword, date)
             """), containsString("second argument of [date_parse(keyword, date)] must be [string], found value [date] type [datetime]"));
@@ -1494,7 +1496,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDateParseOnIntPattern() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval date_parse(int, keyword)
             """), containsString("first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]"));
@@ -1503,7 +1505,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateTruncOnInt() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_trunc(1 month, int)
                 """),
@@ -1516,7 +1518,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateTruncOnFloat() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_trunc(1 month, float)
                 """),
@@ -1529,7 +1531,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateTruncOnText() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_trunc(1 month, keyword)
                 """),
@@ -1542,7 +1544,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateTruncWithNumericInterval() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_trunc(1, date)
                 """),
@@ -1553,7 +1555,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDateTruncWithDateInterval() {
         assertThat(
-            defaultAnalyzer.error("""
+            defaultAnalyzer().error("""
                 from test
                 | eval date_trunc(date, date)
                 """),
@@ -1566,7 +1568,7 @@ public class AnalyzerTests extends ESTestCase {
 
     // check field declaration is validated even across duplicated declarations
     public void testAggsWithDuplicatesAndNonExistingFunction() throws Exception {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             row a = 1, b = 2
             | stats x = non_existing(a), x = count(a) by b
             """), containsString("Unknown function [non_existing]"));
@@ -1575,7 +1577,7 @@ public class AnalyzerTests extends ESTestCase {
 
     // check field declaration is validated even across duplicated declarations
     public void testAggsWithDuplicatesAndNonExistingField() throws Exception {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             row a = 1, b = 2
             | stats x = max(non_existing), x = count(a) by b
             """), containsString("Unknown column [non_existing]"));
@@ -1755,17 +1757,17 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldsInStats() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | stats max(unsupported)
             """), containsString(errorMsg));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | stats max(int) by unsupported
             """), containsString(errorMsg));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | stats max(int) by bool, unsupported
             """), containsString(errorMsg));
@@ -1775,17 +1777,17 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldsInEval() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval x = unsupported
             """), containsString(errorMsg));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval foo = 1, x = unsupported
             """), containsString(errorMsg));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | eval x = 1 + unsupported
             """), containsString(errorMsg));
@@ -1795,12 +1797,12 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldsInWhere() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | where unsupported == "[1.0, 1.0]"
             """), containsString(errorMsg));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | where int > 2 and unsupported == "[1.0, 1.0]"
             """), containsString(errorMsg));
@@ -1810,12 +1812,12 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldsInSort() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | sort unsupported
             """), containsString(errorMsg));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | sort int, unsupported
             """), containsString(errorMsg));
@@ -1824,7 +1826,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedFieldsInDissect() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | dissect unsupported "%{foo}"
             """), containsString(errorMsg));
@@ -1833,7 +1835,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedFieldsInGrok() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | grok unsupported "%{WORD:foo}"
             """), containsString(errorMsg));
@@ -1843,7 +1845,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldsInUriParts() {
         assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | uri_parts p = unsupported
             """), containsString(errorMsg));
@@ -1853,7 +1855,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testUnsupportedFieldsInRegisteredDomain() {
         assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             from test
             | registered_domain rd = unsupported
             """), containsString(errorMsg));
@@ -1885,21 +1887,21 @@ public class AnalyzerTests extends ESTestCase {
                 + "or dense_vector or exponential_histogram or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
         assertThat(
-            defaultAnalyzer.error("row period = 1 year | eval to_string(period)"),
+            defaultAnalyzer().error("row period = 1 year | eval to_string(period)"),
             containsString(
                 "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
             )
         );
 
         assertThat(
-            defaultAnalyzer.error("row duration = 1 hour | eval to_string(duration)"),
+            defaultAnalyzer().error("row duration = 1 hour | eval to_string(duration)"),
             containsString(
                 "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
             )
         );
 
         assertThat(
-            defaultAnalyzer.error("from test | eval to_string(unsupported)"),
+            defaultAnalyzer().error("from test | eval to_string(unsupported)"),
             containsString("line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]")
         );
 
@@ -2271,7 +2273,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedTypesInStats() {
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
               row x = to_unsigned_long("10")
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """), containsString("""
@@ -2291,7 +2293,7 @@ public class AnalyzerTests extends ESTestCase {
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]"""));
 
-        assertThat(defaultAnalyzer.error("""
+        assertThat(defaultAnalyzer().error("""
             row x = to_version("1.2")
             | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
             """), containsString("""
@@ -2363,7 +2365,7 @@ public class AnalyzerTests extends ESTestCase {
 
         String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
         assertThat(
-            defaultAnalyzer.error(" from test | eval " + signature),
+            defaultAnalyzer().error(" from test | eval " + signature),
             containsString(
                 "second argument of ["
                     + signature
@@ -3442,7 +3444,7 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         assertThat(
-            defaultAnalyzer.error("ROW x = 1 | INSIST_🐔 x"),
+            defaultAnalyzer().error("ROW x = 1 | INSIST_🐔 x"),
             containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]")
         );
     }
@@ -5911,10 +5913,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = downsampled().query("""
             FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
-            """, "k8s-downsampled-mappings.json");
+            """);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -5948,12 +5950,12 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = sampleData().query("""
             FROM sample_data,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
-            """, "mapping-sample_data.json");
+            """);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -6664,5 +6666,17 @@ public class AnalyzerTests extends ESTestCase {
 
         assertTrue(externalRelation.fileSet().isUnresolved());
         assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
+    }
+
+    private static TestAnalyzer defaultAnalyzer() {
+        return analyzer().addIndex("test", "mapping-multi-field-variation.json");
+    }
+
+    private static TestAnalyzer sampleData() {
+        return analyzer().addIndex("sample_data", "mapping-sample_data.json");
+    }
+
+    private static TestAnalyzer downsampled() {
+        return analyzer().addIndex("k8s", "k8s-downsampled-mappings.json");
     }
 }

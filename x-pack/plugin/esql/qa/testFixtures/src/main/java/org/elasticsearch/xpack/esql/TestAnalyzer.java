@@ -42,8 +42,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Builder for constructing {@link MutableAnalyzerContext} instances in tests.
- * Provides "empty" defaults.
+ * Helper for testing all things related to {@link Analyzer#analyze}.
+ * <ul>
+ *     <li>{@link #query} for successful analysis
+ *     <li>{@link #error} for analysis errors
+ *     <li>{@link #buildAnalyzer} for building {@link Analyzer} for advanced usage
+ *     <li>{@link #buildContext} for building a {@link MutableAnalyzerContext} for
+ *         even more advanced usage
+ * </ul>
  */
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
