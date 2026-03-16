@@ -750,11 +750,12 @@ public class HashAggregationOperator implements Operator {
         try {
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             int blockOffset = keys.length;
-            var evaluationContext = evaluationContext(blockHash, keys);
-            for (int i = 0; i < aggregators.size(); i++) {
-                var aggregator = aggregators.get(i);
-                evaluateAggregator(aggregator, blocks, blockOffset, selected, evaluationContext);
-                blockOffset += aggBlockCounts[i];
+            try (GroupingAggregatorEvaluationContext evaluationContext = evaluationContext(blockHash, keys)) {
+                for (int i = 0; i < aggregators.size(); i++) {
+                    var aggregator = aggregators.get(i);
+                    evaluateAggregator(aggregator, blocks, blockOffset, selected, evaluationContext);
+                    blockOffset += aggBlockCounts[i];
+                }
             }
             Page result = new Page(blocks);
             blocks = null;
