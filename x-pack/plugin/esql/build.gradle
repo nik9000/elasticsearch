@@ -696,9 +696,11 @@ tasks.register("analyzePromqlQueries", JavaExec) {
 }
 
 tasks.withType(Javadoc).configureEach {
+  // Enable syntax highlighting for snippets, include ESQL
   def opts = (StandardJavadocDocletOptions) options
   opts.addBooleanOption('-allow-script-in-comments', true)
-  // The inline style below is borrowed from Elastic's primary stylesheet
+  // The inline style below is borrowed from Elastic's doc's primary stylesheet
+  // the rest is standard activation for highlight.js
   opts.header('''\
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
 <style>
