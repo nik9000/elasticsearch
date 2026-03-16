@@ -354,10 +354,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
-    /*
+    /**
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Project[[_score{m}#5]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     * }
      */
     public void testMetadataFieldDeclaredNullify() {
         // This isn't gilded since it would just create a bunch of clutter due to nesting.
@@ -378,10 +380,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
-    /*
+    /**
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false,false]
      * \_Project[[_score{m}#5]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, ...]
+     * }
      */
     public void testMetadataFieldDeclaredLoad() {
         // This isn't gilded since it would just create a bunch of clutter due to nesting.

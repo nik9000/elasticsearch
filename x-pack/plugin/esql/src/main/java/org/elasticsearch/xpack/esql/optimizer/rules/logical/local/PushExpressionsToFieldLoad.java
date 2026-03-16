@@ -61,11 +61,11 @@ import static org.elasticsearch.xpack.esql.core.expression.Attribute.rawTemporar
  *         When we see a PROJECT, add any new attributes to the projection so we can use
  *         them on previously visited nodes. So {@code KEEP foo | EVAL l = LENGTH(message)}
  *         becomes
- *         <pre>{@code
+ *         {@snippet lang="esql" :
  *           | KEEP foo, $$message$LENGTH$1324$$
  *           | EVAL l = $$message$LENGTH$1324$$
  *           | DROP $$message$LENGTH$1324$$}
- *         }</pre>
+ *         }
  *     </li>
  *     <li>
  *         When we see a relation, add the attribute to it.

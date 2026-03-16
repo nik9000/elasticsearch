@@ -188,11 +188,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text":
      * Project[[last_name{r}#7]]
      * \_Eval[[null[KEYWORD] AS last_name]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     * }
      */
     public void testMissingFieldInProject() {
         var plan = plan("""
@@ -219,12 +220,14 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(Expressions.names(source.output()), not(contains("last_name")));
     }
 
-    /*
+    /**
      * Expects a similar plan to testMissingFieldInProject() above, except for the Alias's child value
+     * {@snippet lang="text":
      * Project[[last_name{r}#4]]
      * \_Eval[[[66 6f 6f][KEYWORD] AS last_name]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }
      */
     public void testReassignedMissingFieldInProject() {
         var plan = plan("""
@@ -253,10 +256,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text" :
      * Project[[first_name{f}#4]]
      * \_Limit[10000[INTEGER]]
      * \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
+     * }
      */
     public void testMissingFieldInSort() {
         var plan = plan("""
@@ -278,7 +282,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text":
      * Project[[first_name{f}#7, last_name{r}#17]]
      * \_Limit[1000[INTEGER],true]
      *   \_MvExpand[last_name{f}#10,last_name{r}#17]
@@ -287,6 +291,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      *       \_Eval[[null[KEYWORD] AS last_name]]
      *         \_Limit[1000[INTEGER],false]
      *           \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -405,11 +410,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text":
      * Project[[x{r}#3]]
      * \_Eval[[null[INTEGER] AS x]]
      *   \_Limit[10000[INTEGER]]
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
+     * }
      */
     public void testMissingFieldInEval() {
         var plan = plan("""
@@ -436,8 +442,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text":
      * LocalRelation[[first_name{f}#4],EMPTY]
+     * }
      */
     public void testMissingFieldInFilterNumericWithReference() {
         var plan = plan("""
@@ -455,8 +462,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text":
      * LocalRelation[[first_name{f}#4],EMPTY]
+     * }
      */
     public void testMissingFieldInFilterNumericWithReferenceToEval() {
         var plan = plan("""
@@ -474,9 +482,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
-     * Expects
+     * {@snippet lang="text":
      * LocalRelation[[_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, gender{f}#7, languages{f}#8, last_name{f}#9, salary{f}#10, x
      * {r}#3],EMPTY]
+     * }
      */
     public void testMissingFieldInFilterNoProjection() {
         var plan = plan("""
@@ -512,12 +521,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * Test that fields with DataType.NULL from NULLIFY mode are replaced with constant null literals.
      * When unmapped_fields="nullify", the analyzer adds fields with DataType.NULL to EsRelation.
      * The local optimizer's ReplaceFieldWithConstantOrNull rule should replace these with Literal.NULL.
-     *
-     * Expects:
+     * {@snippet lang="text":
      * Project[[does_not_exist_field{r}#X]]
      * \_Eval[[null[NULL] AS does_not_exist_field]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][...]
+     * }
      */
     public void testNullifyModeFieldReplacedWithNull() {
         assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
@@ -543,12 +552,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Test that fields with DataType.NULL from NULLIFY mode used in EVAL are correctly replaced.
-     *
-     * Expects:
+     * {@snippet lang="text":
      * Project[[x{r}#X]]
      * \_Eval[[null[INTEGER] AS x]]
      *   \_Limit[1000[INTEGER],false]
      *     \_EsRelation[test][...]
+     * }
      */
     public void testNullifyModeFieldInEvalReplacedWithNull() {
         assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
@@ -765,10 +774,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var source = as(filter.child(), EsRelation.class);
     }
 
-    /*
+    /**
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false]
      * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]
      *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     * }
      */
     public void testReplaceUpperStringCasinqgWithInsensitiveRLike() {
         var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE \"VALÜ*\"");
@@ -783,10 +794,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var source = as(filter.child(), EsRelation.class);
     }
 
-    /*
-     *Limit[1000[INTEGER],false]
+    /**
+     * {@snippet lang="text":
+     * Limit[1000[INTEGER],false]
      * \_Filter[RLikeList(first_name{f}#4, "("VALÜ*", "TEST*")", true)]
-     *  \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     *   \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
+     * }
      */
     public void testReplaceUpperStringCasinqWithInsensitiveRLikeList() {
         var plan = localPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) RLIKE (\"VALÜ*\", \"TEST*\")");
@@ -917,8 +930,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
+     * {@snippet lang="text":
      * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
      *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     * }
      */
     public void testReplaceStringCasingAndLikeWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
@@ -928,8 +943,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
+     * {@snippet lang="text":
      * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
      *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     * }
      */
     public void testReplaceStringCasingAndLikeListWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE (\"VALÜ*\", \"TEST*\")");
@@ -939,8 +956,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
+     * {@snippet lang="text":
      * LocalRelation[[_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gender{f}#5, hire_date{f}#10, job{f}#11, job.raw{f}#12, langu
      *   ages{f}#6, last_name{f}#7, long_noidx{f}#13, salary{f}#8],EMPTY]
+     * }
      */
     public void testReplaceStringCasingAndRLikeListWithLocalRelation() {
         var plan = localPlan("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) RLIKE (\"VALÜ*\", \"TEST*\")");
@@ -950,10 +969,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
+     * {@snippet lang="text":
      * Limit[1000[INTEGER],false]
      * \_Aggregate[[],[SUM($$integer_long_field$converted_to$long{f$}#5,true[BOOLEAN]) AS sum(integer_long_field::long)#3]]
      *   \_Filter[ISNOTNULL($$integer_long_field$converted_to$long{f$}#5)]
      *     \_EsRelation[test*][!integer_long_field, $$integer_long_field$converted..]
+     * }
      */
     public void testUnionTypesInferNonNullAggConstraint() {
         LogicalPlan coordinatorOptimized = plan("FROM test* | STATS sum(integer_long_field::long)", analyzerWithUnionTypeMapping());
@@ -971,10 +992,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     /**
+     * {@snippet lang="text":
      * \_Aggregate[[first_name{r}#7, $$first_name$temp_name$17{r}#18],[SUM(salary{f}#11,true[BOOLEAN]) AS SUM(salary)#5, first_nam
      * e{r}#7, first_name{r}#7 AS last_name#10]]
      *   \_Eval[[null[KEYWORD] AS first_name#7, null[KEYWORD] AS $$first_name$temp_name$17#18]]
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }
      */
     public void testGroupingByMissingFields() {
         var plan = plan("FROM test | STATS SUM(salary) BY first_name, last_name");
@@ -1125,15 +1148,19 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Input:
+     * {@snippet lang="text":
      * Project[[key{f}#2, int{f}#3, field1{f}#7, field2{f}#8]]
      * \_Join[LEFT,[key{f}#2],[key{f}#6],null]
      *   |_EsRelation[JLfQlKmn][key{f}#2, int{f}#3, field1{f}#4, field2{f}#5]
      *   \_EsRelation[HQtEBOWq][LOOKUP][key{f}#6, field1{f}#7, field2{f}#8]
+     * }
      *
      * Output:
+     * {@snippet lang="text":
      * Project[[key{r}#2, int{f}#3, field1{r}#7, field1{r}#7 AS field2#8]]
      * \_Eval[[null[KEYWORD] AS key#2, null[INTEGER] AS field1#7]]
      *   \_EsRelation[JLfQlKmn][key{f}#2, int{f}#3, field1{f}#4, field2{f}#5]
+     * }
      */
     public void testPruneLeftJoinOnNullMatchingFieldAndShadowingAttributes() {
         var keyLeft = getFieldAttribute("key", KEYWORD);
@@ -1177,12 +1204,14 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
+     * {@snippet lang="text":
      * Project[[!alias_integer, boolean{f}#7, byte{f}#8, constant_keyword-foo{f}#9, date{f}#10, date_nanos{f}#11, dense_vector
      * {f}#26, double{f}#12, float{f}#13, half_float{f}#14, integer{f}#16, ip{f}#17, keyword{f}#18, long{f}#19, scaled_float{f}#15,
      * semantic_text{f}#25, short{f}#21, text{f}#22, unsigned_long{f}#20, version{f}#23, wildcard{f}#24, s{r}#5]]
      * \_Eval[[$$dense_vector$V_DOT_PRODUCT$27{f}#27 AS s#5]]
      *   \_Limit[1000[INTEGER],false,false]
      *     \_EsRelation[test_all][$$dense_vector$V_DOT_PRODUCT$27{f}#27, !alias_integer,
+     * }
      */
     public void testVectorFunctionsReplaced() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
@@ -1224,10 +1253,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * Expected:
+     * {@snippet lang="text":
      * Project[[s{r}#4]]
      * \_TopN[[Order[s{r}#4,DESC,FIRST]],1[INTEGER]]
      *   \_Eval[[$$dense_vector$replaced$28{t}#28 AS s#4]]
      *     \_EsRelation[types][$$dense_vector$replaced$28{t}#28, !alias_integer, b..]
+     * }
      */
     public void testVectorFunctionsReplacedWithTopN() {
         SimilarityFunctionTestCase testCase = SimilarityFunctionTestCase.random("dense_vector");
@@ -1912,7 +1943,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * Pushed LENGTH to the same field in a <strong>ton</strong> of unique and curious ways. All
      * of these pushdowns should be fused to one.
      *
-     * <pre>{@code
+     * {@snippet lang="text":
      * Project[[l{r}#23]]
      * \_Eval[[$$SUM$SUM(LENGTH(last>$0{r$}#37 / $$COUNT$$$AVG$SUM(LENGTH(last>$1$1{r$}#41 AS $$AVG$SUM(LENGTH(last>$1#38, $
      * $SUM$SUM(LENGTH(last>$0{r$}#37 + $$AVG$SUM(LENGTH(last>$1{r$}#38 + $$SUM$SUM(LENGTH(last>$2{r$}#39 AS l#23]]
@@ -1925,7 +1956,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * #35, $$first_name$LENGTH$920787299{f$}#43 AS $$LENGTH(first_na>$SUM$1#36]]
      *         \_Filter[$$last_name$LENGTH$920787299{f$}#42 > 1[INTEGER]]
      *           \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
-     * }</pre>
+     * }
      */
     public void testLengthPushdownZoo() {
         String query = """

@@ -72,7 +72,7 @@ public class FunctionDefinition {
 
     /**
      * Adds capabilities to mark changes or fixes to the function. Use it like:
-     * {@snippet :
+     * {@snippet lang="java" :
      * public static final FunctionDefinition DEFINITION = EsqlFunctionRegistry.ternary(IpPrefix.class, IpPrefix::new, "ip_prefix")
      *     .withSubCapabilities(
      *         List.of(
