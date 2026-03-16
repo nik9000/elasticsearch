@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper {

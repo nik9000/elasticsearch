@@ -19,11 +19,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
-* Evaluator for the <a href="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</a>.
-* We can't generate these with the {@link Evaluator} annotation because that
-* always implements viral null. And three-valued boolean expressions don't.
-* {@code false AND null} is {@code false} and {@code true OR null} is {@code true}.
-*/
+ * Evaluator for the <a href="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</a>.
+ * We can't generate these with the {@link Evaluator} annotation because that
+ * always implements viral null. And three-valued boolean expressions don't.
+ * {@code false AND null} is {@code false} and {@code true OR null} is {@code true}.
+ */
 public record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
     implements
         ExpressionEvaluator {

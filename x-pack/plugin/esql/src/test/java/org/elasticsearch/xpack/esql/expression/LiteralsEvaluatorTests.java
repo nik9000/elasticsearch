@@ -63,9 +63,6 @@ public class LiteralsEvaluatorTests extends ComputeTestCase {
         assertThat(factory().toString(), equalTo(testCase.expectedToString));
     }
 
-    /**
-     * A {@link DriverContext} with a nonBreakingBigArrays.
-     */
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
         return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
