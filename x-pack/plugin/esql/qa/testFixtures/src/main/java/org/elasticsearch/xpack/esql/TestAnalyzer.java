@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
@@ -63,7 +65,7 @@ public class TestAnalyzer {
     private InferenceResolution inferenceResolution = InferenceResolution.EMPTY;
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
-    private TransportVersion minimumTransportVersion = TransportVersion.current();
+    private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
     private boolean stripErrorPrefix;
 
     TestAnalyzer() {}
@@ -282,7 +284,7 @@ public class TestAnalyzer {
      * understand them.
      */
     public TestAnalyzer minimumTransportVersion(TransportVersion minimumTransportVersion) {
-        this.minimumTransportVersion = minimumTransportVersion;
+        this.minimumTransportVersion = () -> minimumTransportVersion;
         return this;
     }
 
@@ -371,7 +373,7 @@ public class TestAnalyzer {
             enrichResolution,
             inferenceResolution,
             ExternalSourceResolution.EMPTY,
-            minimumTransportVersion,
+            minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds
         );
