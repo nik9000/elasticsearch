@@ -82,7 +82,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             "unsigned_long",
             "version" },
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         description = """
             Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use
