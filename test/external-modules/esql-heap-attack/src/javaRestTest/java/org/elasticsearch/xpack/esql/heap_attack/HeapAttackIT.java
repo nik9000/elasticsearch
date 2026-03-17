@@ -867,13 +867,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     /**
-     * Tests that VALUES(long) agg with a large grouping state trips the circuit breaker.
+     * Tests that VALUES(long) agg with a large grouping state just small enough
+     * not to trip the breaker.
      */
     public void testValuesAggWithManyLongs() throws IOException {
         int countPer = 10;
         int echoFactor = 10;
         initManyLongs(countPer);
-        Map<String, Object> result = valuesFromManyLongs(countPer, echoFactor);
+        Map<String, Object> result = valuesFromMany(false, countPer, echoFactor);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "VALUES(vv)").entry("type", "long"));
         assertMap(result, matchesMap().entry("columns", columns).entry("values", hasSize(1)));
         List<?> values = (List<?>) result.get("values");
@@ -893,42 +894,19 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testValuesAggWithTooManyLongs() throws IOException {
         int countPer = 10;
         initManyLongs(countPer);
-        assertCircuitBreaks(attempt -> valuesFromManyLongs(countPer, attempt * 20));
-    }
-
-    private Map<String, Object> valuesFromManyLongs(int countPer, int echoFactor) throws IOException {
-        String query = """
-            FROM manylongs
-            | EVAL v = a + b * $b + c * $c + d * $d + e * $e
-            """;
-        query = query.replace("$b", Integer.toString(countPer));
-        query = query.replace("$c", Integer.toString(countPer * countPer));
-        query = query.replace("$d", Integer.toString(countPer * countPer * countPer));
-        query = query.replace("$e", Integer.toString(countPer * countPer * countPer * countPer));
-        StringBuilder q = new StringBuilder(query);
-        q.append("| EVAL vv = v\n");
-        long echoSize = ((long) countPer) * countPer * countPer * countPer * countPer;
-        long echo = echoSize;
-        for (int i = 0; i < echoFactor; i++) {
-            q.append("| EVAL vv = MV_UNION(MV_UNION(vv, v + ").append(echo);
-            echo += echoSize;
-            q.append("), MV_UNION(v + ").append(echo);
-            echo += echoSize;
-            q.append(", v + ").append(echo).append("))\n");
-            echo += echoSize;
-        }
-        return responseAsMap(query("{\"query\": \"" + q + "| STATS VALUES(vv)\"}", "columns, values"));
+        assertCircuitBreaks(attempt -> valuesFromMany(false, countPer, attempt * 20));
     }
 
     /**
-     * Tests that VALUES(keyword) agg with a large grouping state trips the circuit breaker.
+     * Tests that VALUES(keyword) agg with a large grouping state just small enough
+     * not to trip the breaker.
      */
     public void testValuesAggWithManyKeywords() throws IOException {
         int countPer = 10;
         int echoFactor = 5;
         initManyLongs(countPer);
 
-        Map<String, Object> result = valuesFromManyKeywords(countPer, echoFactor);
+        Map<String, Object> result = valuesFromMany(true, countPer, echoFactor);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "VALUES(vv)").entry("type", "keyword"));
         assertMap(result, matchesMap().entry("columns", columns).entry("values", hasSize(1)));
         List<?> values = (List<?>) result.get("values");
@@ -957,10 +935,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testValuesAggWithTooManyKeywords() throws IOException {
         int countPer = 10;
         initManyLongs(countPer);
-        assertCircuitBreaks(attempt -> valuesFromManyKeywords(countPer, attempt * 10));
+        assertCircuitBreaks(attempt -> valuesFromMany(true, countPer, attempt * 10));
     }
 
-    private Map<String, Object> valuesFromManyKeywords(int countPer, int echoFactor) throws IOException {
+    private Map<String, Object> valuesFromMany(boolean keyword, int countPer, int echoFactor) throws IOException {
         String query = """
             FROM manylongs
             | EVAL v = a + b * $b + c * $c + d * $d + e * $e
@@ -970,16 +948,31 @@ public class HeapAttackIT extends HeapAttackTestCase {
         query = query.replace("$d", Integer.toString(countPer * countPer * countPer));
         query = query.replace("$e", Integer.toString(countPer * countPer * countPer * countPer));
         StringBuilder q = new StringBuilder(query);
-        q.append("| EVAL v = v::KEYWORD\n");
+        if (keyword) {
+            q.append("| EVAL v = v::KEYWORD\n");
+        }
         q.append("| EVAL vv = v\n");
-        String echo = "a";
-        for (int i = 0; i < echoFactor; i++) {
-            q.append("| EVAL vv = MV_UNION(MV_UNION(vv, CONCAT(\\\"").append(echo).append("\\\", v)");
-            echo += "a";
-            q.append("), MV_UNION(CONCAT(\\\"").append(echo).append("\\\", v)");
-            echo += "a";
-            q.append(", CONCAT(\\\"").append(echo).append("\\\", v)))\n");
-            echo += "a";
+        if (keyword) {
+            String echo = "a";
+            for (int i = 0; i < echoFactor; i++) {
+                q.append("| EVAL vv = MV_UNION(MV_UNION(vv, CONCAT(\\\"").append(echo).append("\\\", v)");
+                echo += "a";
+                q.append("), MV_UNION(CONCAT(\\\"").append(echo).append("\\\", v)");
+                echo += "a";
+                q.append(", CONCAT(\\\"").append(echo).append("\\\", v)))\n");
+                echo += "a";
+            }
+        } else {
+            long echoSize = ((long) countPer) * countPer * countPer * countPer * countPer;
+            long echo = echoSize;
+            for (int i = 0; i < echoFactor; i++) {
+                q.append("| EVAL vv = MV_UNION(MV_UNION(vv, v + ").append(echo);
+                echo += echoSize;
+                q.append("), MV_UNION(v + ").append(echo);
+                echo += echoSize;
+                q.append(", v + ").append(echo).append("))\n");
+                echo += echoSize;
+            }
         }
         return responseAsMap(query("{\"query\": \"" + q + "| STATS VALUES(vv)\"}", "columns, values"));
     }
@@ -1071,7 +1064,6 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 ExponentialHistogramXContent.serialize(xContentBuilder, builder.build());
                 histoJson = Strings.toString(xContentBuilder);
             }
-            ;
 
             bulk.append(String.format(Locale.ROOT, """
                 {"create":{}}
