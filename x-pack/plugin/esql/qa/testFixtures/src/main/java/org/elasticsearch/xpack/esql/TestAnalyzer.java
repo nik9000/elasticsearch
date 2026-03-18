@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
  *     <li>{@link #query} for successful analysis
  *     <li>{@link #error} for analysis errors
  *     <li>{@link #buildAnalyzer} for building {@link Analyzer} for advanced usage
- *     <li>{@link #buildContext} for building am {@link AnalyzerContext} for
+ *     <li>{@link #buildContext} for building an {@link AnalyzerContext} for
  *         even more advanced usage
  * </ul>
  */
