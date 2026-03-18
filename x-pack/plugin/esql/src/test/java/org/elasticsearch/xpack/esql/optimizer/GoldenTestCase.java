@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.xpack.esql.CsvTests;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -62,7 +63,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.CsvTests.loadIndexResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -215,13 +218,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
-            var analyzer = EsqlTestUtils.analyzer()
-                .addIndexResolutions(CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)))
-                .addAnalysisTestsLookupResolutions()
+            TestAnalyzer testAnalyzer = analyzer().addAnalysisTestsLookupResolutions()
                 .addAnalysisTestsEnrichResolution()
                 .minimumTransportVersion(transportVersion)
-                .unmappedResolution(statement.setting(UNMAPPED_FIELDS))
-                .buildAnalyzer();
+                .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
+            loadIndexResolution(CsvTests.testDatasets(parsedPlan)).forEach(
+                (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
+            );
+            Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
             var analyzed = analyzer.analyze(parsedPlan);
             if (stages.contains(Stage.ANALYSIS)) {

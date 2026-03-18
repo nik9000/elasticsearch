@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -46,7 +45,6 @@ import java.util.function.Supplier;
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -58,7 +56,7 @@ import static org.hamcrest.Matchers.instanceOf;
  *     <li>{@link #query} for successful analysis
  *     <li>{@link #error} for analysis errors
  *     <li>{@link #buildAnalyzer} for building {@link Analyzer} for advanced usage
- *     <li>{@link #buildContext} for building a {@link MutableAnalyzerContext} for
+ *     <li>{@link #buildContext} for building am {@link AnalyzerContext} for
  *         even more advanced usage
  * </ul>
  */
@@ -67,8 +65,8 @@ public class TestAnalyzer {
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
-    private EnrichResolution enrichResolution = new EnrichResolution();
-    private InferenceResolution inferenceResolution = InferenceResolution.EMPTY;
+    private final EnrichResolution enrichResolution = new EnrichResolution();
+    private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
@@ -77,35 +75,46 @@ public class TestAnalyzer {
 
     TestAnalyzer() {}
 
+    /**
+     * Set the {@link Configuration} used for the query.
+     */
     public TestAnalyzer configuration(Configuration configuration) {
         this.configuration = configuration;
         return this;
     }
 
+    protected Configuration configuration() {
+        return configuration;
+    }
+
+    /**
+     * Set the {@link EsqlFunctionRegistry} use to resolve functions.
+     */
     public TestAnalyzer functionRegistry(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
         return this;
     }
 
+    /**
+     * Add an index to the query.
+     */
     public TestAnalyzer addIndex(String pattern, IndexResolution resolution) {
         this.indexResolutions.put(new IndexPattern(Source.EMPTY, pattern), resolution);
         return this;
     }
 
-    public TestAnalyzer addIndex(EsIndex index) {
-        return addIndex(IndexResolution.valid(index));
-    }
-
+    /**
+     * Add an index to the query.
+     */
     public TestAnalyzer addIndex(IndexResolution resolution) {
         return addIndex(resolution.get().name(), resolution);
     }
 
     /**
-     * Adds all entries from a pre-built map of index resolutions.
+     * Add an index to the query.
      */
-    public TestAnalyzer addIndexResolutions(Map<IndexPattern, IndexResolution> resolutions) {
-        this.indexResolutions.putAll(resolutions);
-        return this;
+    public TestAnalyzer addIndex(EsIndex index) {
+        return addIndex(IndexResolution.valid(index));
     }
 
     /**
@@ -139,6 +148,9 @@ public class TestAnalyzer {
         return addIndex(name, mappingFile, IndexMode.STANDARD);
     }
 
+    /**
+     * Adds an index resolution by loading the mapping from a resource file.
+     */
     public TestAnalyzer addIndex(String name, String mappingFile, IndexMode indexMode) {
         return addIndex(name, loadMapping(mappingFile, name, indexMode));
     }
@@ -188,6 +200,9 @@ public class TestAnalyzer {
         return addLookupIndex("spatial_lookup", "mapping-multivalue_geometries.json");
     }
 
+    /**
+     * Add an error resolving enrich indices.
+     */
     public TestAnalyzer addEnrichError(String policyName, Enrich.Mode mode, String reason) {
         enrichResolution.addError(policyName, mode, reason);
         return this;
@@ -257,41 +272,49 @@ public class TestAnalyzer {
         return this;
     }
 
-    public TestAnalyzer inferenceResolution(InferenceResolution inferenceResolution) {
-        this.inferenceResolution = inferenceResolution;
-        return this;
-    }
-
+    /**
+     * Set external source resolution.
+     */
     public TestAnalyzer externalSourceResolution(ExternalSourceResolution externalSourceResolution) {
         this.externalSourceResolution = externalSourceResolution;
         return this;
-    }
-
-    private static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
-    private static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
-    private static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
-    private static final String CHAT_COMPLETION_INFERENCE_ID = "chat-completion-inference-id";
-    private static final String SPARSE_EMBEDDING_INFERENCE_ID = "sparse-embedding-inference-id";
-    private static final String ERROR_INFERENCE_ID = "error-inference-id";
-
-    private static InferenceResolution defaultInferenceResolution() {
-        return InferenceResolution.builder()
-            .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
-            .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
-            .withResolvedInference(new ResolvedInference(TEXT_EMBEDDING_INFERENCE_ID, TaskType.TEXT_EMBEDDING))
-            .withResolvedInference(new ResolvedInference(CHAT_COMPLETION_INFERENCE_ID, TaskType.CHAT_COMPLETION))
-            .withResolvedInference(new ResolvedInference(SPARSE_EMBEDDING_INFERENCE_ID, TaskType.SPARSE_EMBEDDING))
-            .withError(ERROR_INFERENCE_ID, "error with inference resolution")
-            .build();
     }
 
     /**
      * Adds the standard set of inference resolutions used by many analyzer tests.
      */
     public TestAnalyzer addAnalysisTestsInferenceResolution() {
-        return inferenceResolution(defaultInferenceResolution());
+        addInferenceResolution("reranking-inference-id", TaskType.RERANK);
+        addInferenceResolution("completion-inference-id", TaskType.COMPLETION);
+        addInferenceResolution("text-embedding-inference-id", TaskType.TEXT_EMBEDDING);
+        addInferenceResolution("chat-completion-inference-id", TaskType.CHAT_COMPLETION);
+        addInferenceResolution("sparse-embedding-inference-id", TaskType.SPARSE_EMBEDDING);
+        return addInferenceResolutionError("error-inference-id", "error with inference resolution");
     }
 
+    /**
+     * Add an inference resolution.
+     */
+    public TestAnalyzer addInferenceResolution(String inferenceId, TaskType taskType) {
+        this.inferenceResolution.withResolvedInference(new ResolvedInference(inferenceId, taskType));
+        return this;
+    }
+
+    /**
+     * Add an error in inference resolution.
+     */
+    public TestAnalyzer addInferenceResolutionError(String inferenceId, String reason) {
+        this.inferenceResolution.withError(inferenceId, reason);
+        return this;
+    }
+
+    /**
+     * Set the unmapped field resolution {@link UnmappedResolution configuration}.
+     * <p>
+     *     NOTE: This is overridden by {@link #statement} and {@link #statementError}. If you
+     *     are using those methods you don't need to call this.
+     * </p>
+     */
     public TestAnalyzer unmappedResolution(UnmappedResolution unmappedResolution) {
         this.unmappedResolution = unmappedResolution;
         return this;
@@ -448,7 +471,7 @@ public class TestAnalyzer {
             indexResolutions,
             lookupResolution,
             enrichResolution,
-            inferenceResolution,
+            inferenceResolution.build(),
             externalSourceResolution,
             minimumTransportVersion.get(),
             unmappedResolution,
@@ -456,12 +479,18 @@ public class TestAnalyzer {
         );
     }
 
+    /**
+     * Load a mapping file.
+     */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
             new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
         );
     }
 
+    /**
+     * Load a mapping file in {@link IndexMode#STANDARD}.
+     */
     public static IndexResolution loadMapping(String resource, String indexName) {
         return loadMapping(resource, indexName, IndexMode.STANDARD);
     }

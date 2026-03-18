@@ -11,7 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.TestOptimizer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -24,37 +24,33 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static LogicalPlanOptimizer logicalOptimizer;
-    protected static Map<String, EsField> mapping;
 
     @BeforeClass
     protected static void init() {
-        mapping = loadMapping("mapping-basic.json");
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
     }
 
-    protected static TestAnalyzer testAnalyzer() {
-        return EsqlTestUtils.analyzer().addIndex("test", "mapping-basic.json").addAnalysisTestsLookupResolutions();
+    protected static TestOptimizer testAnalyzer() {
+        return EsqlTestUtils.optimizer().addIndex("test", "mapping-basic.json").addAnalysisTestsLookupResolutions();
     }
 
-    protected static TestAnalyzer allTypesAnalyzer() {
-        return EsqlTestUtils.analyzer().addIndex("test_all", "mapping-all-types.json");
+    protected static TestOptimizer allTypes() {
+        return EsqlTestUtils.optimizer().addIndex("test_all", "mapping-all-types.json");
     }
 
-    protected static TestAnalyzer tsAnalyzer() {
-        return EsqlTestUtils.analyzer()
+    protected static TestOptimizer ts() {
+        return EsqlTestUtils.optimizer()
             .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
             .addIndex("k8s-downsampled", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
     }
 
-    protected static TestAnalyzer metricsAnalyzer() {
+    protected static TestOptimizer metrics() {
         Map<String, EsField> metricsMapping = Map.of(
             "dimension_1",
             new EsField("dimension_1", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION),
@@ -69,7 +65,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
             "_tsid",
             new EsField("_tsid", DataType.TSID_DATA_TYPE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        return EsqlTestUtils.analyzer()
+        return EsqlTestUtils.optimizer()
             .addIndex(EsIndexGenerator.esIndex("test", metricsMapping, Map.of("test", IndexMode.TIME_SERIES)))
             .addAnalysisTestsLookupResolutions()
             .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages_idx", "id", "languages_idx", "mapping-languages.json");
@@ -80,7 +76,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected LogicalPlan localPlan(String query) {
-        return localPlan(optimize(testAnalyzer().query(query)), TEST_SEARCH_STATS);
+        return testAnalyzer().local(query);
     }
 
     protected LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {

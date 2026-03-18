@@ -81,6 +81,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
@@ -122,7 +123,9 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
@@ -549,7 +552,7 @@ public final class EsqlTestUtils {
     }
 
     /**
-     * Returns a new builder for constructing test analyzer context instances.
+     * Helper for testing all things related to {@link Analyzer#analyze}.
      */
     public static TestAnalyzer analyzer() {
         return new TestAnalyzer();
@@ -579,6 +582,14 @@ public final class EsqlTestUtils {
             .addAnalysisTestsEnrichResolution()
             .addAnalysisTestsInferenceResolution()
             .addAnalysisTestsIndexResolutions();
+    }
+
+    /**
+     * Helper for testing all things related to {@link LogicalPlanOptimizer#optimize}
+     * and {@link LocalLogicalPlanOptimizer#localOptimize}.
+     */
+    public static TestOptimizer optimizer() {
+        return new TestOptimizer();
     }
 
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
