@@ -166,7 +166,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.TestAnalyzer.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -212,7 +212,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
@@ -223,18 +223,15 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFailOnUnresolvedIndex() {
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "idx"), IndexResolution.invalid("Unknown index [idx]"))
+        assertThat(
+            analyzer().addIndex("idx", IndexResolution.invalid("Unknown index [idx]")).error("FROM idx"),
+            containsString("Unknown index [idx]")
         );
-
-        VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(UNRESOLVED_RELATION));
-
-        assertThat(e.getMessage(), containsString("Unknown index [idx]"));
     }
 
     public void testIndexWithClusterResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("cluster:idx");
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
 
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
@@ -247,7 +244,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAttributeResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
 
         var plan = analyzer.analyze(
             new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
@@ -271,7 +268,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolutionOfChainedReferences() {
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-one-field.json", "idx"));
+        var analyzer = analyzer().addIndex("idx", "mapping-one-field.json").buildAnalyzer();
 
         var plan = analyzer.analyze(
             new Eval(
@@ -303,7 +300,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAttributeResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
 
         var plan = analyzer.analyze(
             new Eval(
@@ -336,7 +333,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowWithForwardReferences() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
 
         var plan = analyzer.analyze(
             new Row(
@@ -382,7 +379,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowWithNonDeterministicReference() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
 
         // row a = random(5), b = a
         // (yes, random() is an internal command, thus why the test builds one "manually")
@@ -414,7 +411,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAndEvalWithNonDeterministicReference() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
+        var analyzer = analyzer().addIndex(idx).buildAnalyzer();
 
         // row a = random(100), b = a | eval x = random(100), y = x
         // (yes, random() is an internal command, thus why the test builds one "manually")
@@ -474,7 +471,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnresolvableAttribute() {
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-one-field.json", "idx"));
+        var analyzer = analyzer().addIndex("idx", "mapping-one-field.json").buildAnalyzer();
 
         VerificationException ve = expectThrows(
             VerificationException.class,

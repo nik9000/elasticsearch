@@ -104,6 +104,14 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds all entries from a pre-built map of index resolutions.
+     */
+    public TestAnalyzer addIndexResolutions(Map<IndexPattern, IndexResolution> resolutions) {
+        this.indexResolutions.putAll(resolutions);
+        return this;
+    }
+
+    /**
      * Adds the standard set of subquery index resolutions used by many analyzer tests.
      */
     public TestAnalyzer addAnalysisTestsIndexResolutions() {
@@ -451,9 +459,13 @@ public class TestAnalyzer {
         );
     }
 
-    private static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
+    public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
             new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Set.of())
         );
+    }
+
+    public static IndexResolution loadMapping(String resource, String indexName) {
+        return loadMapping(resource, indexName, IndexMode.STANDARD);
     }
 }

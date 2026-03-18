@@ -34,10 +34,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
 import static org.hamcrest.Matchers.containsString;
 
 public class CheckLicenseTests extends ESTestCase {
@@ -90,16 +86,10 @@ public class CheckLicenseTests extends ESTestCase {
     }
 
     private static Analyzer analyzer(EsqlFunctionRegistry registry, License.OperationMode operationMode) {
-        return new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                registry,
-                analyzerDefaultMapping(),
-                defaultEnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), getLicenseState(operationMode))
-        );
+        return EsqlTestUtils.analyzer()
+            .functionRegistry(registry)
+            .addEmployees("test")
+            .buildAnalyzer(new Verifier(new Metrics(TEST_FUNCTION_REGISTRY, true, true), getLicenseState(operationMode)));
     }
 
     private static XPackLicenseState getLicenseState(License.OperationMode operationMode) {
