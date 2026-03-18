@@ -170,14 +170,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.TEXT_EMBEDDING_INFERENCE_ID;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.unresolvedRelation;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
@@ -222,7 +217,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
         var plan = analyzer.analyze(UNRESOLVED_RELATION);
         var limit = as(plan, Limit.class);
 
@@ -233,7 +228,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFailOnUnresolvedIndex() {
-        Analyzer analyzer = analyzer(Map.of(new IndexPattern(Source.EMPTY, "idx"), IndexResolution.invalid("Unknown index [idx]")));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(
+            Map.of(new IndexPattern(Source.EMPTY, "idx"), IndexResolution.invalid("Unknown index [idx]"))
+        );
 
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(UNRESOLVED_RELATION));
 
@@ -242,7 +239,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testIndexWithClusterResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("cluster:idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(unresolvedRelation("cluster:idx"));
         var limit = as(plan, Limit.class);
@@ -255,7 +252,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testAttributeResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx", LoadMapping.loadMapping("mapping-one-field.json"));
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
             new Eval(EMPTY, UNRESOLVED_RELATION, List.of(new Alias(EMPTY, "e", new UnresolvedAttribute(EMPTY, "emp_no"))))
@@ -279,7 +276,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testAttributeResolutionOfChainedReferences() {
-        Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-one-field.json", "idx"));
 
         var plan = analyzer.analyze(
             new Eval(
@@ -311,7 +308,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAttributeResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
             new Eval(
@@ -344,7 +341,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowWithForwardReferences() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
 
         var plan = analyzer.analyze(
             new Row(
@@ -390,7 +387,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowWithNonDeterministicReference() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
 
         // row a = random(5), b = a
         // (yes, random() is an internal command, thus why the test builds one "manually")
@@ -422,7 +419,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRowAndEvalWithNonDeterministicReference() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
-        Analyzer analyzer = analyzer(IndexResolution.valid(idx));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(IndexResolution.valid(idx));
 
         // row a = random(100), b = a | eval x = random(100), y = x
         // (yes, random() is an internal command, thus why the test builds one "manually")
@@ -482,7 +479,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnresolvableAttribute() {
-        Analyzer analyzer = analyzer(loadMapping("mapping-one-field.json", "idx"));
+        Analyzer analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-one-field.json", "idx"));
 
         VerificationException ve = expectThrows(
             VerificationException.class,
@@ -1900,57 +1897,37 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEnrichPolicyWithError() {
-        IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
-        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
-        EnrichResolution enrichResolution = new EnrichResolution();
-        Map<String, String> enrichIndices = Map.of("", "languages");
-        enrichResolution.addResolvedPolicy(
-            "languages",
-            Enrich.Mode.COORDINATOR,
-            new ResolvedEnrichPolicy(
+        var analyzer = basic()
+            .addEnrichPolicy(
+                Enrich.Mode.COORDINATOR,
+                EnrichPolicy.MATCH_TYPE,
+                "languages",
                 "language_code",
-                "match",
-                List.of("language_code", "language_name"),
-                enrichIndices,
-                languageIndex.get().mapping()
+                "languages_idx",
+                "mapping-languages.json"
             )
-        );
-        enrichResolution.addError("languages", Enrich.Mode.REMOTE, "error-1");
-        enrichResolution.addError("languages", Enrich.Mode.ANY, "error-2");
-        enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
-
-        AnalyzerContext context = testAnalyzerContext(
-            configuration("from test"),
-            TEST_FUNCTION_REGISTRY,
-            indexResolutions(testIndex),
-            enrichResolution,
-            emptyInferenceResolution()
-        );
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+            .addEnrichError("languages", Enrich.Mode.REMOTE, "error-1")
+            .addEnrichError("languages", Enrich.Mode.ANY, "error-2")
+            .addEnrichError("foo", Enrich.Mode.ANY, "foo-error-101");
         {
-            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
+            LogicalPlan plan = analyzer.query("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x");
             List<Enrich> resolved = new ArrayList<>();
             plan.forEachDown(Enrich.class, resolved::add);
             assertThat(resolved, hasSize(1));
         }
-        var e = expectThrows(
-            VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _any:languages ON x", analyzer)
+        assertThat(
+            analyzer.error("from test | EVAL x = to_string(languages) | ENRICH _any:languages ON x"),
+            containsString("error-2")
         );
-        assertThat(e.getMessage(), containsString("error-2"));
-        e = expectThrows(
-            VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH languages ON xs", analyzer)
+        assertThat(
+            analyzer.error("from test | EVAL x = to_string(languages) | ENRICH languages ON xs"),
+            containsString("error-2")
         );
-        assertThat(e.getMessage(), containsString("error-2"));
-        e = expectThrows(
-            VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _remote:languages ON x", analyzer)
+        assertThat(
+            analyzer.error("from test | EVAL x = to_string(languages) | ENRICH _remote:languages ON x"),
+            containsString("error-1")
         );
-        assertThat(e.getMessage(), containsString("error-1"));
-
-        e = expectThrows(VerificationException.class, () -> analyze("from test | ENRICH foo", analyzer));
-        assertThat(e.getMessage(), containsString("foo-error-101"));
+        assertThat(analyzer.error("from test | ENRICH foo"), containsString("foo-error-101"));
     }
 
     public void testEnrichPolicyMatchFieldName() {
@@ -1983,12 +1960,23 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(e.getMessage(), containsString("Unsupported type [boolean] for enrich matching field [x]; only [keyword, "));
 
-        e = expectThrows(VerificationException.class, () -> analyze("""
-            FROM airports
-            | EVAL x = to_string(city_location)
-            | ENRICH city_boundaries ON x
-            | KEEP abbrev, airport, region
-            """, "airports", "mapping-airports.json"));
+        e = expectThrows(
+            VerificationException.class,
+            () -> analyzer().addIndex("airports", "mapping-airports.json")
+                .addEnrichPolicy(
+                    EnrichPolicy.GEO_MATCH_TYPE,
+                    "city_boundaries",
+                    "city_boundary",
+                    "airport_city_boundaries",
+                    "mapping-airport_city_boundaries.json"
+                )
+                .query("""
+                    FROM airports
+                    | EVAL x = to_string(city_location)
+                    | ENRICH city_boundaries ON x
+                    | KEEP abbrev, airport, region
+                    """)
+        );
         assertThat(e.getMessage(), containsString("Unsupported type [keyword] for enrich matching field [x]; only [geo_point, "));
     }
 
@@ -2026,34 +2014,72 @@ public class AnalyzerTests extends ESTestCase {
             "env"
         );
 
-        assertProjection(analyze("""
-            FROM employees
-            | WHERE birth_date > "1960-01-01"
-            | EVAL birth_year = DATE_EXTRACT("year", birth_date)
-            | EVAL age = 2022 - birth_year
-            | ENRICH ages_policy ON age WITH age_group = description
-            | KEEP first_name, last_name, age, age_group
-            """, "employees", "mapping-default.json"), "first_name", "last_name", "age", "age_group");
+        assertProjection(
+            analyzer().addIndex("employees", "mapping-default.json")
+                .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "ages_policy", "age_range", "ages", "mapping-ages.json")
+                .query("""
+                    FROM employees
+                    | WHERE birth_date > "1960-01-01"
+                    | EVAL birth_year = DATE_EXTRACT("year", birth_date)
+                    | EVAL age = 2022 - birth_year
+                    | ENRICH ages_policy ON age WITH age_group = description
+                    | KEEP first_name, last_name, age, age_group
+                    """),
+            "first_name",
+            "last_name",
+            "age",
+            "age_group"
+        );
 
-        assertProjection(analyze("""
-            FROM employees
-            | ENRICH heights_policy ON height WITH height_group = description
-            | KEEP first_name, last_name, height, height_group
-            """, "employees", "mapping-default.json"), "first_name", "last_name", "height", "height_group");
+        assertProjection(
+            analyzer().addIndex("employees", "mapping-default.json")
+                .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "heights_policy", "height_range", "heights", "mapping-heights.json")
+                .query("""
+                    FROM employees
+                    | ENRICH heights_policy ON height WITH height_group = description
+                    | KEEP first_name, last_name, height, height_group
+                    """),
+            "first_name",
+            "last_name",
+            "height",
+            "height_group"
+        );
 
-        assertProjection(analyze("""
-            FROM employees
-            | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
-            | ENRICH decades_policy ON hire_date WITH hire_decade = decade
-            | KEEP first_name, last_name, birth_decade, hire_decade, birth_description
-            """, "employees", "mapping-default.json"), "first_name", "last_name", "birth_decade", "hire_decade", "birth_description");
+        assertProjection(
+            analyzer().addIndex("employees", "mapping-default.json")
+                .addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "decades_policy", "date_range", "decades", "mapping-decades.json")
+                .query("""
+                    FROM employees
+                    | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
+                    | ENRICH decades_policy ON hire_date WITH hire_decade = decade
+                    | KEEP first_name, last_name, birth_decade, hire_decade, birth_description
+                    """),
+            "first_name",
+            "last_name",
+            "birth_decade",
+            "hire_decade",
+            "birth_description"
+        );
 
-        assertProjection(analyze("""
-            FROM airports
-            | WHERE abbrev == "CPH"
-            | ENRICH city_boundaries ON city_location WITH airport, region
-            | KEEP abbrev, airport, region
-            """, "airports", "mapping-airports.json"), "abbrev", "airport", "region");
+        assertProjection(
+            analyzer().addIndex("airports", "mapping-airports.json")
+                .addEnrichPolicy(
+                    EnrichPolicy.GEO_MATCH_TYPE,
+                    "city_boundaries",
+                    "city_boundary",
+                    "airport_city_boundaries",
+                    "mapping-airport_city_boundaries.json"
+                )
+                .query("""
+                    FROM airports
+                    | WHERE abbrev == "CPH"
+                    | ENRICH city_boundaries ON city_location WITH airport, region
+                    | KEEP abbrev, airport, region
+                    """),
+            "abbrev",
+            "airport",
+            "region"
+        );
     }
 
     public void testEnrichExcludesPolicyKey() {
@@ -2067,36 +2093,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEnrichFieldsIncludeMatchField() {
-        String query = """
+        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
+        LogicalPlan plan = basic().addEnrichPolicy(
+            Enrich.Mode.ANY,
+            "languages",
+            new ResolvedEnrichPolicy(
+                "language_code",
+                EnrichPolicy.MATCH_TYPE,
+                List.of("language_code", "language_name"),
+                Map.of("", "languages"),
+                languageIndex.get().mapping()
+            )
+        ).query("""
             FROM test
             | EVAL x = to_string(languages)
             | ENRICH languages ON x
             | KEEP language_name, language_code
-            """;
-        IndexResolution testIndex = loadMapping("mapping-basic.json", "test");
-        IndexResolution languageIndex = loadMapping("mapping-languages.json", "languages");
-        EnrichResolution enrichResolution = new EnrichResolution();
-        Map<String, String> enrichIndices = Map.of("", "languages");
-        enrichResolution.addResolvedPolicy(
-            "languages",
-            Enrich.Mode.ANY,
-            new ResolvedEnrichPolicy(
-                "language_code",
-                "match",
-                List.of("language_code", "language_name"),
-                enrichIndices,
-                languageIndex.get().mapping()
-            )
-        );
-        AnalyzerContext context = testAnalyzerContext(
-            configuration(query),
-            TEST_FUNCTION_REGISTRY,
-            indexResolutions(testIndex),
-            enrichResolution,
-            emptyInferenceResolution()
-        );
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
-        LogicalPlan plan = analyze(query, analyzer);
+            """);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
     }
@@ -2114,9 +2127,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testCounterTypes() {
-        var query = "FROM test | KEEP network.* | LIMIT 10";
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        LogicalPlan plan = analyze(query, analyzer);
+        LogicalPlan plan = tsdb().query("FROM test | KEEP network.* | LIMIT 10");
         var limit = as(plan, Limit.class);
         var attributes = limit.output().stream().collect(Collectors.toMap(NamedExpression::name, a -> a));
         assertThat(
@@ -2487,30 +2498,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testLookupJoinUnknownIndex() {
         String errorMessage = "Unknown index [foobar]";
-        IndexResolution missingLookupIndex = IndexResolution.invalid(errorMessage);
+        var ta = basic().addLookupIndex("foobar", IndexResolution.invalid(errorMessage));
 
-        Analyzer analyzerMissingLookupIndex = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                analyzerDefaultMapping(),
-                Map.of("foobar", missingLookupIndex),
-                defaultEnrichResolution(),
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
+        assertThat(ta.error("FROM test | LOOKUP JOIN foobar ON last_name"), containsString("1:25: " + errorMessage));
 
-        String query = "FROM test | LOOKUP JOIN foobar ON last_name";
-
-        VerificationException e = expectThrows(VerificationException.class, () -> analyze(query, analyzerMissingLookupIndex));
-        assertThat(e.getMessage(), containsString("1:25: " + errorMessage));
-
-        String query2 = "FROM test | LOOKUP JOIN foobar ON missing_field";
-
-        e = expectThrows(VerificationException.class, () -> analyze(query2, analyzerMissingLookupIndex));
-        assertThat(e.getMessage(), containsString("1:25: " + errorMessage));
-        assertThat(e.getMessage(), not(containsString("[missing_field]")));
+        String error2 = ta.error("FROM test | LOOKUP JOIN foobar ON missing_field");
+        assertThat(error2, containsString("1:25: " + errorMessage));
+        assertThat(error2, not(containsString("[missing_field]")));
     }
 
     public void testLookupJoinUnknownField() {
@@ -2806,35 +2800,31 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTimeseriesDefaultLimitIs1B() {
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        assertDefaultLimitForQuery(analyzer, "TS test | STATS avg(rate(network.bytes_in))", DEFAULT_TIMESERIES_LIMIT);
-        assertDefaultLimitForQuery(analyzer, "TS test ", DEFAULT_LIMIT);
+        assertDefaultLimitForQuery("TS test | STATS avg(rate(network.bytes_in))", DEFAULT_TIMESERIES_LIMIT);
+        assertDefaultLimitForQuery("TS test ", DEFAULT_LIMIT);
         assertDefaultLimitForQuery(
-            analyzer,
             "TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket",
             DEFAULT_TIMESERIES_LIMIT
         );
-        assertDefaultLimitForQuery(analyzer, "FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
+        assertDefaultLimitForQuery("FROM test | STATS avg(to_long(network.bytes_in))", DEFAULT_LIMIT);
     }
 
     public void testLimitForPromQL() {
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        assertDefaultLimitForQuery(analyzer, """
+        assertDefaultLimitForQuery("""
             PROMQL index=test
                 step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
                 avg(rate(network.bytes_in[5m]))""", DEFAULT_TIMESERIES_LIMIT);
     }
 
-    private static void assertDefaultLimitForQuery(Analyzer analyzer, String query, int expectedLimit) {
-        var plan = analyze(query, analyzer);
+    private static void assertDefaultLimitForQuery(String query, int expectedLimit) {
+        var plan = tsdb().query(query);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
     }
 
     public void testImplicitTimestampSortForTsQuery() {
         // TS query without STATS or SORT should have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test", analyzer);
+        var plan = tsdb().query("TS test");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -2850,8 +2840,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testImplicitTimestampSortWithKeep() {
         // TS query with KEEP should have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | KEEP @timestamp, host", analyzer);
+        var plan = tsdb().query("TS test | KEEP @timestamp, host");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -2866,8 +2855,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testImplicitTimestampSortWithExplicitLimit() {
         // TS query with explicit LIMIT should still have implicit sort below the user's limit
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | KEEP @timestamp, host | LIMIT 5", analyzer);
+        var plan = tsdb().query("TS test | KEEP @timestamp, host | LIMIT 5");
 
         // AddImplicitLimit wraps the user's Limit in a cap Limit
         var outerLimit = as(plan, Limit.class);
@@ -2885,8 +2873,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortWithStats() {
         // TS query with STATS should NOT have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+        var plan = tsdb().query("TS test | STATS avg(rate(network.bytes_in))");
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
@@ -2894,8 +2881,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortWithExplicitSort() {
         // TS query with explicit sort should keep it
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | SORT host", analyzer);
+        var plan = tsdb().query("TS test | SORT host");
 
         var limit = as(plan, Limit.class);
         var orderBy = as(limit.child(), OrderBy.class);
@@ -2908,8 +2894,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortWhenTimestampDropped() {
         // TS query with @timestamp dropped
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("TS test | DROP @timestamp", analyzer);
+        var plan = tsdb().query("TS test | DROP @timestamp");
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
@@ -2917,19 +2902,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNoImplicitTimestampSortForNotTsQuery() {
         // Not TS query should NOT have implicit sort
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var plan = analyze("FROM test", analyzer);
+        var plan = tsdb().query("FROM test");
 
         var limit = as(plan, Limit.class);
         assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
     public void testRateRequiresCounterTypes() {
-        Analyzer analyzer = analyzer(tsdbIndexResolution());
-        var query = "TS test | STATS avg(rate(network.connections))";
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
         assertThat(
-            error.getMessage(),
+            tsdb().error("TS test | STATS avg(rate(network.connections))"),
             containsString(
                 "first argument of [rate(network.connections)] must be"
                     + " [counter_long, counter_integer or counter_double], found value [network.connections] type [long]"
@@ -3397,12 +3378,14 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFromEnrichAndMatchColonUsage() {
-        LogicalPlan plan = analyze("""
-            from *:test
-            | EVAL x = to_string(languages)
-            | ENRICH _any:languages ON x
-            | WHERE first_name: "Anna"
-            """, "*:test", "mapping-default.json");
+        LogicalPlan plan = analyzer().addIndex("*:test", "mapping-default.json")
+            .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+            .query("""
+                from *:test
+                | EVAL x = to_string(languages)
+                | ENRICH _any:languages ON x
+                | WHERE first_name: "Anna"
+                """);
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var match = as(filter.condition(), MatchOperator.class);
@@ -3482,11 +3465,10 @@ public class AnalyzerTests extends ESTestCase {
     public void testInsist_afterRowThrowsException() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> analyze("ROW x = 1 | INSIST_🐔 x", analyzer(TEST_VERIFIER))
+        assertThat(
+            basic().error("ROW x = 1 | INSIST_🐔 x"),
+            containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]")
         );
-        assertThat(e.getMessage(), containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]"));
     }
 
     public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
@@ -3521,7 +3503,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         String query = "FROM foo, bar | INSIST_🐔 message";
-        var plan = analyze(query, analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query)));
+        var plan = analyzer().addIndex(resolution).query(query);
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
@@ -3546,7 +3528,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             IndexResolver.DO_NOT_GROUP
         );
-        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
@@ -3575,7 +3557,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             IndexResolver.DO_NOT_GROUP
         );
-        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
@@ -3602,7 +3584,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             IndexResolver.DO_NOT_GROUP
         );
-        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
@@ -3629,7 +3611,7 @@ public class AnalyzerTests extends ESTestCase {
             ),
             IndexResolver.DO_NOT_GROUP
         );
-        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("FROM foo, bar | INSIST_🐔 message");
         var limit = as(plan, Limit.class);
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
@@ -3659,7 +3641,8 @@ public class AnalyzerTests extends ESTestCase {
         );
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> analyze("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
+            () -> analyzer().addIndex(resolution)
+                .query("FROM foo, bar | INSIST_🐔 message | EVAL message = message :: keyword")
         );
         // This isn't the most informative error, but it'll do for now.
         assertThat(
@@ -3681,7 +3664,7 @@ public class AnalyzerTests extends ESTestCase {
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyzer().addIndex(resolution).query("FROM foo");
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(DENSE_VECTOR));
         }
@@ -3692,7 +3675,7 @@ public class AnalyzerTests extends ESTestCase {
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, false, false),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyzer().addIndex(resolution).query("FROM foo");
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
@@ -3716,7 +3699,7 @@ public class AnalyzerTests extends ESTestCase {
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, true, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyzer().addIndex(resolution).query("FROM foo");
             assertThat(plan.output(), hasSize(1));
             assertThat(
                 plan.output().getFirst().dataType(),
@@ -3730,7 +3713,7 @@ public class AnalyzerTests extends ESTestCase {
                 new IndexResolver.FieldsInfo(caps, TransportVersion.minimumCompatible(), false, false, true, false),
                 IndexResolver.DO_NOT_GROUP
             );
-            var plan = analyze("FROM foo", analyzer(resolution, TEST_VERIFIER));
+            var plan = analyzer().addIndex(resolution).query("FROM foo");
             assertThat(plan.output(), hasSize(1));
             assertThat(plan.output().getFirst().dataType(), equalTo(UNSUPPORTED));
         }
@@ -3748,7 +3731,7 @@ public class AnalyzerTests extends ESTestCase {
             fieldsInfoOnCurrentVersion(caps, false),
             (p, r) -> Map.of()
         );
-        var plan = analyze("FROM test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("FROM test | KEEP status");
         assertThat(plan.output(), hasSize(1));
         assertThat(plan.output().getFirst().name(), equalTo("status"));
         assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
@@ -3768,7 +3751,7 @@ public class AnalyzerTests extends ESTestCase {
             (p, r) -> Map.of()
         );
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
-        var plan = analyze("TS test | STATS avg(rate(bytes_in)) BY status", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("TS test | STATS avg(rate(bytes_in)) BY status");
         var statusAttr = plan.output().stream().filter(a -> a.name().equals("status")).findFirst().orElseThrow();
         assertThat(statusAttr.dataType(), equalTo(UNSUPPORTED));
     }
@@ -3785,7 +3768,7 @@ public class AnalyzerTests extends ESTestCase {
             fieldsInfoOnCurrentVersion(caps, false),
             (p, r) -> Map.of()
         );
-        var plan = analyze("TS test | KEEP status", analyzer(resolution, TEST_VERIFIER));
+        var plan = analyzer().addIndex(resolution).query("TS test | KEEP status");
         assertThat(plan.output(), hasSize(1));
         assertThat(plan.output().getFirst().name(), equalTo("status"));
         assertThat(plan.output().getFirst().dataType(), equalTo(KEYWORD));
@@ -3804,10 +3787,10 @@ public class AnalyzerTests extends ESTestCase {
             (p, r) -> Map.of()
         );
         assertThat(resolution.get().mapping().get("status"), instanceOf(InvalidMappedField.class));
-        var plan = analyze("""
+        var plan = analyzer().addIndex(resolution).query("""
             PROMQL index=test
                 step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z"
-                avg(rate(bytes_in[5m]))""", analyzer(resolution, TEST_VERIFIER));
+                avg(rate(bytes_in[5m]))""");
         assertThat(resolution.get().mapping().get("status").getDataType(), equalTo(UNSUPPORTED));
     }
 
@@ -4247,8 +4230,7 @@ public class AnalyzerTests extends ESTestCase {
         );
         IndexResolver.FieldsInfo caps = fieldsInfoOnCurrentVersion(new FieldCapabilitiesResponse(idxResponses, List.of()));
         IndexResolution resolution = IndexResolver.mergedMappings("test*", false, caps, IndexResolver.DO_NOT_GROUP);
-        var analyzer = analyzer(indexResolutions(resolution), TEST_VERIFIER, configuration(query));
-        return analyze(query, analyzer);
+        return analyzer().addIndex(resolution).query(query);
     }
 
     private void assertEmptyEsRelation(LogicalPlan plan) {
@@ -4927,10 +4909,9 @@ public class AnalyzerTests extends ESTestCase {
             Set.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
-        Analyzer analyzer = analyzer(resolution);
 
         String query = "FROM union_index* | KEEP id, foo | MV_EXPAND foo | EVAL id = id::keyword";
-        LogicalPlan plan = analyze(query, analyzer);
+        LogicalPlan plan = analyzer().addIndex(resolution).query(query);
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child().children().getFirst(), Eval.class);
@@ -4971,14 +4952,13 @@ public class AnalyzerTests extends ESTestCase {
             Set.of()
         );
         IndexResolution resolution = IndexResolution.valid(index);
-        Analyzer analyzer = analyzer(resolution);
 
         String query = """
             FROM union_index*
             | KEEP id
             | EVAL x = id::long
             """;
-        LogicalPlan plan = analyze(query, analyzer);
+        LogicalPlan plan = analyzer().addIndex(resolution).query(query);
 
         Project topProject = as(plan, Project.class);
         var projections = topProject.projections();
@@ -5013,18 +4993,17 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testImplicitCastingForDateAndDateNanosFields() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 
         // Validate if a union typed field is cast to a type explicitly, implicit casting won't be applied again, and include some cases of
         // nested casting as well.
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = analyzer().addIndex(indexWithUnionTypedFields).query("""
             FROM index*
             | Eval a = date_and_date_nanos, b = date_and_date_nanos::datetime, c = date_and_date_nanos::date_nanos,
                    d = date_and_date_nanos::datetime::datetime, e = date_and_date_nanos::datetime::date_nanos,
                    f = date_and_date_nanos::date_nanos::datetime, g = date_and_date_nanos::date_nanos::date_nanos,
                    h = date_and_date_nanos::datetime::long, i = date_and_date_nanos::date_nanos::long,
                    j = date_and_date_nanos::long::datetime, k = date_and_date_nanos::long::date_nanos
-            """, analyzer);
+            """);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -6318,9 +6297,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var anonymous_plan = analyze(
+            var anonymous_plan = basic().query(
                 "from test | where first_name like ?",
-                "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*")))
             );
             var limit = as(anonymous_plan, Limit.class);
@@ -6332,9 +6310,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var positional_plan = analyze(
+            var positional_plan = basic().query(
                 "from test | where first_name like (?1, ?2)",
-                "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant(null, "Anna*"), paramAsConstant(null, "Chris*")))
             );
             var limit = as(positional_plan, Limit.class);
@@ -6347,9 +6324,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRLikeParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var named_plan = analyze(
+            var named_plan = basic().query(
                 "from test | where first_name rlike ?pattern",
-                "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("pattern", "Anna*")))
             );
             var limit = as(named_plan, Limit.class);
@@ -6361,9 +6337,8 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testRLikeListParameters() {
         if (EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled()) {
-            var named_plan = analyze(
+            var named_plan = basic().query(
                 "from test | where first_name rlike (?p1, ?p2)",
-                "mapping-basic.json",
                 new QueryParams(List.of(paramAsConstant("p1", "Anna*"), paramAsConstant("p2", "Chris*")))
             );
             var limit = as(named_plan, Limit.class);
@@ -6380,12 +6355,7 @@ public class AnalyzerTests extends ESTestCase {
             | eval a = hire_date + 1d, b = hire_date - 1d
             """;
         Configuration configuration = configuration(query);
-        var analyzer = analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
-            TEST_VERIFIER,
-            configuration
-        );
-        var plan = analyze(query, analyzer);
+        var plan = basic().configuration(configuration).query(query);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -6402,12 +6372,7 @@ public class AnalyzerTests extends ESTestCase {
             | eval string = hire_date::string, date = first_name::date, nanos = first_name::date_nanos
             """;
         Configuration configuration = configuration(query);
-        var analyzer = analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
-            TEST_VERIFIER,
-            configuration
-        );
-        var plan = analyze(query, analyzer);
+        var plan = basic().configuration(configuration).query(query);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -6424,13 +6389,7 @@ public class AnalyzerTests extends ESTestCase {
         var query = """
             from test METADATA _inde*
             """;
-        Configuration configuration = configuration(query);
-        var analyzer = analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
-            TEST_VERIFIER,
-            configuration
-        );
-        var plan = analyze(query, analyzer);
+        var plan = basic().configuration(configuration(query)).query(query);
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
         var output = relation.output();
@@ -6444,13 +6403,7 @@ public class AnalyzerTests extends ESTestCase {
         var query = """
             from test METADATA  _index, _inde*
             """;
-        Configuration configuration = configuration(query);
-        var analyzer = analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
-            TEST_VERIFIER,
-            configuration
-        );
-        var plan = analyze(query, analyzer);
+        var plan = basic().configuration(configuration(query)).query(query);
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
         var output = relation.output();
@@ -6464,13 +6417,7 @@ public class AnalyzerTests extends ESTestCase {
         var query = """
             from test METADATA  _inde*, _index
             """;
-        Configuration configuration = configuration(query);
-        var analyzer = analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
-            TEST_VERIFIER,
-            configuration
-        );
-        var plan = analyze(query, analyzer);
+        var plan = basic().configuration(configuration(query)).query(query);
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
         var output = relation.output();
@@ -6484,13 +6431,7 @@ public class AnalyzerTests extends ESTestCase {
         var query = """
             from test METADATA *nde*
             """;
-        Configuration configuration = configuration(query);
-        var analyzer = analyzer(
-            Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping("mapping-basic.json", "test")),
-            TEST_VERIFIER,
-            configuration
-        );
-        var plan = analyze(query, analyzer);
+        var plan = basic().configuration(configuration(query)).query(query);
         var limit = as(plan, Limit.class);
         var relation = as(limit.child(), EsRelation.class);
         var output = relation.output();
@@ -6701,6 +6642,10 @@ public class AnalyzerTests extends ESTestCase {
 
     private static TestAnalyzer denseVector() {
         return analyzer().addIndex("test", "mapping-dense_vector-all_element_types.json");
+    }
+
+    private static TestAnalyzer tsdb() {
+        return analyzer().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
     }
 
     private static TestAnalyzer k8s() {

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -242,7 +241,8 @@ public final class AnalyzerTestUtils {
     public static LogicalPlan analyze(String query) {
         var indexName = indexFromQuery(query);
         var indexResolutions = indexResolutions(indexName);
-        return analyze(query, analyzer(indexResolutions, TEST_VERIFIER, TEST_CFG));
+        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, TEST_CFG);
+        return analyzer.analyze(TEST_PARSER.parseQuery(query));
     }
 
     /**
@@ -276,39 +276,9 @@ public final class AnalyzerTestUtils {
         return analyzed;
     }
 
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static LogicalPlan analyze(String query, String mapping) {
-        return analyze(query, indexFromQuery(query), mapping);
-    }
 
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static LogicalPlan analyze(String query, String index, String mapping) {
-        Map<IndexPattern, IndexResolution> indexResolutions = index == null
-            ? Map.of()
-            : Map.of(new IndexPattern(Source.EMPTY, index), loadMapping(mapping, index));
-        return analyze(query, analyzer(indexResolutions, TEST_VERIFIER, configuration(query)));
-    }
 
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static LogicalPlan analyze(String query, Analyzer analyzer) {
-        var plan = TEST_PARSER.parseQuery(query);
-        // System.out.println(plan);
-        var analyzed = analyzer.analyze(plan);
-        // System.out.println(analyzed);
-        return analyzed;
-    }
+
 
     private static final Map<String, EsField> MAPPING_BASIC_RESOLUTION = EsqlTestUtils.loadMapping("mapping-basic.json");
 
@@ -334,16 +304,7 @@ public final class AnalyzerTestUtils {
         return null;
     }
 
-    public static LogicalPlan analyze(String query, String mapping, QueryParams params) {
-        return analyze(query, indexFromQuery(query), mapping, params);
-    }
 
-    public static LogicalPlan analyze(String query, String index, String mapping, QueryParams params) {
-        var plan = TEST_PARSER.parseQuery(query, params);
-        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, index), loadMapping(mapping, index));
-        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query));
-        return analyzer.analyze(plan);
-    }
 
     public static UnresolvedRelation unresolvedRelation(String index) {
         return new UnresolvedRelation(

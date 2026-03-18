@@ -147,9 +147,16 @@ public class TestAnalyzer {
     /**
      * Adds a lookup index.
      */
-    public TestAnalyzer addLookupIndex(IndexResolution resolution) {
-        this.lookupResolution.put(resolution.get().name(), resolution);
+    public TestAnalyzer addLookupIndex(String name, IndexResolution resolution) {
+        this.lookupResolution.put(name, resolution);
         return this;
+    }
+
+    /**
+     * Adds a lookup index.
+     */
+    public TestAnalyzer addLookupIndex(IndexResolution resolution) {
+        return addLookupIndex(resolution.get().name(), resolution);
     }
 
     /**
