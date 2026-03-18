@@ -26,56 +26,80 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 
 /**
  * Helper for testing all things related to {@link LogicalPlanOptimizer#optimize}
- * and {@link LocalLogicalPlanOptimizer#localOptimize}.
+ * and {@link LocalLogicalPlanOptimizer#localOptimize}. Defaults an empty config.
  */
 public class TestOptimizer {
     private final TestAnalyzer analyzer = new TestAnalyzer();
     private SearchStats searchStats = TEST_SEARCH_STATS;
 
+    /**
+     * Set the {@link SearchStats} used for optimization.
+     */
     public TestOptimizer searchStats(SearchStats searchStats) {
         this.searchStats = searchStats;
         return this;
     }
 
-    public LogicalPlanOptimizer buildLogicalOptimizer() {
+    private LogicalPlanOptimizer buildLogicalOptimizer() {
         return new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
     }
 
-    public LocalLogicalPlanOptimizer buildLocalLogicalOptimizer() {
+    private LocalLogicalPlanOptimizer buildLocalLogicalOptimizer() {
         var localContext = new LocalLogicalOptimizerContext(analyzer.configuration(), FoldContext.small(), searchStats);
         return new LocalLogicalPlanOptimizer(localContext);
     }
 
     /**
-     * Build the optimizer, parse the query, analyze it, and optimize it.
+     * Builds the coordinating node {@link LogicalPlan}. The steps:
+     * <ol>
+     *     <li>Parse</li>
+     *     <li>Analyze</li>
+     *     <li>Run coordinating node logical plan optimizations</li>
+     * </ol>
      */
-    public LogicalPlan coordinator(String query) {
+    public LogicalPlan coordinatorPlan(String query) {
         return buildLogicalOptimizer().optimize(analyzer.query(query));
     }
 
     /**
-     * Build the optimizer, parse the query, analyze it, and optimize it.
+     * Builds the local node {@link LogicalPlan}. The steps:
+     * <ol>
+     *     <li>Parse</li>
+     *     <li>Analyze</li>
+     *     <li>Run coordinating node logical plan optimizations</li>
+     *     <li>Run local node logical plan optimizations</li>
+     * </ol>
      */
-    public LogicalPlan local(String query) {
-        return buildLocalLogicalOptimizer().localOptimize(coordinator(query));
+    public LogicalPlan localPlan(String query) {
+        return buildLocalLogicalOptimizer().localOptimize(coordinatorPlan(query));
     }
 
+    /**
+     * A {@link LogicalPlan} and {@link PhysicalPlan}.
+     */
     public record LogicalAndPhysical(LogicalPlan logical, PhysicalPlan physical) {}
 
     /**
-     * Build a {@link LogicalPlan} and a {@link PhysicalPlan}.
+     * Builds the {@link PhysicalPlan}. The steps:
+     * <ol>
+     *     <li>Parse</li>
+     *     <li>Analyze</li>
+     *     <li>Run coordinating node logical plan optimizations</li>
+     *     <li>Run local node logical plan optimizations</li>
+     *     <li>Run the physical plan {@link Mapper}</li>
+     * </ol>
      */
-    public LogicalAndPhysical physical(String query) {
+    public LogicalAndPhysical physicalPlan(String query) {
         Analyzer analyzer = this.analyzer.buildAnalyzer();
         LogicalPlan logical = buildLogicalOptimizer().optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         logical = buildLocalLogicalOptimizer().localOptimize(logical);
-        var mapper = new Mapper();
-        PhysicalPlan physical = mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
+        PhysicalPlan physical = new Mapper().map(new Versioned<>(logical, analyzer.context().minimumVersion()));
         return new LogicalAndPhysical(logical, physical);
     }
 
-    // ==================
+    // =======================================
     // Below this is delegates to TestAnalyzer
+    // =======================================
 
     /**
      * Adds an index resolution by loading the mapping from a resource file.

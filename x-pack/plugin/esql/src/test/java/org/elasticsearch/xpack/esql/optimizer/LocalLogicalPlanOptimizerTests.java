@@ -149,7 +149,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * LocalRelation[[first_name{f}#4],EMPTY]
      */
     public void testMissingFieldInFilterNumeric() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | where emp_no > 10
             | keep first_name
@@ -167,7 +167,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * LocalRelation[[first_name{f}#4],EMPTY]
      */
     public void testMissingFieldInFilterString() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | where starts_with(last_name, "abc")
             | keep first_name
@@ -188,7 +188,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      *     \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, gen..]
      */
     public void testMissingFieldInProject() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | keep last_name
             """);
@@ -220,7 +220,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
      */
     public void testReassignedMissingFieldInProject() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | keep last_name
             | eval last_name = "foo"
@@ -252,7 +252,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * \_EsRelation[test][_meta_field{f}#9, emp_no{f}#3, first_name{f}#4, !ge..]
      */
     public void testMissingFieldInSort() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | sort last_name
             | keep first_name
@@ -282,7 +282,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      *           \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testMissingFieldInMvExpand() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | mv_expand last_name
             | keep first_name, last_name
@@ -364,7 +364,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             testStats
         );
 
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             """);
         var initialRelation = plan.collectLeaves().get(0);
@@ -405,7 +405,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      *     \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, !g..]
      */
     public void testMissingFieldInEval() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | eval x = emp_no + 1
             | keep x
@@ -433,7 +433,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * LocalRelation[[first_name{f}#4],EMPTY]
      */
     public void testMissingFieldInFilterNumericWithReference() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | eval x = emp_no
             | where x > 10
@@ -452,7 +452,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * LocalRelation[[first_name{f}#4],EMPTY]
      */
     public void testMissingFieldInFilterNumericWithReferenceToEval() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | eval x = emp_no + 1
             | where x > 10
@@ -472,7 +472,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      * {r}#3],EMPTY]
      */
     public void testMissingFieldInFilterNoProjection() {
-        var plan = testAnalyzer().coordinator("""
+        var plan = testAnalyzer().coordinatorPlan("""
               from test
             | eval x = emp_no
             | where x > 10
@@ -963,7 +963,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
      *     \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
      */
     public void testGroupingByMissingFields() {
-        var plan = testAnalyzer().coordinator("FROM test | STATS SUM(salary) BY first_name, last_name");
+        var plan = testAnalyzer().coordinatorPlan("FROM test | STATS SUM(salary) BY first_name, last_name");
         var testStats = statsForMissingField("first_name", "last_name");
         var localPlan = localPlan(plan, testStats);
         Limit limit = as(localPlan, Limit.class);
@@ -1177,7 +1177,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | eval s = %s
             """, testCase.toQuery());
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         // Project[[!alias_integer, boolean{f}#7, byte{f}#8, ... s{r}#5]]
         var project = as(plan, Project.class);
@@ -1225,7 +1225,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep s
             """, testCase.toQuery());
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         // Project[[s{r}#4]]
         var project = as(plan, Project.class);
@@ -1275,7 +1275,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             public boolean isIndexed(FieldAttribute.FieldName field) {
                 return field.string().equals("dense_vector") == false;
             }
-        }).local(query);
+        }).localPlan(query);
 
         // Project[[s{r}#4]]
         var project = as(plan, Project.class);
@@ -1304,7 +1304,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     public void testAggregateMetricDouble() {
         String query = "FROM k8s-downsampled | STATS m = min(network.eth0.tx)";
 
-        LogicalPlan plan = ts().local(query);
+        LogicalPlan plan = ts().localPlan(query);
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -1333,7 +1333,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | STATS s = sum(network.eth0.tx), a = avg(network.eth0.tx)
             """;
 
-        LogicalPlan plan = ts().local(query);
+        LogicalPlan plan = ts().localPlan(query);
 
         // Project[[s{r}#5, a{r}#8]]
         var project = as(plan, Project.class);
@@ -1388,7 +1388,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                   a = avg(avg_over_time(network.eth0.tx))
             BY pod, time_bucket = BUCKET(@timestamp,5minute)
             """;
-        LogicalPlan plan = ts().local(query);
+        LogicalPlan plan = ts().localPlan(query);
 
         // Project[[m{r}#9, c{r}#12, a{r}#15, pod{r}#19, time_bucket{r}#6]]
         var project = as(plan, Project.class);
@@ -1463,7 +1463,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | LIMIT 9
             """;
 
-        LogicalPlan plan = ts().local(query);
+        LogicalPlan plan = ts().localPlan(query);
 
         // Project[[@timestamp{f}#972, cluster{f}#973, pod{f}#974, network.eth0.tx{f}#991, tx_max{r}#962]]
         var project = as(plan, Project.class);
@@ -1511,7 +1511,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             public boolean exists(FieldAttribute.FieldName field) {
                 return field.string().equals("dense_vector") == false;
             }
-        }).local(query);
+        }).localPlan(query);
 
         // Project[[s{r}#5]]
         var project = as(plan, Project.class);
@@ -1546,7 +1546,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | keep dense_vector
             """, testCase.toQuery());
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         // Project[[dense_vector{f}#25]]
         var project = as(plan, Project.class);
@@ -1583,7 +1583,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | stats count(*) where %s > 0.5
             """, testCase.toQuery());
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -1634,7 +1634,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | limit 1
             """, testCase.toQuery());
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         // Project with all fields including similarity and keyword
         var project = as(plan, Project.class);
@@ -1701,7 +1701,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             testCase3.toQuery()
         );
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         // Project[[s1{r}#5, s2{r}#8, r2{r}#14]]
         var project = as(plan, Project.class);
@@ -1813,7 +1813,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | EVAL l = LENGTH(last_name)
             | KEEP l
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
@@ -1829,7 +1829,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             FROM test
             | WHERE LENGTH(last_name) > 1
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -1844,7 +1844,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             FROM test
             | STATS l = SUM(LENGTH(last_name))
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -1865,7 +1865,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | EVAL l = LENGTH(l3)
             | KEEP l
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
@@ -1882,7 +1882,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | WHERE LENGTH(last_name) > 1
             | EVAL l = LENGTH(last_name)
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
@@ -1921,7 +1921,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | WHERE a1 > 1 and LENGTH(last_name) > 1
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), contains("l"));
@@ -2003,7 +2003,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             FROM test
             | STATS l = SUM(LENGTH(last_name)) + AVG(LENGTH(last_name))
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var project = as(plan, Project.class);
         var eval1 = as(project.child(), Eval.class);
@@ -2028,7 +2028,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             FROM test
             | STATS last_name = SUM(LENGTH(last_name)), first_name = SUM(LENGTH(first_name))
             """;
-        LogicalPlan plan = testAnalyzer().local(query);
+        LogicalPlan plan = testAnalyzer().localPlan(query);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -2062,7 +2062,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     public void testFullTextFunctionOnMissingField() {
         String functionName = randomFrom("match", "match_phrase");
-        var plan = testAnalyzer().coordinator(String.format(Locale.ROOT, """
+        var plan = testAnalyzer().coordinatorPlan(String.format(Locale.ROOT, """
             from test
             | where %s(first_name, "John") or %s(last_name, "Doe")
             """, functionName, functionName));
@@ -2093,7 +2093,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | where knn(dense_vector, [0, 1, 2]) or match(text, "Doe")
             """;
 
-        LogicalPlan plan = allTypes().local(query);
+        LogicalPlan plan = allTypes().localPlan(query);
 
         var testStats = statsForMissingField("dense_vector");
         var localPlan = localPlan(plan, testStats);
@@ -2124,7 +2124,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 | LIMIT 10
                 | KEEP text, score
             """);
-        TestOptimizer.LogicalAndPhysical plan = allTypes().physical(query);
+        TestOptimizer.LogicalAndPhysical plan = allTypes().physicalPlan(query);
 
         // Verify the logical plan structure:
         // Project[[text{f}#1105, score{r}#1085]]
@@ -2186,7 +2186,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 | LIMIT 10
                 | KEEP text, fieldLength
             """);
-        var physicalPlan = allTypes().physical(query).physical();
+        var physicalPlan = allTypes().physicalPlan(query).physical();
         var coordAndDataNodePlans = breakPlanBetweenCoordinatorAndDataNode(physicalPlan, TEST_CFG);
 
         var coordPlan = coordAndDataNodePlans.v1();
@@ -2216,7 +2216,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 (eval t = v_dot_product(dense_vector, [1, 2, 3]) | keep t, u, keyword)
             | eval x = length(keyword)
             """;
-        var localPlan = allTypes().local(query);
+        var localPlan = allTypes().localPlan(query);
 
         var eval = as(localPlan, Eval.class);
         // Cosine function has not been pushed down as it targets a reference and not a field
@@ -2304,7 +2304,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | eval t = v_dot_product(dense_vector, [1, 2, 3])
             | keep s, t
             """;
-        var localPlan = allTypes().local(query);
+        var localPlan = allTypes().localPlan(query);
 
         // Project[[s{r}#97, t{r}#9]]
         var project = as(localPlan, Project.class);
@@ -2368,7 +2368,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | eval u = length(language_name)
             """;
 
-        var localPlan = testAnalyzer().local(query);
+        var localPlan = testAnalyzer().localPlan(query);
 
         // Project[[s{r}#124, languages{f}#141 AS language_code#127, last_name{f}#142, language_name{f}#150, t{r}#134, u{r}#137]]
         var project = as(localPlan, Project.class);
