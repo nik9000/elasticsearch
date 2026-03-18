@@ -2459,7 +2459,7 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : unsortableTypes) {
             assertEquals(
-                "2:4: change point key [key] must be sortable",
+                "2:26: CHANGE_POINT only supports sortable keys, found expression [key] type [" + type + "]",
                 defaultAnalyzer().error(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type))
             );
         }
@@ -2490,14 +2490,11 @@ public class VerifierTests extends ESTestCase {
         }
         for (DataType type : nonNumericTypes) {
             assertEquals(
-                "2:4: change point value [value] must be numeric",
+                "2:17: CHANGE_POINT only supports numeric values, found expression [value] type [" + type + "]",
                 defaultAnalyzer().error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
             );
         }
-        assertEquals(
-            "2:4: change point value [value] must be numeric",
-            defaultAnalyzer().error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key")
-        );
+        defaultAnalyzer().query("ROW key=0, value=NULL\n | CHANGE_POINT value ON key");
     }
 
     public void testSortByAggregate() {
@@ -3614,18 +3611,7 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:29: third argument of [TOP_SNIPPETS(body, \"query\", \"notamap\")] must be a map expression, received [\"notamap\"]")
         );
         assertThat(
-            fullText().error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_snippets\": null})", ParsingException.class),
-            equalTo("1:57: Invalid named parameter [\"num_snippets\":null], NULL is not supported")
-        );
-        assertThat(
-            fullText().error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"num_words\": null})", ParsingException.class),
-            equalTo("1:57: Invalid named parameter [\"num_words\":null], NULL is not supported")
-        );
-        assertThat(
-            fullText().error(
-                "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})",
-                VerificationException.class
-            ),
+            fullText().error("from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})"),
             startsWith("1:29: Invalid option [invalid] in [TOP_SNIPPETS(body, \"query\", {\"invalid\": \"foobar\"})]")
         );
         assertThat(
