@@ -198,10 +198,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | RENAME emp_no AS empNo, language_code AS languageCode
             | MV_EXPAND languageCode
             """);
-        String msg = test()
-            .addAnalysisTestsIndexResolutions()
-            .addAnalysisTestsLookupResolutions()
-            .statementError(stmt);
+        String msg = test().addAnalysisTestsIndexResolutions().addAnalysisTestsLookupResolutions().statementError(stmt);
         assertThat(msg, containsString("Found 4 problems"));
         assertThat(msg, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
         assertThat(msg, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
@@ -404,18 +401,12 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testLoadModeDisallowsFork() {
         var stmt = setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)");
-        assertThat(
-            test().statementError(stmt),
-            containsString("FORK is not supported with unmapped_fields=\"load\"")
-        );
+        assertThat(test().statementError(stmt), containsString("FORK is not supported with unmapped_fields=\"load\""));
     }
 
     public void testLoadModeDisallowsForkWithStats() {
         var stmt = setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))");
-        assertThat(
-            test().statementError(stmt),
-            containsString("FORK is not supported with unmapped_fields=\"load\"")
-        );
+        assertThat(test().statementError(stmt), containsString("FORK is not supported with unmapped_fields=\"load\""));
     }
 
     public void testLoadModeDisallowsForkWithMultipleBranches() {
@@ -425,10 +416,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                    (WHERE emp_no < 100)
                    (WHERE salary > 50000)
             """);
-        assertThat(
-            test().statementError(stmt),
-            containsString("FORK is not supported with unmapped_fields=\"load\"")
-        );
+        assertThat(test().statementError(stmt), containsString("FORK is not supported with unmapped_fields=\"load\""));
     }
 
     public void testLoadModeDisallowsLookupJoin() {
@@ -587,7 +575,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             );
         }
         assertThat(
-            EsqlTestUtils.analyzer().addIndex("test", "mapping-full_text_search.json")
+            EsqlTestUtils.analyzer()
+                .addIndex("test", "mapping-full_text_search.json")
                 .statementError(setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector")),
             containsString("does not support full-text search function [KNN]")
         );

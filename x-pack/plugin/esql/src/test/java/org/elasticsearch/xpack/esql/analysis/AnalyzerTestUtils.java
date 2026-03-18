@@ -9,18 +9,14 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
-import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -85,34 +81,13 @@ public final class AnalyzerTestUtils {
         CHAT_COMPLETION_INFERENCE_ID,
         SPARSE_EMBEDDING_INFERENCE_ID
     );
+
     public static String randomInferenceId() {
         return ESTestCase.randomFrom(VALID_INFERENCE_IDS);
     }
 
     public static String randomInferenceIdOtherThan(String... excludes) {
         return ESTestCase.randomValueOtherThanMany(Arrays.asList(excludes)::contains, AnalyzerTestUtils::randomInferenceId);
-    }
-
-    public static void loadEnrichPolicyResolution(
-        EnrichResolution enrich,
-        String policyType,
-        String policy,
-        String field,
-        String index,
-        String mapping
-    ) {
-        IndexResolution indexResolution = loadMapping(mapping, index);
-        List<String> enrichFields = new ArrayList<>(indexResolution.get().mapping().keySet());
-        enrichFields.remove(field);
-        enrich.addResolvedPolicy(
-            policy,
-            Enrich.Mode.ANY,
-            new ResolvedEnrichPolicy(field, policyType, enrichFields, Map.of("", index), indexResolution.get().mapping())
-        );
-    }
-
-    public static void loadEnrichPolicyResolution(EnrichResolution enrich, String policy, String field, String index, String mapping) {
-        loadEnrichPolicyResolution(enrich, EnrichPolicy.MATCH_TYPE, policy, field, index, mapping);
     }
 
     public static IndexResolution indexWithDateDateNanosUnionType() {
