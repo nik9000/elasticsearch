@@ -8,33 +8,23 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
-import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzeStatement;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -49,8 +39,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | KEEP does_not_exist_field*
             """;
         var failure = "No matches found for pattern [does_not_exist_field*]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailKeepAndMatchingAndNonMatchingStar() {
@@ -59,8 +48,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | KEEP emp_*, does_not_exist_field*
             """;
         var failure = "No matches found for pattern [does_not_exist_field*]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailAfterKeep() {
@@ -70,8 +58,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL x = does_not_exist_field + 1
             """;
         var failure = "Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailDropWithNonMatchingStar() {
@@ -80,8 +67,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | DROP does_not_exist_field*
             """;
         var failure = "No matches found for pattern [does_not_exist_field*]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailDropWithMatchingAndNonMatchingStar() {
@@ -90,8 +76,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | DROP emp_*, does_not_exist_field*
             """;
         var failure = "No matches found for pattern [does_not_exist_field*]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailEvalAfterDrop() {
@@ -102,8 +87,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """;
 
         var failure = "3:12: Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailFilterAfterDrop() {
@@ -115,8 +99,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """;
 
         var failure = "line 4:9: Unknown column [emp_no]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailDropThenKeep() {
@@ -126,8 +109,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | KEEP does_not_exist_field
             """;
         var failure = "line 3:8: Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailDropThenEval() {
@@ -137,8 +119,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL does_not_exist_field + 2
             """;
         var failure = "line 3:8: Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailEvalThenDropThenEval() {
@@ -151,8 +132,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL does_not_exist_field::LONG + 2
             """;
         var failure = "line 6:8: Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailStatsThenKeep() {
@@ -162,20 +142,18 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | KEEP does_not_exist_field
             """;
         var failure = "line 3:8: Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailStatsThenKeepShadowing() {
         var query = """
-            FROM employees
+            FROM test
             | STATS count(*)
             | EVAL foo = emp_no
             """;
 
         var failure = "line 3:14: Unknown column [emp_no]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailStatsThenEval() {
@@ -185,8 +163,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL x = does_not_exist_field + cnt
             """;
         var failure = "line 3:12: Unknown column [does_not_exist_field]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailAfterUnionAllOfStats() {
@@ -194,20 +171,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var query = """
             FROM
-                (FROM employees
+                (FROM test
                  | STATS c = COUNT(*))
             | SORT does_not_exist
             """;
         var failure = "line 4:8: Unknown column [does_not_exist]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     // unmapped_fields="load" disallows subqueries and LOOKUP JOIN (see #142033)
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        var e = expectThrows(VerificationException.class, () -> analyzeStatement(setUnmappedLoad("""
+        var stmt = setUnmappedLoad("""
             FROM test,
                 (FROM languages
                  | WHERE language_code > 10
@@ -221,8 +197,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
             | RENAME emp_no AS empNo, language_code AS languageCode
             | MV_EXPAND languageCode
-            """)));
-        String msg = e.getMessage();
+            """);
+        String msg = test()
+            .addAnalysisTestsIndexResolutions()
+            .addAnalysisTestsLookupResolutions()
+            .statementError(stmt);
         assertThat(msg, containsString("Found 4 problems"));
         assertThat(msg, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
         assertThat(msg, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
@@ -241,8 +220,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | WHERE does_not_exist2::LONG < 10
             """;
         var failure = "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions(), query, failure);
     }
 
     public void testFailSubquerysWithNoMainAndStatsOnlyLoad() {
@@ -257,8 +235,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | WHERE does_not_exist2::LONG < 10
             """;
         var failure = "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions(), query, failure);
     }
 
     public void testFailAfterForkOfStats() {
@@ -272,16 +249,14 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | EVAL e = does_not_exist3 + 1
             """;
         var failure = "line 7:12: Unknown column [does_not_exist3]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailMetadataFieldInKeep() {
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var query = "FROM test | KEEP " + field;
             var failure = "Unknown column [" + field + "]";
-            verificationFailure(setUnmappedNullify(query), failure);
-            verificationFailure(setUnmappedLoad(query), failure);
+            assertUnmappedFailure(test(), query, failure);
         }
     }
 
@@ -289,8 +264,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var query = "FROM test | EVAL x = " + field;
             var failure = "Unknown column [" + field + "]";
-            verificationFailure(setUnmappedNullify(query), failure);
-            verificationFailure(setUnmappedLoad(query), failure);
+            assertUnmappedFailure(test(), query, failure);
         }
     }
 
@@ -298,8 +272,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var query = "FROM test | WHERE " + field + " IS NOT NULL";
             var failure = "Unknown column [" + field + "]";
-            verificationFailure(setUnmappedNullify(query), failure);
-            verificationFailure(setUnmappedLoad(query), failure);
+            assertUnmappedFailure(test(), query, failure);
         }
     }
 
@@ -307,8 +280,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var query = "FROM test | SORT " + field;
             var failure = "Unknown column [" + field + "]";
-            verificationFailure(setUnmappedNullify(query), failure);
-            verificationFailure(setUnmappedLoad(query), failure);
+            assertUnmappedFailure(test(), query, failure);
         }
     }
 
@@ -316,8 +288,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var query = "FROM test | STATS x = COUNT(" + field + ")";
             var failure = "Unknown column [" + field + "]";
-            verificationFailure(setUnmappedNullify(query), failure);
-            verificationFailure(setUnmappedLoad(query), failure);
+            assertUnmappedFailure(test(), query, failure);
         }
     }
 
@@ -325,8 +296,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
             var query = "FROM test | RENAME " + field + " AS renamed";
             var failure = "Unknown column [" + field + "]";
-            verificationFailure(setUnmappedNullify(query), failure);
-            verificationFailure(setUnmappedLoad(query), failure);
+            assertUnmappedFailure(test(), query, failure);
         }
     }
 
@@ -337,8 +307,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | KEEP _score
             """;
         var failure = "Unknown column [_score]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailMetadataFieldInFork() {
@@ -348,8 +317,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                    (WHERE salary > 50000)
             """;
         var failure = "Unknown column [_score]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     public void testFailMetadataFieldInSubquery() {
@@ -361,8 +329,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                  | WHERE _score > 1)
             """;
         var failure = "Unknown column [_score]";
-        verificationFailure(setUnmappedNullify(query), failure);
-        verificationFailure(setUnmappedLoad(query), failure);
+        assertUnmappedFailure(test(), query, failure);
     }
 
     /*
@@ -373,7 +340,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testMetadataFieldDeclaredNullify() {
         // This isn't gilded since it would just create a bunch of clutter due to nesting.
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
-            var plan = analyzeStatement(setUnmappedNullify("FROM test METADATA " + field + " | KEEP " + field));
+            var plan = test().statement(setUnmappedNullify("FROM test METADATA " + field + " | KEEP " + field));
 
             var limit = as(plan, Limit.class);
             assertThat(limit.limit().fold(FoldContext.small()), is(1000));
@@ -397,7 +364,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testMetadataFieldDeclaredLoad() {
         // This isn't gilded since it would just create a bunch of clutter due to nesting.
         for (String field : MetadataAttribute.ATTRIBUTES_MAP.keySet()) {
-            var plan = analyzeStatement(setUnmappedLoad("FROM test METADATA " + field + " | KEEP " + field));
+            var plan = test().statement(setUnmappedLoad("FROM test METADATA " + field + " | KEEP " + field));
 
             var limit = as(plan, Limit.class);
             assertThat(limit.limit().fold(FoldContext.small()), is(1000));
@@ -414,96 +381,125 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testChangedTimestmapFieldWithRate() {
-        verificationFailure(setUnmappedNullify("""
+        var stmt1 = setUnmappedNullify("""
             TS k8s
             | RENAME @timestamp AS newTs
             | STATS max(rate(network.total_cost)) BY tbucket = BUCKET(newTs, 1hour)
-            """), "3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX);
+            """);
+        assertThat(
+            EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions().statementError(stmt1),
+            containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+        );
 
-        verificationFailure(setUnmappedNullify("""
+        var stmt2 = setUnmappedNullify("""
             TS k8s
             | DROP @timestamp
             | STATS max(rate(network.total_cost))
-            """), "3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX);
+            """);
+        assertThat(
+            EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions().statementError(stmt2),
+            containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
+        );
     }
 
     public void testLoadModeDisallowsFork() {
-        verificationFailure(
-            setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)"),
-            "FORK is not supported with unmapped_fields=\"load\""
+        var stmt = setUnmappedLoad("FROM test | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)");
+        assertThat(
+            test().statementError(stmt),
+            containsString("FORK is not supported with unmapped_fields=\"load\"")
         );
     }
 
     public void testLoadModeDisallowsForkWithStats() {
-        verificationFailure(
-            setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))"),
-            "FORK is not supported with unmapped_fields=\"load\""
+        var stmt = setUnmappedLoad("FROM test | FORK (STATS c = COUNT(*)) (STATS d = AVG(salary))");
+        assertThat(
+            test().statementError(stmt),
+            containsString("FORK is not supported with unmapped_fields=\"load\"")
         );
     }
 
     public void testLoadModeDisallowsForkWithMultipleBranches() {
-        verificationFailure(setUnmappedLoad("""
+        var stmt = setUnmappedLoad("""
             FROM test
             | FORK (WHERE emp_no > 1)
                    (WHERE emp_no < 100)
                    (WHERE salary > 50000)
-            """), "FORK is not supported with unmapped_fields=\"load\"");
+            """);
+        assertThat(
+            test().statementError(stmt),
+            containsString("FORK is not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsLookupJoin() {
-        verificationFailure(
-            setUnmappedLoad("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code"),
-            "LOOKUP JOIN is not supported with unmapped_fields=\"load\""
+        var stmt = setUnmappedLoad("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+        assertThat(
+            test().addAnalysisTestsLookupResolutions().statementError(stmt),
+            containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
         );
     }
 
     public void testLoadModeDisallowsLookupJoinAfterFilter() {
-        verificationFailure(setUnmappedLoad("""
+        var stmt = setUnmappedLoad("""
             FROM test
             | WHERE emp_no > 1
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | KEEP emp_no, language_name
-            """), "LOOKUP JOIN is not supported with unmapped_fields=\"load\"");
+            """);
+        assertThat(
+            test().addAnalysisTestsLookupResolutions().statementError(stmt),
+            containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        verificationFailure(
-            setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)"),
-            "Subqueries and views are not supported with unmapped_fields=\"load\""
+        var stmt = setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)");
+        assertThat(
+            test().addAnalysisTestsIndexResolutions().statementError(stmt),
+            containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
         );
     }
 
     public void testLoadModeDisallowsMultipleSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        verificationFailure(setUnmappedLoad("""
+        var stmt = setUnmappedLoad("""
             FROM test,
                 (FROM languages | WHERE language_code > 1),
                 (FROM sample_data | STATS max(@timestamp))
-            """), "Subqueries and views are not supported with unmapped_fields=\"load\"");
+            """);
+        assertThat(
+            test().addAnalysisTestsIndexResolutions().statementError(stmt),
+            containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsNestedSubqueries() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        verificationFailure(
-            setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)"),
-            "Subqueries and views are not supported with unmapped_fields=\"load\""
+        var stmt = setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)");
+        assertThat(
+            test().addAnalysisTestsIndexResolutions().statementError(stmt),
+            containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
         );
     }
 
     public void testLoadModeDisallowsSubqueryWithLookupJoin() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        verificationFailure(setUnmappedLoad("""
+        var stmt = setUnmappedLoad("""
             FROM test,
                 (FROM test
                 | EVAL language_code = languages
                 | LOOKUP JOIN languages_lookup ON language_code)
-            """), "Subqueries and views are not supported with unmapped_fields=\"load\"");
+            """);
+        assertThat(
+            test().addAnalysisTestsLookupResolutions().statementError(stmt),
+            containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
+        );
     }
 
     public void testLoadModeDisallowsForkAndLookupJoin() {
@@ -513,8 +509,9 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
-        verificationFailure(query, "LOOKUP JOIN is not supported with unmapped_fields=\"load\"");
+        var analyzer = test().addAnalysisTestsLookupResolutions();
+        assertThat(analyzer.statementError(query), containsString("FORK is not supported with unmapped_fields=\"load\""));
+        assertThat(analyzer.statementError(query), containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
     }
 
     public void testLoadModeDisallowsSubqueryAndFork() {
@@ -524,13 +521,18 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             FROM test, (FROM languages | WHERE language_code > 1)
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        verificationFailure(query, "Subqueries and views are not supported with unmapped_fields=\"load\"");
-        verificationFailure(query, "FORK is not supported with unmapped_fields=\"load\"");
+        var analyzer = test().addAnalysisTestsIndexResolutions();
+        assertThat(analyzer.statementError(query), containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
+        assertThat(analyzer.statementError(query), containsString("FORK is not supported with unmapped_fields=\"load\""));
     }
 
-    private void verificationFailure(String statement, String expectedFailure) {
-        var e = expectThrows(VerificationException.class, () -> analyzeStatement(statement));
-        assertThat(e.getMessage(), containsString(expectedFailure));
+    private void assertUnmappedFailure(TestAnalyzer analyzer, String query, String failure) {
+        assertThat(analyzer.statementError(setUnmappedNullify(query)), containsString(failure));
+        assertThat(analyzer.statementError(setUnmappedLoad(query)), containsString(failure));
+    }
+
+    private static TestAnalyzer test() {
+        return analyzer().addEmployees("test");
     }
 
     private static String setUnmappedNullify(String query) {
@@ -553,56 +555,42 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testUnmappedFieldsLoadWithFullTextSearchFails() {
         // Assert the new message format and that the specific full-text function is named in brackets
         // Function names in error messages use Function.functionName() (class simple name upper-cased) or override (e.g. QSTR, :)
-        verificationFailure(
-            setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name"),
-            "does not support full-text search function [:]"
+        var analyzer = test();
+        assertThat(
+            analyzer.statementError(setUnmappedLoad("FROM test | WHERE first_name:\"foo\" | KEEP first_name")),
+            containsString("does not support full-text search function [:]")
         );
-        verificationFailure(
-            setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name"),
-            "does not support full-text search function [MATCH]"
+        assertThat(
+            analyzer.statementError(setUnmappedLoad("FROM test | WHERE match(first_name, \"foo\") | KEEP first_name")),
+            containsString("does not support full-text search function [MATCH]")
         );
-        verificationFailure(
-            setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name"),
-            "does not support full-text search function [MatchPhrase]"
+        assertThat(
+            analyzer.statementError(setUnmappedLoad("FROM test | WHERE match_phrase(first_name, \"foo bar\") | KEEP first_name")),
+            containsString("does not support full-text search function [MatchPhrase]")
         );
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            verificationFailure(
-                setUnmappedLoad("FROM test | WHERE multi_match(\"foo\", first_name) | KEEP first_name"),
-                "does not support full-text search function [MultiMatch]"
+            assertThat(
+                analyzer.statementError(setUnmappedLoad("FROM test | WHERE multi_match(\"foo\", first_name) | KEEP first_name")),
+                containsString("does not support full-text search function [MultiMatch]")
             );
         }
         if (EsqlCapabilities.Cap.QSTR_FUNCTION.isEnabled()) {
-            verificationFailure(
-                setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name"),
-                "does not support full-text search function [QSTR]"
+            assertThat(
+                analyzer.statementError(setUnmappedLoad("FROM test | WHERE qstr(\"first_name: foo\") | KEEP first_name")),
+                containsString("does not support full-text search function [QSTR]")
             );
         }
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
-            verificationFailure(
-                setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name"),
-                "does not support full-text search function [KQL]"
+            assertThat(
+                analyzer.statementError(setUnmappedLoad("FROM test | WHERE kql(\"first_name: foo\") | KEEP first_name")),
+                containsString("does not support full-text search function [KQL]")
             );
         }
-        verificationFailureWithMapping(
-            "mapping-full_text_search.json",
-            setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector"),
-            "does not support full-text search function [KNN]"
+        assertThat(
+            EsqlTestUtils.analyzer().addIndex("test", "mapping-full_text_search.json")
+                .statementError(setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector")),
+            containsString("does not support full-text search function [KNN]")
         );
-    }
-
-    private void verificationFailureWithMapping(String mapping, String statement, String expectedFailure) {
-        var st = TEST_PARSER.createStatement(statement);
-        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "test"), loadMapping(mapping, "test"));
-        var analyzer = analyzer(
-            indexResolutions,
-            defaultLookupResolution(),
-            defaultEnrichResolution(),
-            TEST_VERIFIER,
-            configuration(statement),
-            st.setting(UNMAPPED_FIELDS)
-        );
-        var e = expectThrows(VerificationException.class, () -> analyzer.analyze(st.plan()));
-        assertThat(e.getMessage(), containsString(expectedFailure));
     }
 
     @Override

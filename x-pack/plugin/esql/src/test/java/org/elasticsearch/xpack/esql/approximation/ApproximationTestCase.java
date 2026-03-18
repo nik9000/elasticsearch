@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -42,6 +41,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.mockito.Mockito.mock;
 
 public abstract class ApproximationTestCase extends ESTestCase {
@@ -57,8 +57,7 @@ public abstract class ApproximationTestCase extends ESTestCase {
         SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
         LogicalPlan plan = TEST_PARSER.createStatement(query, new QueryParams()).plan();
-        plan = EsqlTestUtils.analyzer()
-            .addEmployees("test")
+        plan = analyzer().addEmployees("test")
             .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
             .addLookupIndex("test_lookup", "mapping-basic.json")
             .buildAnalyzer()

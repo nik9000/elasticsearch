@@ -175,6 +175,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
@@ -5465,7 +5466,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
             if (query != null) {
                 assertThat(
-                    EsqlTestUtils.analyzer().addEmployees("test").error(query, ParsingException.class),
+                    analyzer().addEmployees("test").error(query, ParsingException.class),
                     containsString("mismatched input 'INLINE' expecting")
                 );
             }

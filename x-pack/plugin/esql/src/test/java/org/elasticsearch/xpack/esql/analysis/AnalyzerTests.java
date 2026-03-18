@@ -2430,27 +2430,27 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testLookupJoinUnknownIndex() {
         String errorMessage = "Unknown index [foobar]";
-        var ta = basic().addLookupIndex("foobar", IndexResolution.invalid(errorMessage));
+        var analyzer = basic().addLookupIndex("foobar", IndexResolution.invalid(errorMessage));
 
-        assertThat(ta.error("FROM test | LOOKUP JOIN foobar ON last_name"), containsString("1:25: " + errorMessage));
+        assertThat(analyzer.error("FROM test | LOOKUP JOIN foobar ON last_name"), containsString("1:25: " + errorMessage));
 
-        String error2 = ta.error("FROM test | LOOKUP JOIN foobar ON missing_field");
+        String error2 = analyzer.error("FROM test | LOOKUP JOIN foobar ON missing_field");
         assertThat(error2, containsString("1:25: " + errorMessage));
         assertThat(error2, not(containsString("[missing_field]")));
     }
 
     public void testLookupJoinUnknownField() {
-        var ta = basic().addAnalysisTestsLookupResolutions();
+        var analyzer = basic().addAnalysisTestsLookupResolutions();
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
-        assertThat(ta.error(query), containsString("1:45: Unknown column [last_name] in right side of join"));
+        assertThat(analyzer.error(query), containsString("1:45: Unknown column [last_name] in right side of join"));
 
         assertThat(
-            ta.error("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
+            analyzer.error("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
             containsString("1:45: Unknown column [language_code] in left side of join")
         );
 
-        String error3 = ta.error("FROM test | LOOKUP JOIN languages_lookup ON missing_altogether");
+        String error3 = analyzer.error("FROM test | LOOKUP JOIN languages_lookup ON missing_altogether");
         assertThat(error3, containsString("1:45: Unknown column [missing_altogether] in left side of join"));
         assertThat(error3, containsString("1:45: Unknown column [missing_altogether] in right side of join"));
     }

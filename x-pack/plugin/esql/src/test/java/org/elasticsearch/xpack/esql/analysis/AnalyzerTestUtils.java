@@ -13,8 +13,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -24,11 +22,9 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
-import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -45,9 +41,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.RANGE_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
@@ -229,51 +223,6 @@ public final class AnalyzerTestUtils {
     @Deprecated
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions, Verifier verifier) {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), verifier, EsqlTestUtils.TEST_CFG);
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static LogicalPlan analyzeStatement(String query) {
-        return analyzeStatement(query, true);
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static LogicalPlan analyzeStatement(String query, boolean checkPlan) {
-        var statement = TEST_PARSER.createStatement(query);
-        var relations = statement.plan().collectFirstChildren(UnresolvedRelation.class::isInstance);
-        var indexName = relations.isEmpty() ? null : ((UnresolvedRelation) relations.getFirst()).indexPattern().indexPattern();
-        Map<IndexPattern, IndexResolution> indexResolutions = indexName == null
-            ? Map.of()
-            : Map.of(
-                new IndexPattern(Source.EMPTY, indexName),
-                IndexResolution.valid(
-                    new EsIndex(
-                        indexName,
-                        EsqlTestUtils.loadMapping("mapping-basic.json"),
-                        Map.of(indexName, IndexMode.STANDARD),
-                        Map.of(),
-                        Map.of(),
-                        Set.of()
-                    )
-                )
-            );
-        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
-        var analyzed = analyzer.analyze(statement.plan());
-        if (checkPlan) {
-            var failures = new Failures();
-            PlanConsistencyChecker.checkPlan(analyzed, failures);
-            if (failures.hasFailures()) {
-                throw new VerificationException(failures);
-            }
-        }
-        return analyzed;
     }
 
     public static UnresolvedRelation unresolvedRelation(String index) {

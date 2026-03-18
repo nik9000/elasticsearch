@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -332,15 +333,33 @@ public class TestAnalyzer {
 
     /**
      * Build the analyzer, parse the <strong>statement</strong>, and analyze it.
+     * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
+     * applied to the analyzer context automatically.
      */
     public LogicalPlan statement(String query) {
-        var analyzed = buildAnalyzer().analyze(TEST_PARSER.createStatement(query).plan());
+        var statement = TEST_PARSER.createStatement(query);
+        unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
+        var analyzed = buildAnalyzer().analyze(statement.plan());
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
         return analyzed;
+    }
+
+    /**
+     * Like {@link #error} but for <strong>statements</strong>.
+     * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
+     * applied to the analyzer context automatically.
+     */
+    public String statementError(String query) {
+        var e = expectThrows(
+            VerificationException.class,
+            "Expected error for statement [" + query + "] but no error was raised",
+            () -> statement(query)
+        );
+        return e.getMessage();
     }
 
     /**
