@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -304,8 +305,15 @@ public class TestAnalyzer {
     /**
      * Build the analyzer, parse the query, and analyze it.
      */
+    public LogicalPlan query(String query, QueryParams params) {
+        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, params));
+    }
+
+    /**
+     * Build the analyzer, parse the query, and analyze it.
+     */
     public LogicalPlan query(String query, Object... params) {
-        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, toQueryParams(params)));
+        return query(query, toQueryParams(params));
     }
 
     /**
@@ -326,10 +334,22 @@ public class TestAnalyzer {
     }
 
     /**
+     * Build the analyzer, parse the query with pre-built {@link QueryParams}, analyze it, and assert that it throws.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     */
+    public String error(String query, QueryParams params) {
+        return error(query, VerificationException.class, params);
+    }
+
+    /**
      * Build the analyzer, parse the query, analyze it, and assert that it throws the given exception.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
      */
     public String error(String query, Class<? extends Exception> exception, Object... params) {
+        return error(query, exception, toQueryParams(params));
+    }
+
+    private String error(String query, Class<? extends Exception> exception, QueryParams params) {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",

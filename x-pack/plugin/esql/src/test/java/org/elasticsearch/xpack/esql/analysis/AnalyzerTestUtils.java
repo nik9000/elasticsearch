@@ -63,34 +63,8 @@ public final class AnalyzerTestUtils {
      * @deprecated use {@link EsqlTestUtils#analyzer}.
      */
     @Deprecated
-    public static Analyzer expandedDefaultAnalyzer() {
-        return analyzer(expandedDefaultIndexResolution());
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
     public static Analyzer analyzer(IndexResolution indexResolution) {
         return analyzer(indexResolution, TEST_VERIFIER);
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static Analyzer analyzer(IndexResolution indexResolution, TimestampBounds timestampBounds) {
-        return analyzer(
-            indexResolutions(indexResolution),
-            defaultLookupResolution(),
-            defaultEnrichResolution(),
-            TEST_VERIFIER,
-            TEST_CFG,
-            UNMAPPED_FIELDS.defaultValue(),
-            timestampBounds
-        );
     }
 
     /**
@@ -212,10 +186,20 @@ public final class AnalyzerTestUtils {
         return combined;
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions, Verifier verifier, Configuration config) {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), verifier, config);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(
         Map<IndexPattern, IndexResolution> indexResolutions,
         Verifier verifier,
@@ -232,24 +216,49 @@ public final class AnalyzerTestUtils {
         );
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(Verifier verifier) {
         return analyzer(analyzerDefaultMapping(), defaultLookupResolution(), defaultEnrichResolution(), verifier, EsqlTestUtils.TEST_CFG);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static Analyzer analyzer(Map<IndexPattern, IndexResolution> indexResolutions, Verifier verifier) {
         return analyzer(indexResolutions, defaultLookupResolution(), defaultEnrichResolution(), verifier, EsqlTestUtils.TEST_CFG);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static LogicalPlan analyze(String query) {
         var indexName = indexFromQuery(query);
         var indexResolutions = indexResolutions(indexName);
         return analyze(query, analyzer(indexResolutions, TEST_VERIFIER, TEST_CFG));
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static LogicalPlan analyzeStatement(String query) {
         return analyzeStatement(query, true);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static LogicalPlan analyzeStatement(String query, boolean checkPlan) {
         var statement = TEST_PARSER.createStatement(query);
         var relations = statement.plan().collectFirstChildren(UnresolvedRelation.class::isInstance);
@@ -267,10 +276,20 @@ public final class AnalyzerTestUtils {
         return analyzed;
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static LogicalPlan analyze(String query, String mapping) {
         return analyze(query, indexFromQuery(query), mapping);
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static LogicalPlan analyze(String query, String index, String mapping) {
         Map<IndexPattern, IndexResolution> indexResolutions = index == null
             ? Map.of()
@@ -278,6 +297,11 @@ public final class AnalyzerTestUtils {
         return analyze(query, analyzer(indexResolutions, TEST_VERIFIER, configuration(query)));
     }
 
+    /**
+     * Build an analyzer.
+     * @deprecated use {@link EsqlTestUtils#analyzer}.
+     */
+    @Deprecated
     public static LogicalPlan analyze(String query, Analyzer analyzer) {
         var plan = TEST_PARSER.parseQuery(query);
         // System.out.println(plan);

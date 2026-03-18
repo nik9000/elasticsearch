@@ -24,6 +24,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -153,6 +155,7 @@ import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -216,8 +219,6 @@ public class AnalyzerTests extends ESTestCase {
     private static final int DEFAULT_TIMESERIES_LIMIT = AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
         Settings.EMPTY
     );
-
-    private static final String DENSE_VECTOR_MAPPING_FILE = "mapping-dense_vector-all_element_types.json";
 
     public void testIndexResolution() {
         EsIndex idx = EsIndexGenerator.esIndex("idx");
@@ -468,19 +469,16 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowWithUnresolvableForwardReferences() {
-        verifyUnsupported("""
-            ROW a = b + c, b = 1, c = 2
-            """, """
+        assertThat(EsqlTestUtils.analyzer().error("ROW a = b + c, b = 1, c = 2"), containsString("""
             Found 2 problems
             line 1:9: Unknown column [b]
-            line 1:13: Unknown column [c]""");
+            line 1:13: Unknown column [c]"""));
     }
 
     public void testRowWithSelfReference() {
-        verifyUnsupported("""
+        assertThat(analyzer().error("""
             ROW a = a
-            """, """
-            line 1:9: Unknown column [a]""");
+            """), containsString("line 1:9: Unknown column [a]"));
     }
 
     public void testUnresolvableAttribute() {
@@ -497,43 +495,43 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectBasic() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep first_name
-            """, "first_name");
+            """), "first_name");
     }
 
     public void testProjectBasicPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep first*name
-            """, "first_name");
-        assertProjectionTypes("""
+            """), "first_name");
+        assertProjectionTypes(basic().query("""
             from test
             | keep first*name
-            """, DataType.KEYWORD);
+            """), DataType.KEYWORD);
     }
 
     public void testProjectIncludePattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep *name
-            """, "first_name", "last_name");
+            """), "first_name", "last_name");
     }
 
     public void testProjectIncludeMultiStarPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep *t*name
-            """, "first_name", "last_name");
+            """), "first_name", "last_name");
     }
 
     public void testProjectStar() {
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep *
-                """,
+                """),
             "_meta_field",
             "emp_no",
             "first_name",
@@ -549,39 +547,39 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEscapedStar() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | eval a = 1, `a*` = 2
             | keep `a*`
-            """, "a*");
+            """), "a*");
     }
 
     public void testEscapeStarPlusPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
             | keep `a*`*, abc*
-            """, "a*", "abc*de");
+            """), "a*", "abc*de");
     }
 
     public void testBacktickPlusPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             row a = 0, `a``` = 1, `a``b*` = 2, `ab*cd` = 3, `abc*de` = 4
             | keep a*, a````b`*`
-            """, "a", "a`", "ab*cd", "abc*de", "a`b*");
+            """), "a", "a`", "ab*cd", "abc*de", "a`b*");
     }
 
     public void testRenameBacktickPlusPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
             | rename `ab*` as `xx*`
-            """, "a", "a*", "xx*", "ab*cd", "abc*de");
+            """), "a", "a*", "xx*", "ab*cd", "abc*de");
     }
 
     public void testNoProjection() {
         assertProjection(
-            """
+            basic().query("""
                 from test
-                """,
+                """),
             "_meta_field",
             "emp_no",
             "first_name",
@@ -595,9 +593,9 @@ public class AnalyzerTests extends ESTestCase {
             "salary"
         );
         assertProjectionTypes(
-            """
+            basic().query("""
                 from test
-                """,
+                """),
             DataType.KEYWORD,
             INTEGER,
             DataType.KEYWORD,
@@ -613,22 +611,22 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDuplicateProjections() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep first_name, first_name
-            """, "first_name");
-        assertProjection("""
+            """), "first_name");
+        assertProjection(basic().query("""
             from test
             | keep first_name, first_name, last_name, first_name
-            """, "last_name", "first_name");
+            """), "last_name", "first_name");
     }
 
     public void testProjectWildcard() {
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep first_name, *, last_name
-                """,
+                """),
             "first_name",
             "_meta_field",
             "emp_no",
@@ -642,10 +640,10 @@ public class AnalyzerTests extends ESTestCase {
             "last_name"
         );
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep first_name, last_name, *
-                """,
+                """),
             "first_name",
             "last_name",
             "_meta_field",
@@ -659,10 +657,10 @@ public class AnalyzerTests extends ESTestCase {
             "salary"
         );
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep *, first_name, last_name
-                """,
+                """),
             "_meta_field",
             "emp_no",
             "gender",
@@ -685,23 +683,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectMixedWildcard() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep *name, first*
-            """, "last_name", "first_name");
-        assertProjection("""
+            """), "last_name", "first_name");
+        assertProjection(basic().query("""
             from test
             | keep first_name, *name, first*
-            """, "first_name", "last_name");
-        assertProjection("""
+            """), "first_name", "last_name");
+        assertProjection(basic().query("""
             from test
             | keep *ob*, first_name, *name, first*
-            """, "job", "job.raw", "first_name", "last_name");
+            """), "job", "job.raw", "first_name", "last_name");
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep first_name, *, *name
-                """,
+                """),
             "first_name",
             "_meta_field",
             "emp_no",
@@ -715,10 +713,10 @@ public class AnalyzerTests extends ESTestCase {
             "last_name"
         );
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep first*, *, last_name, first_name
-                """,
+                """),
             "_meta_field",
             "emp_no",
             "gender",
@@ -732,10 +730,10 @@ public class AnalyzerTests extends ESTestCase {
             "first_name"
         );
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep first*, *, last_name, fir*
-                """,
+                """),
             "_meta_field",
             "emp_no",
             "gender",
@@ -749,10 +747,10 @@ public class AnalyzerTests extends ESTestCase {
             "first_name"
         );
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep *, job*
-                """,
+                """),
             "_meta_field",
             "emp_no",
             "first_name",
@@ -768,50 +766,50 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectThenDropName() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep *name
             | drop first_name
-            """, "last_name");
+            """), "last_name");
     }
 
     public void testProjectAfterDropName() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | drop first_name
             | keep *name
-            """, "last_name");
+            """), "last_name");
     }
 
     public void testProjectKeepAndDropName() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | drop first_name
             | keep last_name
-            """, "last_name");
+            """), "last_name");
     }
 
     public void testProjectDropPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | keep *
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx", "salary");
+            """), "_meta_field", "emp_no", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx", "salary");
     }
 
     public void testProjectDropNoStarPattern() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | drop *_name
-            """, "_meta_field", "emp_no", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx", "salary");
+            """), "_meta_field", "emp_no", "gender", "hire_date", "job", "job.raw", "languages", "long_noidx", "salary");
     }
 
     public void testProjectOrderPatternWithRest() {
         assertProjection(
-            """
+            basic().query("""
                 from test
                 | keep *name, *, emp_no
-                """,
+                """),
             "first_name",
             "last_name",
             "_meta_field",
@@ -827,11 +825,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectDropPatternAndKeepOthers() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | drop l*
             | keep first_name, salary
-            """, "first_name", "salary");
+            """), "first_name", "salary");
     }
 
     public void testErrorOnNoMatchingPatternInclusion() {
@@ -855,60 +853,65 @@ public class AnalyzerTests extends ESTestCase {
     //
 
     public void testIncludeUnsupportedFieldExplicit() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldVariation().query("""
             from test
             | keep unsupported
-            """, "mapping-multi-field-variation.json", "unsupported");
+            """), "unsupported");
     }
 
     public void testUnsupportedFieldAfterProject() {
+        var mfv = multiFieldVariation();
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | keep unsupported
             | eval x = unsupported
-            """, errorMessage);
+            """), containsString(errorMessage));
     }
 
     public void testUnsupportedFieldEvalAfterProject() {
+        var mfv = multiFieldVariation();
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | keep unsupported
             | eval x = unsupported + 1
-            """, errorMessage);
+            """), containsString(errorMessage));
     }
 
     public void testUnsupportedFieldFilterAfterProject() {
+        var mfv = multiFieldVariation();
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | keep unsupported
             | where unsupported == null
-            """, errorMessage);
+            """), containsString(errorMessage));
     }
 
     public void testUnsupportedFieldFunctionAfterProject() {
+        var mfv = multiFieldVariation();
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | keep unsupported
             | where length(unsupported) > 0
-            """, errorMessage);
+            """), containsString(errorMessage));
     }
 
     public void testUnsupportedFieldSortAfterProject() {
+        var mfv = multiFieldVariation();
         var errorMessage = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | keep unsupported
             | sort unsupported
-            """, errorMessage);
+            """), containsString(errorMessage));
     }
 
     public void testIncludeUnsupportedFieldPattern() {
@@ -920,12 +923,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDropUnsupportedFieldExplicit() {
-        assertProjectionWithMapping(
-            """
+        assertProjection(
+            multiFieldVariation().query("""
                 from test
                 | drop unsupported
-                """,
-            "mapping-multi-field-variation.json",
+                """),
             "bool",
             "date",
             "date_nanos",
@@ -952,26 +954,25 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDropMultipleUnsupportedFieldsExplicitly() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | drop languages, gender
-            """, "Unknown column [languages]");
+            """), containsString("Unknown column [languages]"));
     }
 
     public void testDropPatternUnsupportedFields() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | drop *ala*
-            """, "_meta_field", "emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "languages", "last_name", "long_noidx");
+            """), "_meta_field", "emp_no", "first_name", "gender", "hire_date", "job", "job.raw", "languages", "last_name", "long_noidx");
     }
 
     public void testDropUnsupportedPattern() {
-        assertProjectionWithMapping(
-            """
+        assertProjection(
+            multiFieldVariation().query("""
                 from test
                 | drop un*
-                """,
-            "mapping-multi-field-variation.json",
+                """),
             "bool",
             "date",
             "date_nanos",
@@ -997,172 +998,165 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRename() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | rename emp_no as e
             | keep first_name, e
-            """, "first_name", "e");
+            """), "first_name", "e");
     }
 
     public void testChainedRename() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | rename emp_no as r1, r1 as r2, r2 as r3
             | keep first_name, r3
-            """, "first_name", "r3");
+            """), "first_name", "r3");
     }
 
     public void testChainedRenameReuse() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | rename emp_no as r1, r1 as r2, r2 as r3, first_name as r1
             | keep r1, r3
-            """, "r1", "r3");
+            """), "r1", "r3");
     }
 
     public void testRenameBackAndForth() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | rename emp_no as r1, r1 as emp_no
             | keep emp_no
-            """, "emp_no");
+            """), "emp_no");
     }
 
     public void testRenameReuseAlias() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | rename emp_no as e, first_name as e
-            """, "_meta_field", "e", "gender", "hire_date", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
+            """), "_meta_field", "e", "gender", "hire_date", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
     public void testRenameUnsupportedSubFieldAndResolved() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldVariation().query("""
             from test
             | rename some.string as ss, float as f
             | keep int, ss, f
-            """, "mapping-multi-field-variation.json", "int", "ss", "f");
+            """), "int", "ss", "f");
     }
 
     public void testRenameUnsupportedAndUnknown() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | rename text as t, doesnotexist as d
-            """, "Found 1 problem\n" + "line 2:21: Unknown column [doesnotexist]");
+            """), containsString("Found 1 problem\n" + "line 2:21: Unknown column [doesnotexist]"));
     }
 
     public void testRenameResolvedAndUnknown() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | rename int as i, doesnotexist as d
-            """, "Found 1 problem\n" + "line 2:20: Unknown column [doesnotexist]");
+            """), containsString("Found 1 problem\n" + "line 2:20: Unknown column [doesnotexist]"));
     }
 
     public void testUnsupportedFieldUsedExplicitly() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldVariation().query("""
             from test
             | keep foo_type
-            """, "mapping-multi-field-variation.json", "foo_type");
+            """), "foo_type");
     }
 
     public void testUnsupportedFieldTypes() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldVariation().query("""
             from test
             | keep unsigned_long, date, date_nanos, unsupported, point, version
-            """, "mapping-multi-field-variation.json", "unsigned_long", "date", "date_nanos", "unsupported", "point", "version");
+            """), "unsigned_long", "date", "date_nanos", "unsupported", "point", "version");
     }
 
     public void testUnsupportedDottedFieldUsedExplicitly() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldVariation().query("""
             from test
             | keep some.string
-            """, "mapping-multi-field-variation.json", "some.string");
+            """), "some.string");
     }
 
     public void testUnsupportedParentField() {
-        verifyUnsupported(
-            """
+        assertThat(
+            analyzer().addIndex("test", "mapping-multi-field.json").error("""
                 from test
                 | keep text, text.keyword
-                """,
-            "Found 1 problem\n" + "line 2:14: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?",
-            "mapping-multi-field.json"
+                """),
+            containsString("Found 1 problem\n" + "line 2:14: Unknown column [text.keyword], did you mean any of [text.wildcard, text.raw]?")
         );
     }
 
     public void testUnsupportedParentFieldAndItsSubField() {
-        assertProjectionWithMapping("""
+        assertProjection(analyzer().addIndex("test", "mapping-multi-field.json").query("""
             from test
             | keep text, text.english
-            """, "mapping-multi-field.json", "text", "text.english");
+            """), "text", "text.english");
     }
 
     public void testUnsupportedDeepHierarchy() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldWithNested().query("""
             from test
             | keep x.y.z.w, x.y.z, x.y, x
-            """, "mapping-multi-field-with-nested.json", "x.y.z.w", "x.y.z", "x.y", "x");
+            """), "x.y.z.w", "x.y.z", "x.y", "x");
     }
 
     /**
      * Here x.y.z.v is of type "keyword" but its parent is of unsupported type "foobar".
      */
     public void testUnsupportedValidFieldTypeInDeepHierarchy() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldWithNested().query("""
             from test
             | keep x.y.z.v
-            """, "mapping-multi-field-with-nested.json", "x.y.z.v");
+            """), "x.y.z.v");
     }
 
     public void testUnsupportedValidFieldTypeInNestedParentField() {
-        verifyUnsupported("""
+        assertThat(multiFieldWithNested().error("""
             from test
             | keep dep.dep_id.keyword
-            """, "Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]", "mapping-multi-field-with-nested.json");
+            """), containsString("Found 1 problem\n" + "line 2:8: Unknown column [dep.dep_id.keyword]"));
     }
 
     public void testUnsupportedObjectAndNested() {
-        verifyUnsupported(
-            """
-                from test
-                | keep dep, some
-                """,
-            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [some]",
-            "mapping-multi-field-with-nested.json"
-        );
+        assertThat(multiFieldWithNested().error("""
+            from test
+            | keep dep, some
+            """), containsString("Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [some]"));
     }
 
     public void testDropNestedField() {
-        verifyUnsupported(
-            """
+        assertThat(
+            multiFieldWithNested().error("""
                 from test
                 | drop dep, dep.dep_id.keyword
-                """,
-            "Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [dep.dep_id.keyword]",
-            "mapping-multi-field-with-nested.json"
+                """),
+            containsString("Found 2 problems\n" + "line 2:8: Unknown column [dep]\n" + "line 2:13: Unknown column [dep.dep_id.keyword]")
         );
     }
 
     public void testDropNestedWildcardField() {
-        verifyUnsupported("""
+        assertThat(multiFieldWithNested().error("""
             from test
             | drop dep.*
-            """, "Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]", "mapping-multi-field-with-nested.json");
+            """), containsString("Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]"));
     }
 
     public void testSupportedDeepHierarchy() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldWithNested().query("""
             from test
             | keep some.dotted.field, some.string.normalized
-            """, "mapping-multi-field-with-nested.json", "some.dotted.field", "some.string.normalized");
+            """), "some.dotted.field", "some.string.normalized");
     }
 
     public void testDropSupportedDottedField() {
-        assertProjectionWithMapping(
-            """
+        assertProjection(
+            multiFieldVariation().query("""
                 from test
                 | drop some.dotted.field
-                """,
-            "mapping-multi-field-variation.json",
+                """),
             "bool",
             "date",
             "date_nanos",
@@ -1189,9 +1183,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitProjectionOfDeeplyComplexMapping() {
-        assertProjectionWithMapping(
-            "from test",
-            "mapping-multi-field-with-nested.json",
+        assertProjection(
+            multiFieldWithNested().query("from test"),
             "binary",
             "binary_stored",
             "bool",
@@ -1221,12 +1214,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDropWildcardDottedField() {
-        assertProjectionWithMapping(
-            """
+        assertProjection(
+            multiFieldWithNested().query("""
                 from test
                 | drop some.ambiguous.*
-                """,
-            "mapping-multi-field-with-nested.json",
+                """),
             "binary",
             "binary_stored",
             "bool",
@@ -1253,12 +1245,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testDropWildcardDottedField2() {
-        assertProjectionWithMapping(
-            """
+        assertProjection(
+            multiFieldWithNested().query("""
                 from test
                 | drop some.*
-                """,
-            "mapping-multi-field-with-nested.json",
+                """),
             "binary",
             "binary_stored",
             "bool",
@@ -1280,12 +1271,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testProjectOrderPatternWithDottedFields() {
-        assertProjectionWithMapping(
-            """
+        assertProjection(
+            multiFieldWithNested().query("""
                 from test
                 | keep *some.string*, *, some.ambiguous.two, keyword
-                """,
-            "mapping-multi-field-with-nested.json",
+                """),
             "some.string",
             "some.string.normalized",
             "some.string.typical",
@@ -1315,28 +1305,28 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldUsedExplicitly2() {
-        assertProjectionWithMapping("""
+        assertProjection(multiFieldVariation().query("""
             from test
             | keep keyword, point
-            """, "mapping-multi-field-variation.json", "keyword", "point");
+            """), "keyword", "point");
     }
 
     public void testCantFilterAfterDrop() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | stats c = avg(float) by int
             | drop int
             | where int > 0
-            """, "Unknown column [int]");
+            """), containsString("Unknown column [int]"));
     }
 
     public void testProjectAggGroupsRefs() {
-        assertProjection("""
+        assertProjection(basic().query("""
             from test
             | stats c = count(salary) by last_name
             | eval d = c + 1
             | keep d, last_name
-            """, "d", "last_name");
+            """), "d", "last_name");
     }
 
     public void testImplicitLimit() {
@@ -1429,146 +1419,174 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testCompareDateToString() {
         for (String comparison : COMPARISONS) {
-            assertProjectionWithMapping("""
+            assertProjection(multiFieldVariation().query("""
                 from test
                 | where date COMPARISON "1985-01-01T00:00:00Z"
                 | keep date
-                """.replace("COMPARISON", comparison), "mapping-multi-field-variation.json", "date");
+                """.replace("COMPARISON", comparison)), "date");
         }
     }
 
     public void testCompareStringToDate() {
         for (String comparison : COMPARISONS) {
-            assertProjectionWithMapping("""
+            assertProjection(multiFieldVariation().query("""
                 from test
                 | where "1985-01-01T00:00:00Z" COMPARISON date
                 | keep date
-                """.replace("COMPARISON", comparison), "mapping-multi-field-variation.json", "date");
+                """.replace("COMPARISON", comparison)), "date");
         }
     }
 
     public void testCompareDateToStringFails() {
+        var mfv = multiFieldVariation();
         for (String comparison : COMPARISONS) {
-            verifyUnsupported(
-                """
-                    from test
-                    | where date COMPARISON "not-a-date"
-                    | keep date
-                    """.replace("COMPARISON", comparison),
-                "Cannot convert string [not-a-date] to [DATETIME]",
-                "mapping-multi-field-variation.json"
-            );
+            assertThat(mfv.error("""
+                from test
+                | where date COMPARISON "not-a-date"
+                | keep date
+                """.replace("COMPARISON", comparison)), containsString("Cannot convert string [not-a-date] to [DATETIME]"));
         }
     }
 
     public void testDateFormatOnInt() {
-        verifyUnsupported("""
-            from test
-            | eval date_format(int)
-            """, "first argument of [date_format(int)] must be [datetime or date_nanos], found value [int] type [integer]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_format(int)
+                """),
+            containsString("first argument of [date_format(int)] must be [datetime or date_nanos], found value [int] type [integer]")
+        );
     }
 
     public void testDateFormatOnFloat() {
-        verifyUnsupported("""
-            from test
-            | eval date_format(float)
-            """, "first argument of [date_format(float)] must be [datetime or date_nanos], found value [float] type [double]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_format(float)
+                """),
+            containsString("first argument of [date_format(float)] must be [datetime or date_nanos], found value [float] type [double]")
+        );
     }
 
     public void testDateFormatOnText() {
-        verifyUnsupported("""
-            from test
-            | eval date_format(keyword)
-            """, "first argument of [date_format(keyword)] must be [datetime or date_nanos], found value [keyword] type [keyword]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_format(keyword)
+                """),
+            containsString(
+                "first argument of [date_format(keyword)] must be [datetime or date_nanos], found value [keyword] type [keyword]"
+            )
+        );
     }
 
     public void testDateFormatWithNumericFormat() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | eval date_format(1, date)
-            """, "first argument of [date_format(1, date)] must be [string], found value [1] type [integer]");
+            """), containsString("first argument of [date_format(1, date)] must be [string], found value [1] type [integer]"));
     }
 
     public void testDateFormatWithDateFormat() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | eval date_format(date, date)
-            """, "first argument of [date_format(date, date)] must be [string], found value [date] type [datetime]");
+            """), containsString("first argument of [date_format(date, date)] must be [string], found value [date] type [datetime]"));
     }
 
     public void testDateParseOnInt() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | eval date_parse(keyword, int)
-            """, "second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]");
+            """), containsString("second argument of [date_parse(keyword, int)] must be [string], found value [int] type [integer]"));
     }
 
     public void testDateParseOnDate() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | eval date_parse(keyword, date)
-            """, "second argument of [date_parse(keyword, date)] must be [string], found value [date] type [datetime]");
+            """), containsString("second argument of [date_parse(keyword, date)] must be [string], found value [date] type [datetime]"));
     }
 
     public void testDateParseOnIntPattern() {
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | eval date_parse(int, keyword)
-            """, "first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]");
+            """), containsString("first argument of [date_parse(int, keyword)] must be [string], found value [int] type [integer]"));
     }
 
     public void testDateTruncOnInt() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(1 month, int)
-            """, "second argument of [date_trunc(1 month, int)] must be [date_nanos or datetime], found value [int] type [integer]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_trunc(1 month, int)
+                """),
+            containsString(
+                "second argument of [date_trunc(1 month, int)] must be [date_nanos or datetime], found value [int] type [integer]"
+            )
+        );
     }
 
     public void testDateTruncOnFloat() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(1 month, float)
-            """, "second argument of [date_trunc(1 month, float)] must be [date_nanos or datetime], found value [float] type [double]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_trunc(1 month, float)
+                """),
+            containsString(
+                "second argument of [date_trunc(1 month, float)] must be [date_nanos or datetime], found value [float] type [double]"
+            )
+        );
     }
 
     public void testDateTruncOnText() {
-        verifyUnsupported(
-            """
+        assertThat(
+            multiFieldVariation().error("""
                 from test
                 | eval date_trunc(1 month, keyword)
-                """,
-            "second argument of [date_trunc(1 month, keyword)] must be [date_nanos or datetime], found value [keyword] type [keyword]"
+                """),
+            containsString(
+                "second argument of [date_trunc(1 month, keyword)] must be [date_nanos or datetime], found value [keyword] type [keyword]"
+            )
         );
     }
 
     public void testDateTruncWithNumericInterval() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(1, date)
-            """, "first argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_trunc(1, date)
+                """),
+            containsString("first argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]")
+        );
     }
 
     public void testDateTruncWithDateInterval() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(date, date)
-            """, "first argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
+        assertThat(
+            multiFieldVariation().error("""
+                from test
+                | eval date_trunc(date, date)
+                """),
+            containsString(
+                "first argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]"
+            )
+        );
     }
 
     // check field declaration is validated even across duplicated declarations
     public void testAggsWithDuplicatesAndNonExistingFunction() throws Exception {
-        verifyUnsupported("""
+        assertThat(analyzer().error("""
             row a = 1, b = 2
             | stats x = non_existing(a), x = count(a) by b
-            """, "Unknown function [non_existing]");
+            """), containsString("Unknown function [non_existing]"));
     }
 
     // check field declaration is validated even across duplicated declarations
     public void testAggsWithDuplicatesAndNonExistingField() throws Exception {
-        verifyUnsupported("""
+        assertThat(analyzer().error("""
             row a = 1, b = 2
             | stats x = max(non_existing), x = count(a) by b
-            """, "Unknown column [non_existing]");
+            """), containsString("Unknown column [non_existing]"));
     }
 
     // duplicates get merged after stats and do not prevent following commands to blow up
@@ -1742,97 +1760,101 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInStats() {
+        var mfv = multiFieldVariation();
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | stats max(unsupported)
-            """, errorMsg);
-        verifyUnsupported("""
+            """), containsString(errorMsg));
+        assertThat(mfv.error("""
             from test
             | stats max(int) by unsupported
-            """, errorMsg);
-        verifyUnsupported("""
+            """), containsString(errorMsg));
+        assertThat(mfv.error("""
             from test
             | stats max(int) by bool, unsupported
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInEval() {
+        var mfv = multiFieldVariation();
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | eval x = unsupported
-            """, errorMsg);
-        verifyUnsupported("""
+            """), containsString(errorMsg));
+        assertThat(mfv.error("""
             from test
             | eval foo = 1, x = unsupported
-            """, errorMsg);
-        verifyUnsupported("""
+            """), containsString(errorMsg));
+        assertThat(mfv.error("""
             from test
             | eval x = 1 + unsupported
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInWhere() {
+        var mfv = multiFieldVariation();
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | where unsupported == "[1.0, 1.0]"
-            """, errorMsg);
-        verifyUnsupported("""
+            """), containsString(errorMsg));
+        assertThat(mfv.error("""
             from test
             | where int > 2 and unsupported == "[1.0, 1.0]"
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInSort() {
+        var mfv = multiFieldVariation();
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
 
-        verifyUnsupported("""
+        assertThat(mfv.error("""
             from test
             | sort unsupported
-            """, errorMsg);
-        verifyUnsupported("""
+            """), containsString(errorMsg));
+        assertThat(mfv.error("""
             from test
             | sort int, unsupported
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInDissect() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | dissect unsupported "%{foo}"
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInGrok() {
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | grok unsupported "%{WORD:foo}"
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInUriParts() {
         assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | uri_parts p = unsupported
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testUnsupportedFieldsInRegisteredDomain() {
         assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
-        verifyUnsupported("""
+        assertThat(multiFieldVariation().error("""
             from test
             | registered_domain rd = unsupported
-            """, errorMsg);
+            """), containsString(errorMsg));
     }
 
     public void testRegexOnInt() {
@@ -1859,17 +1881,21 @@ public class AnalyzerTests extends ESTestCase {
             "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or date_range or datetime "
                 + "or dense_vector or exponential_histogram or geo_point "
                 + "or geo_shape or geohash or geohex or geotile or histogram or ip or numeric or string or version";
-        verifyUnsupported(
-            "row period = 1 year | eval to_string(period)",
-            "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
+        assertThat(
+            analyzer().error("row period = 1 year | eval to_string(period)"),
+            containsString(
+                "line 1:28: argument of [to_string(period)] must be [" + supportedTypes + "], found value [period] type [date_period]"
+            )
         );
-        verifyUnsupported(
-            "row duration = 1 hour | eval to_string(duration)",
-            "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
+        assertThat(
+            analyzer().error("row duration = 1 hour | eval to_string(duration)"),
+            containsString(
+                "line 1:30: argument of [to_string(duration)] must be [" + supportedTypes + "], found value [duration] type [time_duration]"
+            )
         );
-        verifyUnsupported(
-            "from test | eval to_string(unsupported)",
-            "line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]"
+        assertThat(
+            multiFieldVariation().error("from test | eval to_string(unsupported)"),
+            containsString("line 1:28: Cannot use field [unsupported] with unsupported type [ip_range]")
         );
     }
 
@@ -1928,16 +1954,23 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testEnrichPolicyMatchFieldName() {
-        verifyUnsupported("from test | enrich languages on bar", "Unknown column [bar]");
-        verifyUnsupported("from test | enrich languages on keywords", "Unknown column [keywords], did you mean [keyword]?");
-        verifyUnsupported("from test | enrich languages on keyword with foo", "Enrich field [foo] not found in enrich policy [languages]");
-        verifyUnsupported(
-            "from test | enrich languages on keyword with language_namez",
-            "Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]"
+        var mfv = multiFieldVariation().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
+        assertThat(mfv.error("from test | enrich languages on bar"), containsString("Unknown column [bar]"));
+        assertThat(
+            mfv.error("from test | enrich languages on keywords"),
+            containsString("Unknown column [keywords], did you mean [keyword]?")
         );
-        verifyUnsupported(
-            "from test | enrich languages on keyword with x = language_namez",
-            "Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]"
+        assertThat(
+            mfv.error("from test | enrich languages on keyword with foo"),
+            containsString("Enrich field [foo] not found in enrich policy [languages]")
+        );
+        assertThat(
+            mfv.error("from test | enrich languages on keyword with language_namez"),
+            containsString("Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]")
+        );
+        assertThat(
+            mfv.error("from test | enrich languages on keyword with x = language_namez"),
+            containsString("Enrich field [language_namez] not found in enrich policy [languages], did you mean [language_name]")
         );
     }
 
@@ -1960,32 +1993,38 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidEnrich() {
-        assertProjection("""
+        var withEnrich = basicWithEnrich();
+        assertProjection(withEnrich.query("""
             from test
             | eval x = to_string(languages)
             | enrich languages on x
             | keep first_name, language_name
-            """, "first_name", "language_name");
+            """), "first_name", "language_name");
 
-        assertProjection("""
+        assertProjection(withEnrich.query("""
             from test
             | eval x = to_string(languages)
             | enrich languages on x with language_name
             | keep first_name, language_name
-            """, "first_name", "language_name");
+            """), "first_name", "language_name");
 
-        assertProjection("""
+        assertProjection(withEnrich.query("""
             from test
             | eval x = to_string(languages)
             | enrich languages on x with y = language_name
             | keep first_name, y
-            """, "first_name", "y");
+            """), "first_name", "y");
 
-        assertProjection(analyze("""
-            FROM sample_data
-            | ENRICH client_cidr ON client_ip WITH env
-            | KEEP client_ip, env
-            """, "sample_data", "mapping-sample_data.json"), "client_ip", "env");
+        assertProjection(
+            sampleData().addEnrichPolicy(EnrichPolicy.RANGE_TYPE, "client_cidr", "client_cidr", "client_cidr", "mapping-client_cidr.json")
+                .query("""
+                    FROM sample_data
+                    | ENRICH client_cidr ON client_ip WITH env
+                    | KEEP client_ip, env
+                    """),
+            "client_ip",
+            "env"
+        );
 
         assertProjection(analyze("""
             FROM employees
@@ -2068,7 +2107,10 @@ public class AnalyzerTests extends ESTestCase {
         for (int i = 0, j = 3; i < additionalEvals; i++, j++) {
             query += ", x" + j + " = pow(x" + (j - 1) + ", " + i + ")";
         }
-        assertProjection(query + " | keep x*", IntStream.range(0, additionalEvals + 3).mapToObj(v -> "x" + v).toArray(String[]::new));
+        assertProjection(
+            basic().query(query + " | keep x*"),
+            IntStream.range(0, additionalEvals + 3).mapToObj(v -> "x" + v).toArray(String[]::new)
+        );
     }
 
     public void testCounterTypes() {
@@ -2238,10 +2280,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedTypesInStats() {
-        verifyUnsupported("""
+        assertThat(analyzer().error("""
               row x = to_unsigned_long("10")
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
-            """, """
+            """), containsString("""
             Found 6 problems
             line 2:12: argument of [avg(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
@@ -2256,12 +2298,12 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:115: argument of [sum(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
-             found value [x] type [unsigned_long]""");
+             found value [x] type [unsigned_long]"""));
 
-        verifyUnsupported("""
+        assertThat(analyzer().error("""
             row x = to_version("1.2")
             | stats  avg(x), median(x), median_absolute_deviation(x), percentile(x, 10), sum(x)
-            """, """
+            """), containsString("""
             Found 5 problems
             line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
@@ -2274,33 +2316,34 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [version]
             line 2:78: argument of [sum(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
-             found value [x] type [version]""");
+             found value [x] type [version]"""));
     }
 
     public void testInOnText() {
-        assertProjectionWithMapping("""
+        var a = analyzer().addIndex("a_index", "mapping-multi-field-variation.json");
+        assertProjection(a.query("""
             from a_index
             | eval text in ("a", "b", "c")
             | keep text
-            """, "mapping-multi-field-variation.json", "text");
+            """), "text");
 
-        assertProjectionWithMapping("""
+        assertProjection(a.query("""
             from a_index
             | eval text in ("a", "b", "c", text)
             | keep text
-            """, "mapping-multi-field-variation.json", "text");
+            """), "text");
 
-        assertProjectionWithMapping("""
+        assertProjection(a.query("""
             from a_index
             | eval text not in ("a", "b", "c")
             | keep text
-            """, "mapping-multi-field-variation.json", "text");
+            """), "text");
 
-        assertProjectionWithMapping("""
+        assertProjection(a.query("""
             from a_index
             | eval text not in ("a", "b", "c", text)
             | keep text
-            """, "mapping-multi-field-variation.json", "text");
+            """), "text");
     }
 
     public void testMvAppendValidation() {
@@ -2328,17 +2371,19 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
-        verifyUnsupported(
-            " from test | eval " + signature,
-            "second argument of ["
-                + signature
-                + "] must be ["
-                + noText.apply(fields[first][1])
-                + "], found value ["
-                + fields[second][0]
-                + "] type ["
-                + fields[second][1]
-                + "]"
+        assertThat(
+            multiFieldVariation().error(" from test | eval " + signature),
+            containsString(
+                "second argument of ["
+                    + signature
+                    + "] must be ["
+                    + noText.apply(fields[first][1])
+                    + "], found value ["
+                    + fields[second][0]
+                    + "] type ["
+                    + fields[second][1]
+                    + "]"
+            )
         );
     }
 
@@ -2592,9 +2637,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, [0, 1, 2])
-            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
+            """, fieldName));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2605,9 +2650,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorCastingHexKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, "000102")
-            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
+            """, fieldName));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2618,9 +2663,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static void checkDenseVectorEvalCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
-            """, fieldName), DENSE_VECTOR_MAPPING_FILE);
+            """, fieldName));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2638,9 +2683,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | where knn(%s, ?query_vector)
-            """, fieldName), DENSE_VECTOR_MAPPING_FILE, new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
+            """, fieldName), new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -2674,9 +2719,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval similarity = %s
-            """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
+            """, similarityFunction));
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2709,9 +2754,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
-        var plan = analyze(String.format(Locale.ROOT, """
+        var plan = denseVector().query(String.format(Locale.ROOT, """
             from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
-            """, similarityFunction), DENSE_VECTOR_MAPPING_FILE);
+            """, similarityFunction));
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2734,10 +2779,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void checkVectorFunctionHexImplicitCastingError(String clause) {
-        var query = "from test | " + clause;
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, DENSE_VECTOR_MAPPING_FILE));
         assertThat(
-            error.getMessage(),
+            denseVector().error("from test | " + clause),
             containsString(
                 "Cannot convert string [notcorrect] to [DENSE_VECTOR], "
                     + "error [notcorrect is not a valid hex string: not a hexadecimal digit: \"n\" = 110]"
@@ -2748,9 +2791,9 @@ public class AnalyzerTests extends ESTestCase {
     public void testMagnitudePlanWithDenseVectorImplicitCasting() {
         assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
 
-        var plan = analyze("""
+        var plan = denseVector().query("""
             from test | eval scalar = v_magnitude([1, 2, 3])
-            """, DENSE_VECTOR_MAPPING_FILE);
+            """);
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
@@ -2895,33 +2938,30 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testConditionalFunctionsWithMixedNumericTypes() {
-        LogicalPlan plan = analyze("""
+        validateConditionalFunctions(defaultMapping().query("""
             from test
             | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0), z = coalesce(languages.long, null, 0)
             , w = coalesce(salary_change, null, 0::long)
             | keep x, y, z, w
-            """, "mapping-default.json");
-        validateConditionalFunctions(plan);
+            """));
 
-        plan = analyze("""
+        validateConditionalFunctions(defaultMapping().query("""
             from test
             | eval x = case(languages == 1, salary_change, languages == 2, salary, languages == 3, salary_change.long, 0)
                    , y = case(languages == 1, salary_change.int, languages == 2, salary, 0)
                    , z = case(languages == 1, salary_change.long, languages == 2, salary, 0::long)
                    , w = case(languages == 1, salary_change, languages == 2, salary, languages == 3, salary_change.long, null)
             | keep x, y, z, w
-            """, "mapping-default.json");
-        validateConditionalFunctions(plan);
+            """));
 
-        plan = analyze("""
+        validateConditionalFunctions(defaultMapping().query("""
             from test
             | eval x = greatest(salary_change, salary, salary_change.long)
                    , y = least(salary_change.int, salary)
                    , z = greatest(salary_change.long, salary, null)
                    , w = least(null, salary_change, salary_change.long, salary, null)
             | keep x, y, z, w
-            """, "mapping-default.json");
-        validateConditionalFunctions(plan);
+            """));
     }
 
     private void validateConditionalFunctions(LogicalPlan plan) {
@@ -2944,63 +2984,66 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiers() {
-        assertProjectionWithMapping(
-            """
-                from test
-                | eval ?f1 = ?fn1(?f2)
-                | where ?f1 == ?f2
-                | stats ?f8 = ?fn2(?f3.?f4.?f5) by ?f3.?f6.?f7
-                | sort ?f36.?f7, ?f8
-                | keep ?f367, ?f8
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsIdentifier("f1", "a"),
-                    paramAsIdentifier("f2", "keyword"),
-                    paramAsIdentifier("f3", "some"),
-                    paramAsIdentifier("f4", "dotted"),
-                    paramAsIdentifier("f5", "field"),
-                    paramAsIdentifier("f6", "string"),
-                    paramAsIdentifier("f7", "typical"),
-                    paramAsIdentifier("f8", "y"),
-                    paramAsIdentifier("f36", "some.string"),
-                    paramAsIdentifier("f367", "some.string.typical"),
-                    paramAsIdentifier("fn1", "trim"),
-                    paramAsIdentifier("fn2", "count")
+        var nested = multiFieldWithNested();
+        assertProjection(
+            nested.query(
+                """
+                    from test
+                    | eval ?f1 = ?fn1(?f2)
+                    | where ?f1 == ?f2
+                    | stats ?f8 = ?fn2(?f3.?f4.?f5) by ?f3.?f6.?f7
+                    | sort ?f36.?f7, ?f8
+                    | keep ?f367, ?f8
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f1", "a"),
+                        paramAsIdentifier("f2", "keyword"),
+                        paramAsIdentifier("f3", "some"),
+                        paramAsIdentifier("f4", "dotted"),
+                        paramAsIdentifier("f5", "field"),
+                        paramAsIdentifier("f6", "string"),
+                        paramAsIdentifier("f7", "typical"),
+                        paramAsIdentifier("f8", "y"),
+                        paramAsIdentifier("f36", "some.string"),
+                        paramAsIdentifier("f367", "some.string.typical"),
+                        paramAsIdentifier("fn1", "trim"),
+                        paramAsIdentifier("fn2", "count")
+                    )
                 )
             ),
             "some.string.typical",
             "y"
         );
 
-        assertProjectionWithMapping(
-            """
-                from test
-                | eval ?f1 = ?fn1(?f2)
-                | where ?f1 == ?f2
-                | mv_expand ?f3.?f4.?f5
-                | dissect ?f8 "%{bar}"
-                | grok ?f2 "%{WORD:foo}"
-                | rename ?f9 as ?f10
-                | sort ?f3.?f6.?f7
-                | drop ?f11
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsIdentifier("f1", "a"),
-                    paramAsIdentifier("f2", "keyword"),
-                    paramAsIdentifier("f3", "some"),
-                    paramAsIdentifier("f4", "dotted"),
-                    paramAsIdentifier("f5", "field"),
-                    paramAsIdentifier("f6", "string"),
-                    paramAsIdentifier("f7", "typical"),
-                    paramAsIdentifier("f8", "text"),
-                    paramAsIdentifier("f9", "date"),
-                    paramAsIdentifier("f10", "datetime"),
-                    paramAsIdentifier("f11", "bool"),
-                    paramAsIdentifier("fn1", "trim")
+        assertProjection(
+            nested.query(
+                """
+                    from test
+                    | eval ?f1 = ?fn1(?f2)
+                    | where ?f1 == ?f2
+                    | mv_expand ?f3.?f4.?f5
+                    | dissect ?f8 "%{bar}"
+                    | grok ?f2 "%{WORD:foo}"
+                    | rename ?f9 as ?f10
+                    | sort ?f3.?f6.?f7
+                    | drop ?f11
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f1", "a"),
+                        paramAsIdentifier("f2", "keyword"),
+                        paramAsIdentifier("f3", "some"),
+                        paramAsIdentifier("f4", "dotted"),
+                        paramAsIdentifier("f5", "field"),
+                        paramAsIdentifier("f6", "string"),
+                        paramAsIdentifier("f7", "typical"),
+                        paramAsIdentifier("f8", "text"),
+                        paramAsIdentifier("f9", "date"),
+                        paramAsIdentifier("f10", "datetime"),
+                        paramAsIdentifier("f11", "bool"),
+                        paramAsIdentifier("fn1", "trim")
+                    )
                 )
             ),
             "binary",
@@ -3035,22 +3078,23 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testInvalidNamedParamsForIdentifiers() {
         // missing field
-        assertError(
-            """
-                from test
-                | eval ?f1 = ?fn1(?f2)
-                | keep ?f3
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsIdentifier("f1", "a"),
-                    paramAsIdentifier("f2", "keyword"),
-                    paramAsIdentifier("f3", "some.string.nonexisting"),
-                    paramAsIdentifier("fn1", "trim")
+        assertThat(
+            multiFieldWithNested().error(
+                """
+                    from test
+                    | eval ?f1 = ?fn1(?f2)
+                    | keep ?f3
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsIdentifier("f1", "a"),
+                        paramAsIdentifier("f2", "keyword"),
+                        paramAsIdentifier("f3", "some.string.nonexisting"),
+                        paramAsIdentifier("fn1", "trim")
+                    )
                 )
             ),
-            "Unknown column [some.string.nonexisting]"
+            containsString("Unknown column [some.string.nonexisting]")
         );
 
         // field name pattern is not supported in where/stats/sort/dissect/grok, they only take identifier
@@ -3063,22 +3107,24 @@ public class AnalyzerTests extends ESTestCase {
             "grok ?f1 \"%{WORD:foo}\""
         )) {
             for (String pattern : List.of("keyword*", "*")) {
-                assertError(
-                    "from test | " + invalidParam,
-                    "mapping-multi-field-with-nested.json",
-                    new QueryParams(List.of(paramAsPattern("f1", pattern))),
-                    "Unresolved pattern [" + pattern + "]"
+                assertThat(
+                    multiFieldWithNested().error(
+                        "from test | " + invalidParam,
+                        new QueryParams(List.of(paramAsPattern("f1", pattern)))
+                    ),
+                    containsString("Unresolved pattern [" + pattern + "]")
                 );
             }
         }
 
         // pattern and constant for function are covered in StatementParserTests
         for (String pattern : List.of("count*", "*")) {
-            assertError(
-                "from test | stats x = ?fn1(*)",
-                "mapping-multi-field-with-nested.json",
-                new QueryParams(List.of(paramAsIdentifier("fn1", pattern))),
-                "Unknown function [" + pattern + "]"
+            assertThat(
+                multiFieldWithNested().error(
+                    "from test | stats x = ?fn1(*)",
+                    new QueryParams(List.of(paramAsIdentifier("fn1", pattern)))
+                ),
+                containsString("Unknown function [" + pattern + "]")
             );
         }
 
@@ -3093,74 +3139,78 @@ public class AnalyzerTests extends ESTestCase {
             "mv_expand ?f1"
         );
         for (Object command : commands) {
-            assertError(
-                "from test | " + command,
-                "mapping-multi-field-with-nested.json",
-                new QueryParams(List.of(paramAsIdentifier("f1", "`keyword`"))),
-                "Unknown column [`keyword`]"
+            assertThat(
+                multiFieldWithNested().error(
+                    "from test | " + command,
+                    new QueryParams(List.of(paramAsIdentifier("f1", "`keyword`")))
+                ),
+                containsString("Unknown column [`keyword`]")
             );
         }
     }
 
     public void testNamedDoubleParamsForIdentifiers() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        assertProjectionWithMapping(
-            """
-                from test
-                | eval ??f1 = ??fn1(??f2)
-                | where ??f1 == ??f2
-                | stats ??f8 = ??fn2(??f3.??f4.??f5) by ??f3.??f6.??f7
-                | sort ??f36.??f7, ??f8
-                | keep ??f367, ??f8
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsConstant("f1", "a"),
-                    paramAsConstant("f2", "keyword"),
-                    paramAsConstant("f3", "some"),
-                    paramAsConstant("f4", "dotted"),
-                    paramAsConstant("f5", "field"),
-                    paramAsConstant("f6", "string"),
-                    paramAsConstant("f7", "typical"),
-                    paramAsConstant("f8", "y"),
-                    paramAsConstant("f36", "some.string"),
-                    paramAsConstant("f367", "some.string.typical"),
-                    paramAsConstant("fn1", "trim"),
-                    paramAsConstant("fn2", "count")
+        var nested = multiFieldWithNested();
+        assertProjection(
+            nested.query(
+                """
+                    from test
+                    | eval ??f1 = ??fn1(??f2)
+                    | where ??f1 == ??f2
+                    | stats ??f8 = ??fn2(??f3.??f4.??f5) by ??f3.??f6.??f7
+                    | sort ??f36.??f7, ??f8
+                    | keep ??f367, ??f8
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("f1", "a"),
+                        paramAsConstant("f2", "keyword"),
+                        paramAsConstant("f3", "some"),
+                        paramAsConstant("f4", "dotted"),
+                        paramAsConstant("f5", "field"),
+                        paramAsConstant("f6", "string"),
+                        paramAsConstant("f7", "typical"),
+                        paramAsConstant("f8", "y"),
+                        paramAsConstant("f36", "some.string"),
+                        paramAsConstant("f367", "some.string.typical"),
+                        paramAsConstant("fn1", "trim"),
+                        paramAsConstant("fn2", "count")
+                    )
                 )
             ),
             "some.string.typical",
             "y"
         );
 
-        assertProjectionWithMapping(
-            """
-                from test
-                | eval ??f1 = ??fn1(??f2)
-                | where ??f1 == ??f2
-                | mv_expand ??f3.??f4.??f5
-                | dissect ??f8 "%{bar}"
-                | grok ??f2 "%{WORD:foo}"
-                | rename ??f9 as ??f10
-                | sort ??f3.??f6.??f7
-                | drop ??f11
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsConstant("f1", "a"),
-                    paramAsConstant("f2", "keyword"),
-                    paramAsConstant("f3", "some"),
-                    paramAsConstant("f4", "dotted"),
-                    paramAsConstant("f5", "field"),
-                    paramAsConstant("f6", "string"),
-                    paramAsConstant("f7", "typical"),
-                    paramAsConstant("f8", "text"),
-                    paramAsConstant("f9", "date"),
-                    paramAsConstant("f10", "datetime"),
-                    paramAsConstant("f11", "bool"),
-                    paramAsConstant("fn1", "trim")
+        assertProjection(
+            nested.query(
+                """
+                    from test
+                    | eval ??f1 = ??fn1(??f2)
+                    | where ??f1 == ??f2
+                    | mv_expand ??f3.??f4.??f5
+                    | dissect ??f8 "%{bar}"
+                    | grok ??f2 "%{WORD:foo}"
+                    | rename ??f9 as ??f10
+                    | sort ??f3.??f6.??f7
+                    | drop ??f11
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("f1", "a"),
+                        paramAsConstant("f2", "keyword"),
+                        paramAsConstant("f3", "some"),
+                        paramAsConstant("f4", "dotted"),
+                        paramAsConstant("f5", "field"),
+                        paramAsConstant("f6", "string"),
+                        paramAsConstant("f7", "typical"),
+                        paramAsConstant("f8", "text"),
+                        paramAsConstant("f9", "date"),
+                        paramAsConstant("f10", "datetime"),
+                        paramAsConstant("f11", "bool"),
+                        paramAsConstant("fn1", "trim")
+                    )
                 )
             ),
             "binary",
@@ -3192,46 +3242,50 @@ public class AnalyzerTests extends ESTestCase {
             "foo"
         );
 
-        assertProjectionWithMapping(
-            """
-                FROM test
-                | EVAL ??f1 = ??f2
-                | LOOKUP JOIN languages_lookup ON ??f1
-                | KEEP ??f3.??f6.??f7
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsConstant("f1", "language_code"),
-                    paramAsConstant("f2", "int"),
-                    paramAsConstant("f3", "some"),
-                    paramAsConstant("f6", "string"),
-                    paramAsConstant("f7", "typical")
-                )
-            ),
+        assertProjection(
+            nested.addLookupIndex("languages_lookup", "mapping-languages.json")
+                .query(
+                    """
+                        FROM test
+                        | EVAL ??f1 = ??f2
+                        | LOOKUP JOIN languages_lookup ON ??f1
+                        | KEEP ??f3.??f6.??f7
+                        """,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("f1", "language_code"),
+                            paramAsConstant("f2", "int"),
+                            paramAsConstant("f3", "some"),
+                            paramAsConstant("f6", "string"),
+                            paramAsConstant("f7", "typical")
+                        )
+                    )
+                ),
             "some.string.typical"
         );
     }
 
     public void testInvalidNamedDoubleParamsForIdentifiers() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        var mfn = multiFieldWithNested().addLookupIndex("languages_lookup", "mapping-languages.json");
         // missing field
-        assertError(
-            """
-                from test
-                | eval ??f1 = ??fn1(??f2)
-                | keep ??f3
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsConstant("f1", "a"),
-                    paramAsConstant("f2", "keyword"),
-                    paramAsConstant("f3", "some.string.nonexisting"),
-                    paramAsConstant("fn1", "trim")
+        assertThat(
+            mfn.error(
+                """
+                    from test
+                    | eval ??f1 = ??fn1(??f2)
+                    | keep ??f3
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("f1", "a"),
+                        paramAsConstant("f2", "keyword"),
+                        paramAsConstant("f3", "some.string.nonexisting"),
+                        paramAsConstant("fn1", "trim")
+                    )
                 )
             ),
-            "Unknown column [some.string.nonexisting]"
+            containsString("Unknown column [some.string.nonexisting]")
         );
 
         // field name pattern is not supported in where/stats/sort/dissect/grok, they only take identifier
@@ -3245,22 +3299,24 @@ public class AnalyzerTests extends ESTestCase {
             "lookup join languages_lookup on ??f1"
         )) {
             for (String pattern : List.of("keyword*", "*")) {
-                assertError(
-                    "from test | " + invalidParam,
-                    "mapping-multi-field-with-nested.json",
-                    new QueryParams(List.of(paramAsConstant("f1", pattern))),
-                    "Unknown column [" + pattern + "]"
+                assertThat(
+                    mfn.error(
+                        "from test | " + invalidParam,
+                        new QueryParams(List.of(paramAsConstant("f1", pattern)))
+                    ),
+                    containsString("Unknown column [" + pattern + "]")
                 );
             }
         }
 
         // pattern and constant for function are covered in StatementParserTests
         for (String pattern : List.of("count*", "*")) {
-            assertError(
-                "from test | stats x = ??fn1(*)",
-                "mapping-multi-field-with-nested.json",
-                new QueryParams(List.of(paramAsConstant("fn1", pattern))),
-                "Unknown function [" + pattern + "]"
+            assertThat(
+                mfn.error(
+                    "from test | stats x = ??fn1(*)",
+                    new QueryParams(List.of(paramAsConstant("fn1", pattern)))
+                ),
+                containsString("Unknown function [" + pattern + "]")
             );
         }
 
@@ -3276,33 +3332,35 @@ public class AnalyzerTests extends ESTestCase {
             "lookup join languages_lookup on ??f1"
         );
         for (Object command : commands) {
-            assertError(
-                "from test | " + command,
-                "mapping-multi-field-with-nested.json",
-                new QueryParams(List.of(paramAsConstant("f1", "`keyword`"))),
-                "Unknown column [`keyword`]"
+            assertThat(
+                mfn.error(
+                    "from test | " + command,
+                    new QueryParams(List.of(paramAsConstant("f1", "`keyword`")))
+                ),
+                containsString("Unknown column [`keyword`]")
             );
         }
     }
 
     public void testNamedParamsForIdentifierPatterns() {
-        assertProjectionWithMapping(
-            """
-                from test
-                | keep ?f1, ?f2.?f3
-                | drop ?f1.?f6.?f7.?f8, ?f2.?f4, ?f2.?f5.?f3
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(
-                List.of(
-                    paramAsPattern("f1", "x*"),
-                    paramAsIdentifier("f2", "some"),
-                    paramAsPattern("f3", "*"),
-                    paramAsPattern("f4", "ambiguous*"),
-                    paramAsIdentifier("f5", "dotted"),
-                    paramAsIdentifier("f6", "y"),
-                    paramAsIdentifier("f7", "z"),
-                    paramAsIdentifier("f8", "v")
+        assertProjection(
+            multiFieldWithNested().query(
+                """
+                    from test
+                    | keep ?f1, ?f2.?f3
+                    | drop ?f1.?f6.?f7.?f8, ?f2.?f4, ?f2.?f5.?f3
+                    """,
+                new QueryParams(
+                    List.of(
+                        paramAsPattern("f1", "x*"),
+                        paramAsIdentifier("f2", "some"),
+                        paramAsPattern("f3", "*"),
+                        paramAsPattern("f4", "ambiguous*"),
+                        paramAsIdentifier("f5", "dotted"),
+                        paramAsIdentifier("f6", "y"),
+                        paramAsIdentifier("f7", "z"),
+                        paramAsIdentifier("f8", "v")
+                    )
                 )
             ),
             "x",
@@ -3317,22 +3375,24 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testInvalidNamedParamsForIdentifierPatterns() {
         // missing pattern
-        assertError(
-            """
-                from test | keep ?f1
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(List.of(paramAsPattern("f1", "a*"))),
-            "No matches found for pattern [a*]"
+        assertThat(
+            multiFieldWithNested().error(
+                """
+                    from test | keep ?f1
+                    """,
+                new QueryParams(List.of(paramAsPattern("f1", "a*")))
+            ),
+            containsString("No matches found for pattern [a*]")
         );
         // invalid type
-        assertError(
-            """
-                from test | keep ?f1
-                """,
-            "mapping-multi-field-with-nested.json",
-            new QueryParams(List.of(paramAsIdentifier("f1", "x*"))),
-            "Unknown column [x*], did you mean [x]?"
+        assertThat(
+            multiFieldWithNested().error(
+                """
+                    from test | keep ?f1
+                    """,
+                new QueryParams(List.of(paramAsIdentifier("f1", "x*")))
+            ),
+            containsString("Unknown column [x*], did you mean [x]?")
         );
     }
 
@@ -4159,45 +4219,14 @@ public class AnalyzerTests extends ESTestCase {
         return Map.of("message", new IndexFieldCapabilitiesBuilder("message", date).build());
     }
 
-    private void verifyUnsupported(String query, String errorMessage) {
-        verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
-    }
-
-    private void verifyUnsupported(String query, String errorMessage, String mappingFileName) {
-        var e = expectThrows(VerificationException.class, () -> analyze(query, mappingFileName));
-        assertThat(e.getMessage(), containsString(errorMessage));
-    }
-
-    private void assertProjection(String query, String... names) {
-        assertProjection(analyze(query), names);
-    }
-
     private void assertProjection(LogicalPlan plan, String... names) {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
 
-    private void assertProjectionTypes(String query, DataType... types) {
-        var plan = analyze(query);
+    private void assertProjectionTypes(LogicalPlan plan, DataType... types) {
         var limit = as(plan, Limit.class);
         assertThat(limit.output().stream().map(NamedExpression::dataType).toList(), contains(types));
-    }
-
-    private void assertProjectionWithMapping(String query, String mapping, String... names) {
-        var plan = analyze(query, mapping);
-        var limit = as(plan, Limit.class);
-        assertThat(Expressions.names(limit.output()), contains(names));
-    }
-
-    private void assertProjectionWithMapping(String query, String mapping, QueryParams params, String... names) {
-        var plan = analyze(query, mapping, params);
-        var limit = as(plan, Limit.class);
-        assertThat(Expressions.names(limit.output()), contains(names));
-    }
-
-    private void assertError(String query, String mapping, QueryParams params, String error) {
-        Throwable e = expectThrows(VerificationException.class, () -> analyze(query, mapping, params));
-        assertThat(e.getMessage(), containsString(error));
     }
 
     @Override
@@ -4229,10 +4258,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingResolveInferenceId() {
-        LogicalPlan plan = analyze(
+        LogicalPlan plan = books().query(
             String.format(Locale.ROOT, """
-                FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
-            "mapping-books.json"
+                FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID)
         );
 
         Eval eval = as(as(plan, Limit.class).child(), Eval.class);
@@ -4246,10 +4274,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionResolveType() {
-        LogicalPlan plan = analyze(
+        LogicalPlan plan = books().query(
             String.format(Locale.ROOT, """
-                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
-            "mapping-books.json"
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID)
         );
 
         Eval eval = as(as(plan, Limit.class).child(), Eval.class);
@@ -4264,51 +4291,37 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionMissingInferenceIdError() {
-        VerificationException ve = expectThrows(
-            VerificationException.class,
-            () -> analyze(
+        assertThat(
+            books().error(
                 String.format(Locale.ROOT, """
-                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", "unknow-inference-id"),
-                "mapping-books.json"
-            )
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", "unknow-inference-id")
+            ),
+            containsString("unresolved inference [unknow-inference-id]")
         );
-
-        assertThat(ve.getMessage(), containsString("unresolved inference [unknow-inference-id]"));
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceIdError() {
         String inferenceId = randomInferenceIdOtherThan(TEXT_EMBEDDING_INFERENCE_ID);
-        VerificationException ve = expectThrows(
-            VerificationException.class,
-            () -> analyze(
-                String.format(Locale.ROOT, """
-                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", inferenceId),
-                "mapping-books.json"
-            )
-        );
-
         assertThat(
-            ve.getMessage(),
+            books().error(
+                String.format(Locale.ROOT, """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", inferenceId)
+            ),
             containsString(String.format(Locale.ROOT, "cannot use inference endpoint [%s] with task type", inferenceId))
         );
     }
 
     public void testTextEmbeddingFunctionWithoutModel() {
-        ParsingException ve = expectThrows(ParsingException.class, () -> analyze("""
-            FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""", "mapping-books.json"));
-
         assertThat(
-            ve.getMessage(),
+            books().error("""
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe")""", ParsingException.class),
             containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
         );
     }
 
     public void testKnnFunctionWithTextEmbedding() {
-        LogicalPlan plan = analyze(
-            String.format(Locale.ROOT, """
-                from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
-            DENSE_VECTOR_MAPPING_FILE
-        );
+        LogicalPlan plan = denseVector().addAnalysisTestsInferenceResolution().query(String.format(Locale.ROOT, """
+            from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID));
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -4323,22 +4336,20 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testResolveRerankInferenceId() {
         {
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books METADATA _score
                 | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
         }
 
         {
-            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
-                FROM books METADATA _score
-                | RERANK "italian food recipe" ON title WITH { "inference_id" : "completion-inference-id" }
-                """, "mapping-books.json"));
-
             assertThat(
-                ve.getMessage(),
+                books().error("""
+                    FROM books METADATA _score
+                    | RERANK "italian food recipe" ON title WITH { "inference_id" : "completion-inference-id" }
+                    """),
                 containsString(
                     "cannot use inference endpoint [completion-inference-id] with task type [completion] within a Rerank command. "
                         + "Only inference endpoints with the task type [rerank] are supported"
@@ -4347,33 +4358,36 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
-            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
-                FROM books METADATA _score
-                | RERANK "italian food recipe" ON title WITH { "inference_id" : "error-inference-id" }
-                """, "mapping-books.json"));
-
-            assertThat(ve.getMessage(), containsString("error with inference resolution"));
+            assertThat(
+                books().error("""
+                    FROM books METADATA _score
+                    | RERANK "italian food recipe" ON title WITH { "inference_id" : "error-inference-id" }
+                    """),
+                containsString("error with inference resolution")
+            );
         }
 
         {
-            VerificationException ve = expectThrows(VerificationException.class, () -> analyze("""
-                FROM books  METADATA _score
-                | RERANK "italian food recipe" ON title WITH { "inference_id" : "unknown-inference-id" }
-                """, "mapping-books.json"));
-            assertThat(ve.getMessage(), containsString("unresolved inference [unknown-inference-id]"));
+            assertThat(
+                books().error("""
+                    FROM books  METADATA _score
+                    | RERANK "italian food recipe" ON title WITH { "inference_id" : "unknown-inference-id" }
+                    """),
+                containsString("unresolved inference [unknown-inference-id]")
+            );
         }
     }
 
     public void testResolveRerankFields() {
         {
             // Single field.
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | KEEP description, title, year, _score
                 | DROP description
                 | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -4393,12 +4407,12 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             // Multiple fields.
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books METADATA _score
                 | WHERE title:"food"
                 | RERANK "food" ON title, description=SUBSTRING(description, 0, 100)
                   WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -4426,26 +4440,24 @@ public class AnalyzerTests extends ESTestCase {
         }
 
         {
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> analyze("""
+            assertThat(
+                books().error("""
                     FROM books METADATA _score
                     | RERANK "italian food recipe" ON missingField WITH { "inference_id" : "reranking-inference-id" }
-                    """, "mapping-books.json")
-
+                    """),
+                containsString("Unknown column [missingField]")
             );
-            assertThat(ve.getMessage(), containsString("Unknown column [missingField]"));
         }
     }
 
     public void testResolveRerankScoreField() {
         {
             // When the metadata field is required in FROM, it is reused.
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -4459,11 +4471,11 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             // When the metadata field is not required in FROM, it is added to the output of RERANK
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | RERANK "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -4477,11 +4489,11 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             // When using a custom fields that does not exist
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | RERANK rerank_score = "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -4494,12 +4506,12 @@ public class AnalyzerTests extends ESTestCase {
 
         {
             // When using a custom fields that already exists
-            LogicalPlan plan = analyze("""
+            LogicalPlan plan = books().query("""
                 FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
                 | EVAL rerank_score = _score
                 | RERANK rerank_score = "italian food recipe" ON title WITH { "inference_id" : "reranking-inference-id" }
-                """, "mapping-books.json");
+                """);
 
             Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
             Rerank rerank = as(limit.child(), Rerank.class);
@@ -4513,15 +4525,21 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankInvalidQueryTypes() {
-        assertError("""
-            FROM books METADATA _score
-            | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
-            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [42]");
+        assertThat(
+            books().error("""
+                FROM books METADATA _score
+                | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
+                """),
+            containsString("query must be a valid string in RERANK, found [42]")
+        );
 
-        assertError("""
-            FROM books METADATA _score
-            | RERANK rerank_score = null ON title WITH { "inference_id" : "reranking-inference-id" }
-            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [null]");
+        assertThat(
+            books().error("""
+                FROM books METADATA _score
+                | RERANK rerank_score = null ON title WITH { "inference_id" : "reranking-inference-id" }
+                """),
+            containsString("query must be a valid string in RERANK, found [null]")
+        );
     }
 
     public void testRerankFieldsInvalidTypes() {
@@ -4545,13 +4563,13 @@ public class AnalyzerTests extends ESTestCase {
 
         for (String fieldName : invalidFieldNames) {
             LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
-            assertError(
-                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
-                    + fieldName
-                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
-                "mapping-all-types.json",
-                new QueryParams(),
-                "rerank field must be a valid string expression, found [" + fieldName + "]"
+            assertThat(
+                allTypes().error(
+                    "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
+                        + fieldName
+                        + " WITH { \"inference_id\" : \"reranking-inference-id\" }"
+                ),
+                containsString("rerank field must be a valid string expression, found [" + fieldName + "]")
             );
         }
     }
@@ -4560,11 +4578,10 @@ public class AnalyzerTests extends ESTestCase {
         List<String> validFieldNames = List.of("`constant_keyword-foo`", "keyword", "text", "wildcard");
 
         for (String fieldName : validFieldNames) {
-            LogicalPlan plan = analyze(
+            LogicalPlan plan = allTypes().query(
                 "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
                     + fieldName
-                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
-                "mapping-all-types.json"
+                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }"
             );
 
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
@@ -4576,75 +4593,84 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidValidRerankQuery() {
-        assertError("""
-            FROM books METADATA _score
-            | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
-            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [42]");
+        assertThat(
+            books().error("""
+                FROM books METADATA _score
+                | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
+                """),
+            containsString("query must be a valid string in RERANK, found [42]")
+        );
     }
 
     public void testResolveCompletionInferenceId() {
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.inferenceId(), equalTo(string("completion-inference-id")));
     }
 
     public void testResolveCompletionInferenceIdInvalidTaskType() {
-        assertError(
-            """
+        assertThat(
+            books().error("""
                 FROM books METADATA _score
                 | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "reranking-inference-id" }
-                """,
-            "mapping-books.json",
-            new QueryParams(),
-            "cannot use inference endpoint [reranking-inference-id] with task type [rerank] within a Completion command."
-                + " Only inference endpoints with the task type [completion] are supported"
+                """),
+            containsString(
+                "cannot use inference endpoint [reranking-inference-id] with task type [rerank] within a Completion command."
+                    + " Only inference endpoints with the task type [completion] are supported"
+            )
         );
     }
 
     public void testResolveCompletionInferenceMissingInferenceId() {
-        assertError("""
-            FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH { "inference_id" : "unknown-inference-id" }
-            """, "mapping-books.json", new QueryParams(), "unresolved inference [unknown-inference-id]");
+        assertThat(
+            books().error("""
+                FROM books METADATA _score
+                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH { "inference_id" : "unknown-inference-id" }
+                """),
+            containsString("unresolved inference [unknown-inference-id]")
+        );
     }
 
     public void testResolveCompletionInferenceIdResolutionError() {
-        assertError("""
-            FROM books METADATA _score
-            | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH { "inference_id" : "error-inference-id" }
-            """, "mapping-books.json", new QueryParams(), "error with inference resolution");
+        assertThat(
+            books().error("""
+                FROM books METADATA _score
+                | COMPLETION CONCAT("Translate the following text in French\\n", description) WITH { "inference_id" : "error-inference-id" }
+                """),
+            containsString("error with inference resolution")
+        );
     }
 
     public void testResolveCompletionTargetField() {
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION translation = CONCAT("Translate the following text in French\\n", description)
               WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.targetField(), equalToIgnoringIds(referenceAttribute("translation", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionDefaultTargetField() {
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.targetField(), equalToIgnoringIds(referenceAttribute("completion", DataType.KEYWORD)));
     }
 
     public void testResolveCompletionPrompt() {
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate this text in French\\n", description) WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         EsRelation esRelation = as(completion.child(), EsRelation.class);
@@ -4656,18 +4682,21 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveCompletionPromptInvalidType() {
-        assertError("""
-            FROM books METADATA _score
-            | COMPLETION LENGTH(description) WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json", new QueryParams(), "prompt must be of type [text] but is [integer]");
+        assertThat(
+            books().error("""
+                FROM books METADATA _score
+                | COMPLETION LENGTH(description) WITH { "inference_id" : "completion-inference-id" }
+                """),
+            containsString("prompt must be of type [text] but is [integer]")
+        );
     }
 
     public void testResolveCompletionOutputFieldOverwriteInputField() {
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION description = CONCAT("Translate the following text in French\\n", description)
               WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Completion completion = as(as(plan, Limit.class).child(), Completion.class);
         assertThat(completion.targetField(), equalToIgnoringIds(referenceAttribute("description", DataType.KEYWORD)));
@@ -4679,10 +4708,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testFoldableCompletionTransformedToEval() {
         // Test that a foldable Completion plan (with literal prompt) is transformed to Eval with CompletionFunction
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION "Translate this text in French" WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Eval eval = as(as(plan, Limit.class).child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
@@ -4700,10 +4729,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testFoldableCompletionWithCustomTargetFieldTransformedToEval() {
         // Test that a foldable Completion plan with custom target field is transformed correctly
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION translation = "Translate this text" WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Eval eval = as(as(plan, Limit.class).child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
@@ -4721,10 +4750,10 @@ public class AnalyzerTests extends ESTestCase {
     public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {
         // Test that a foldable Completion plan with a foldable expression (not just a literal) is transformed correctly
         // Using CONCAT with all literal arguments to ensure it's foldable during analysis
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = books().query("""
             FROM books METADATA _score
             | COMPLETION CONCAT("Translate", " ", "this text") WITH { "inference_id" : "completion-inference-id" }
-            """, "mapping-books.json");
+            """);
 
         Eval eval = as(as(plan, Limit.class).child(), Eval.class);
         assertThat(eval.fields().size(), equalTo(1));
@@ -4741,11 +4770,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveGroupingsBeforeResolvingImplicitReferencesToGroupings() {
-        var plan = analyze("""
+        var plan = defaultMapping().query("""
             FROM test
             | EVAL date = "2025-01-01"::datetime
             | STATS c = count(emp_no) BY d = (date == "2025-01-01")
-            """, "mapping-default.json");
+            """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4771,11 +4800,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveGroupingsBeforeResolvingExplicitReferencesToGroupings() {
-        var plan = analyze("""
+        var plan = defaultMapping().query("""
             FROM test
             | EVAL date = "2025-01-01"::datetime
             | STATS c = count(emp_no), x = d::int + 1 BY d = (date == "2025-01-01")
-            """, "mapping-default.json");
+            """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4807,10 +4836,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testBucketWithIntervalInStringInBothAggregationAndGrouping() {
-        var plan = analyze("""
+        var plan = defaultMapping().query("""
             FROM test
             | STATS c = count(emp_no), b = BUCKET(hire_date, "1 year") + 1 year BY yr = BUCKET(hire_date, "1 year")
-            """, "mapping-default.json");
+            """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -4846,10 +4875,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testBucketWithIntervalInStringInGroupingReferencedInAggregation() {
-        var plan = analyze("""
+        var plan = defaultMapping().query("""
             FROM test
             | STATS c = count(emp_no), b = yr + 1 year BY yr = BUCKET(hire_date, "1 year")
-            """, "mapping-default.json");
+            """);
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
@@ -5101,40 +5130,38 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInStats() {
-        verifyUnsupported("""
+        assertThat(defaultMapping().error("""
             from test
             | stats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
+            """), containsString("Found 1 problem\n" + "line 2:43: Unknown column [x]"));
     }
 
     public void testGroupingOverridesInInlineStats() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        verifyUnsupported("""
+        assertThat(defaultMapping().error("""
             from test
             | inline stats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]", "mapping-default.json");
+            """), containsString("Found 1 problem\n" + "line 2:50: Unknown column [x]"));
     }
 
     public void testInlineStatsStats() {
         assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
-        verifyUnsupported("""
+        assertThat(defaultMapping().error("""
             from test
             | inline stats stats
-            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
+            """), containsString("Found 1 problem\n" + "line 2:16: Unknown column [stats]"));
         // TODO: drop after next minor release
-        verifyUnsupported("""
+        assertThat(defaultMapping().error("""
             from test
             | inlinestats stats
-            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
+            """), containsString("Found 1 problem\n" + "line 2:15: Unknown column [stats]"));
     }
 
     public void testTBucketAutoBucketingWithTimestampBounds() {
         Instant start = Instant.parse("2024-01-01T00:00:00Z");
         Instant end = Instant.parse("2024-01-02T00:00:00Z");
         var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(start, end);
-        LogicalPlan plan = EsqlTestUtils.analyzer()
-            .addIndex("sample_data", "mapping-sample_data.json")
-            .timestampBounds(bounds)
+        LogicalPlan plan = sampleData().timestampBounds(bounds)
             .query("FROM sample_data | STATS count = COUNT() BY bucket = TBUCKET(100)");
 
         Limit limit = as(plan, Limit.class);
@@ -5156,11 +5183,11 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = sampleData().query("""
             FROM sample_data
             | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
             | SORT min
-            """, "mapping-sample_data.json");
+            """);
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
@@ -5668,12 +5695,12 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | EVAL emp_no = emp_no::long
             | WHERE emp_no > 10000
             | SORT emp_no
-            """, "mapping-default.json");
+            """);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -5725,13 +5752,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMixedDataTypesWithExplicitCastingInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | EVAL emp_no = emp_no::long
             | WHERE emp_no > 10000
             | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
             | SORT still_hired, is_rehired
-            """, "mapping-default.json");
+            """);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -5794,13 +5821,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMixedDataTypesWithMultipleExplicitCastingInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | EVAL x = emp_no::long, y = emp_no::string, z = emp_no::double, first_name = first_name::string
             | WHERE z > 10000
             | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
             | SORT still_hired, is_rehired
-            """, "mapping-default.json");
+            """);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -5930,10 +5957,10 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = k8s().addIndex("sample_data", "mapping-sample_data.json").query("""
             FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
-            """, "k8s-downsampled-mappings.json");
+            """);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -5967,12 +5994,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
-            FROM sample_data,
-                       (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
-                       (FROM sample_data | WHERE client_ip == "127.0.0.1")
-            | WHERE @timestamp > "2025-10-07"
-            """, "mapping-sample_data.json");
+        LogicalPlan plan = sampleData().addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES)
+            .query("""
+                FROM sample_data,
+                           (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
+                           (FROM sample_data | WHERE client_ip == "127.0.0.1")
+                | WHERE @timestamp > "2025-10-07"
+                """);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -6009,12 +6037,12 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = analyze("""
+        LogicalPlan plan = k8s().addIndex("sample_data", "mapping-sample_data.json").query("""
             FROM k8s,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
-            """, "k8s-downsampled-mappings.json");
+            """);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -6255,9 +6283,7 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
         );
 
-        LogicalPlan analyzedPlan = EsqlTestUtils.analyzer()
-            .addIndex("test", "mapping-default.json")
-            .addLookupIndex("languages_lookup", "mapping-languages.json")
+        LogicalPlan analyzedPlan = defaultMapping().addLookupIndex("languages_lookup", "mapping-languages.json")
             .minimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
             .query(
                 "FROM test | LOOKUP JOIN languages_lookup "
@@ -6664,4 +6690,45 @@ public class AnalyzerTests extends ESTestCase {
         assertTrue(externalRelation.fileSet().isUnresolved());
         assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
     }
+
+    private static TestAnalyzer basic() {
+        return analyzer().addEmployees("test").stripErrorPrefix(true);
+    }
+
+    private static TestAnalyzer basicWithEnrich() {
+        return basic().addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json");
+    }
+
+    private static TestAnalyzer denseVector() {
+        return analyzer().addIndex("test", "mapping-dense_vector-all_element_types.json");
+    }
+
+    private static TestAnalyzer k8s() {
+        return analyzer().addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    private static TestAnalyzer allTypes() {
+        return analyzer().addIndex("books", "mapping-all-types.json").addAnalysisTestsInferenceResolution();
+    }
+
+    private static TestAnalyzer sampleData() {
+        return analyzer().addIndex("sample_data", "mapping-sample_data.json");
+    }
+
+    private static TestAnalyzer books() {
+        return analyzer().addIndex("books", "mapping-books.json").addAnalysisTestsInferenceResolution();
+    }
+
+    private static TestAnalyzer defaultMapping() {
+        return analyzer().addIndex("test", "mapping-default.json");
+    }
+
+    private static TestAnalyzer multiFieldVariation() {
+        return analyzer().addIndex("test", "mapping-multi-field-variation.json");
+    }
+
+    private static TestAnalyzer multiFieldWithNested() {
+        return analyzer().addIndex("test", "mapping-multi-field-with-nested.json");
+    }
+
 }

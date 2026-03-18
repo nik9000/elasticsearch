@@ -86,11 +86,11 @@ public class VerifierTests extends ESTestCase {
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
             "1:40: second argument of [a + c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
-            defaultMapping().error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
+            defaultAnalyzer().error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
             "1:40: second argument of [a - c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
-            defaultMapping().error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
+            defaultAnalyzer().error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
 
@@ -333,112 +333,112 @@ public class VerifierTests extends ESTestCase {
     public void testRoundFunctionInvalidInputs() {
         assertEquals(
             "1:31: first argument of [round(b, 3)] must be [numeric], found value [b] type [keyword]",
-            defaultMapping().error("row a = 1, b = \"c\" | eval x = round(b, 3)")
+            defaultAnalyzer().error("row a = 1, b = \"c\" | eval x = round(b, 3)")
         );
         assertEquals(
             "1:31: first argument of [round(b)] must be [numeric], found value [b] type [keyword]",
-            defaultMapping().error("row a = 1, b = \"c\" | eval x = round(b)")
+            defaultAnalyzer().error("row a = 1, b = \"c\" | eval x = round(b)")
         );
         assertEquals(
             "1:31: second argument of [round(a, b)] must be [whole number except unsigned_long or counter types], "
                 + "found value [b] type [keyword]",
-            defaultMapping().error("row a = 1, b = \"c\" | eval x = round(a, b)")
+            defaultAnalyzer().error("row a = 1, b = \"c\" | eval x = round(a, b)")
         );
         assertEquals(
             "1:31: second argument of [round(a, 3.5)] must be [whole number except unsigned_long or counter types], "
                 + "found value [3.5] type [double]",
-            defaultMapping().error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
+            defaultAnalyzer().error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
     }
 
     public void testImplicitCastingErrorMessages() {
         assertEquals(
             "1:23: Cannot convert string [c] to [LONG], error [Cannot parse number [c]]",
-            defaultMapping().error("row a = round(123.45, \"c\")")
+            defaultAnalyzer().error("row a = round(123.45, \"c\")")
         );
         assertEquals(
             "1:27: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]",
-            defaultMapping().error("row a = 1 | eval x = acos(\"c\")")
+            defaultAnalyzer().error("row a = 1 | eval x = acos(\"c\")")
         );
         assertEquals(
             "1:33: Cannot convert string [c] to [DOUBLE], error [Cannot parse number [c]]\n"
                 + "line 1:38: Cannot convert string [a] to [LONG], error [Cannot parse number [a]]",
-            defaultMapping().error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
+            defaultAnalyzer().error("row a = 1 | eval x = round(acos(\"c\"),\"a\")")
         );
         assertEquals(
             "1:63: Cannot convert string [x] to [INTEGER], error [Cannot parse number [x]]",
-            defaultMapping().error("row ip4 = to_ip(\"1.2.3.4\") | eval ip4_prefix = ip_prefix(ip4, \"x\", 0)")
+            defaultAnalyzer().error("row ip4 = to_ip(\"1.2.3.4\") | eval ip4_prefix = ip_prefix(ip4, \"x\", 0)")
         );
         assertEquals(
             "1:42: Cannot convert string [a] to [DOUBLE], error [Cannot parse number [a]]",
-            defaultMapping().error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
+            defaultAnalyzer().error("ROW a=[3, 5, 1, 6] | EVAL avg_a = MV_AVG(\"a\")")
         );
         assertEquals(
             "1:19: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
-            defaultMapping().error("from test | where `languages.*` in (1, 2)")
+            defaultAnalyzer().error("from test | where `languages.*` in (1, 2)")
         );
-        assertEquals("1:22: Unknown function [func]", defaultMapping().error("from test | eval x = func(languages) | where x in (1, 2)"));
+        assertEquals("1:22: Unknown function [func]", defaultAnalyzer().error("from test | eval x = func(languages) | where x in (1, 2)"));
         assertEquals(
             "1:32: Unknown column [languages.*], did you mean any of [languages, languages.byte, languages.long, languages.short]?",
-            defaultMapping().error("from test | eval x = coalesce( `languages.*`, languages, 0 )")
+            defaultAnalyzer().error("from test | eval x = coalesce( `languages.*`, languages, 0 )")
         );
-        String error = defaultMapping().error("from test | eval x = func(languages) | eval y = coalesce(x, languages, 0 )");
+        String error = defaultAnalyzer().error("from test | eval x = func(languages) | eval y = coalesce(x, languages, 0 )");
         assertThat(error, containsString("function [func]"));
     }
 
     public void testAggsExpressionsInStatsAggs() {
         assertEquals(
             "1:44: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
-            defaultMapping().error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
+            defaultAnalyzer().error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
-            defaultMapping().error("from test | stats max(max(salary)) by first_name")
+            defaultAnalyzer().error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
             "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
                 + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
-            defaultMapping().error("from test | stats count(avg(first_name)) by first_name")
+            defaultAnalyzer().error("from test | stats count(avg(first_name)) by first_name")
         );
         assertEquals(
             "1:23: second argument of [percentile(languages, languages)] must be a constant, received [languages]",
-            defaultMapping().error("from test | stats x = percentile(languages, languages) by emp_no")
+            defaultAnalyzer().error("from test | stats x = percentile(languages, languages) by emp_no")
         );
         assertEquals(
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
-            defaultMapping().error("from test | stats x = count_distinct(languages, languages) by emp_no")
+            defaultAnalyzer().error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
         // no agg function
-        assertEquals("1:19: expected an aggregate function but found [5]", defaultMapping().error("from test | stats 5 by emp_no"));
+        assertEquals("1:19: expected an aggregate function but found [5]", defaultAnalyzer().error("from test | stats 5 by emp_no"));
 
         // don't allow naked group
         assertEquals(
             "1:19: grouping key [emp_no] already specified in the STATS BY clause",
-            defaultMapping().error("from test | stats emp_no BY emp_no")
+            defaultAnalyzer().error("from test | stats emp_no BY emp_no")
         );
         // don't allow naked group - even when it's an expression
         assertEquals(
             "1:19: grouping key [languages + emp_no] already specified in the STATS BY clause",
-            defaultMapping().error("from test | stats languages + emp_no BY languages + emp_no")
+            defaultAnalyzer().error("from test | stats languages + emp_no BY languages + emp_no")
         );
         // don't allow group alias
         assertEquals(
             "1:19: grouping key [e] already specified in the STATS BY clause",
-            defaultMapping().error("from test | stats e BY e = languages + emp_no")
+            defaultAnalyzer().error("from test | stats e BY e = languages + emp_no")
         );
         if (EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled()) {
             assertEquals(
                 "1:19: grouping key [[q].[e]] already specified in the STATS BY clause",
-                defaultMapping().error("from test | stats [q].[e] BY [q].[e]")
+                defaultAnalyzer().error("from test | stats [q].[e] BY [q].[e]")
             );
             assertEquals(
                 "1:19: Cannot specify grouping expression [[q].[e]] as an aggregate",
-                defaultMapping().error("from test | stats [q].[e] BY x = [q].[e]")
+                defaultAnalyzer().error("from test | stats [q].[e] BY x = [q].[e]")
             );
         }
 
-        var message = defaultMapping().error("from test | stats languages + emp_no BY e = languages + emp_no");
+        var message = defaultAnalyzer().error("from test | stats languages + emp_no BY e = languages + emp_no");
         assertThat(
             message,
             containsString(
@@ -456,49 +456,49 @@ public class VerifierTests extends ESTestCase {
     public void testAggsInsideGrouping() {
         assertEquals(
             "1:36: cannot use an aggregate [max(languages)] for grouping",
-            defaultMapping().error("from test| stats max(languages) by max(languages)")
+            defaultAnalyzer().error("from test| stats max(languages) by max(languages)")
         );
     }
 
     public void testAggFilterOnNonAggregates() {
         assertEquals(
             "1:36: WHERE clause allowed only for aggregate functions, none found in [emp_no + 1 where languages > 1]",
-            defaultMapping().error("from test | stats emp_no + 1 where languages > 1 by emp_no")
+            defaultAnalyzer().error("from test | stats emp_no + 1 where languages > 1 by emp_no")
         );
         assertEquals(
             "1:53: WHERE clause allowed only for aggregate functions, none found in [abs(emp_no + languages) % 2 WHERE languages > 1]",
-            defaultMapping().error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
+            defaultAnalyzer().error("from test | stats abs(emp_no + languages) % 2 WHERE languages > 1 by emp_no, languages")
         );
     }
 
     public void testAggFilterOnBucketingOrAggFunctions() {
         // query passes when the bucket function is part of the BY clause
-        defaultMapping().query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
+        defaultAnalyzer().query("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by bucket(salary, 10)");
 
         // but fails if it's different
         assertEquals(
             "1:32: can only use grouping function [bucket(a, 3)] as part of the BY clause",
-            defaultMapping().error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
+            defaultAnalyzer().error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
         );
 
         assertEquals(
             "1:40: can only use grouping function [bucket(salary, 10)] as part of the BY clause",
-            defaultMapping().error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
+            defaultAnalyzer().error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
         );
 
         assertEquals(
             "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) > 1]",
-            defaultMapping().error("from test | stats max(languages) WHERE max(salary) > 1 by emp_no")
+            defaultAnalyzer().error("from test | stats max(languages) WHERE max(salary) > 1 by emp_no")
         );
 
         assertEquals(
             "1:40: cannot use aggregate function [max(salary)] in aggregate WHERE clause [max(languages) WHERE max(salary) + 2 > 1]",
-            defaultMapping().error("from test | stats max(languages) WHERE max(salary) + 2 > 1 by emp_no")
+            defaultAnalyzer().error("from test | stats max(languages) WHERE max(salary) + 2 > 1 by emp_no")
         );
 
         assertEquals(
             "1:60: Unknown column [m]",
-            defaultMapping().error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no")
+            defaultAnalyzer().error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no")
         );
     }
 
@@ -507,12 +507,12 @@ public class VerifierTests extends ESTestCase {
             String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
             assertEquals(
                 "1:19: Condition expression needs to be boolean, found [" + type + "]",
-                defaultMapping().error("from test | where " + filter)
+                defaultAnalyzer().error("from test | where " + filter)
             );
             for (String by : List.of("", " by languages", " by bucket(salary, 10)")) {
                 assertEquals(
                     "1:34: Condition expression needs to be boolean, found [" + type + "]",
-                    defaultMapping().error("from test | stats count(*) where " + filter + by)
+                    defaultAnalyzer().error("from test | stats count(*) where " + filter + by)
                 );
             }
         }
@@ -521,73 +521,73 @@ public class VerifierTests extends ESTestCase {
     public void testGroupingInsideAggsAsAgg() {
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
-            defaultMapping().error("from test| stats bucket(emp_no, 5.) by emp_no")
+            defaultAnalyzer().error("from test| stats bucket(emp_no, 5.) by emp_no")
         );
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
-            defaultMapping().error("from test| stats bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats bucket(emp_no, 5.)")
         );
         assertEquals(
             "1:18: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
-            defaultMapping().error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+            defaultAnalyzer().error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
         assertEquals(
             "1:22: can only use grouping function [bucket(emp_no, 5.)] as part of the BY clause",
-            defaultMapping().error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+            defaultAnalyzer().error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
     }
 
     public void testGroupingInsideAggsAsGrouping() {
         assertEquals(
             "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
-            defaultMapping().error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 5.)")
         );
         assertEquals(
             "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
-            defaultMapping().error("from test| stats bucket(emp_no, 5.) by emp_no, bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats bucket(emp_no, 5.) by emp_no, bucket(emp_no, 5.)")
         );
         assertEquals(
             "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
-            defaultMapping().error("from test| stats bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
         );
         assertEquals(
             "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
-            defaultMapping().error("from test| stats z = bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats z = bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
         );
         assertEquals(
             "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
-            defaultMapping().error("from test| stats y = bucket(emp_no, 5.) by y = bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats y = bucket(emp_no, 5.) by y = bucket(emp_no, 5.)")
         );
         assertEquals(
             "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
-            defaultMapping().error("from test| stats z = bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+            defaultAnalyzer().error("from test| stats z = bucket(emp_no, 5.) by bucket(emp_no, 5.)")
         );
     }
 
     public void testGroupingInsideGrouping() {
         assertEquals(
             "1:40: cannot nest grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
-            defaultMapping().error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
+            defaultAnalyzer().error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
         );
     }
 
     public void testInvalidBucketCalls() {
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(emp_no, 5, \"2000-01-01\")"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(emp_no, 5, \"2000-01-01\")"),
             containsString(
                 "function expects exactly four arguments when the first one is of type [INTEGER] and the second of type [INTEGER]"
             )
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(emp_no, 1 week, \"2000-01-01\")"),
             containsString(
                 "second argument of [bucket(emp_no, 1 week, \"2000-01-01\")] must be [numeric], found value [1 week] type [date_period]"
             )
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, 5.5, \"2000-01-01\")"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, 5.5, \"2000-01-01\")"),
             containsString(
                 "second argument of [bucket(hire_date, 5.5, \"2000-01-01\")] must be [integral, date_period or time_duration], "
                     + "found value [5.5] type [double]"
@@ -595,7 +595,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, 5, 1 day, 1 month)"),
             containsString(
                 "third argument of [bucket(hire_date, 5, 1 day, 1 month)] must be [datetime or string], "
                     + "found value [1 day] type [date_period]"
@@ -603,7 +603,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\", 1 month)"),
             containsString(
                 "fourth argument of [bucket(hire_date, 5, \"2000-01-01\", 1 month)] must be [datetime or string], "
                     + "found value [1 month] type [date_period]"
@@ -611,19 +611,19 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\")"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, 5, \"2000-01-01\")"),
             containsString(
                 "function expects exactly four arguments when the first one is of type [DATETIME] and the second of type [INTEGER]"
             )
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(emp_no, \"5\")"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(emp_no, \"5\")"),
             containsString("second argument of [bucket(emp_no, \"5\")] must be [numeric], found value [\"5\"] type [keyword]")
         );
 
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, \"5\")"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, \"5\")"),
             containsString(
                 "second argument of [bucket(hire_date, \"5\")] must be [integral, date_period or time_duration], "
                     + "found value [\"5\"] type [keyword]"
@@ -634,26 +634,26 @@ public class VerifierTests extends ESTestCase {
     public void testAggsWithInvalidGrouping() {
         assertEquals(
             "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
-            defaultMapping().error("from test| stats max(languages) + languages by l = languages % 3")
+            defaultAnalyzer().error("from test| stats max(languages) + languages by l = languages % 3")
         );
     }
 
     public void testGroupingAlias() throws Exception {
         assertEquals(
             "1:23: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
-            defaultMapping().error("from test | stats l = languages + 3 by l = languages % 3 | keep l")
+            defaultAnalyzer().error("from test | stats l = languages + 3 by l = languages % 3 | keep l")
         );
     }
 
     public void testGroupingAliasDuplicate() throws Exception {
         assertEquals(
             "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
-            defaultMapping().error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
+            defaultAnalyzer().error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
         );
 
         assertEquals(
             "1:22: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
-            defaultMapping().error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
+            defaultAnalyzer().error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
         );
 
     }
@@ -663,7 +663,7 @@ public class VerifierTests extends ESTestCase {
         // for no real benefit (1+languages != languages + 1)
         assertEquals(
             "1:39: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages + 1]",
-            defaultMapping().error("from test| stats max(languages) + 1 + languages by l = languages + 1")
+            defaultAnalyzer().error("from test| stats max(languages) + 1 + languages by l = languages + 1")
         );
     }
 
@@ -671,21 +671,21 @@ public class VerifierTests extends ESTestCase {
         // should work
         assertEquals(
             "1:35: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
-            defaultMapping().error("from test| stats max(languages) + salary by l = languages + 1")
+            defaultAnalyzer().error("from test| stats max(languages) + salary by l = languages + 1")
         );
     }
 
     public void testAggsInsideEval() throws Exception {
         assertEquals(
             "1:29: aggregate function [max(b)] not allowed outside STATS command",
-            defaultMapping().error("row a = 1, b = 2 | eval x = max(b)")
+            defaultAnalyzer().error("row a = 1, b = 2 | eval x = max(b)")
         );
     }
 
     public void testGroupingInAggs() {
         assertEquals(
             "2:12: column [salary] must appear in the STATS BY clause or be used in an aggregate function",
-            defaultMapping().error("""
+            defaultAnalyzer().error("""
                  from test
                 |stats e = salary + max(salary) by languages
                 """)
@@ -695,76 +695,76 @@ public class VerifierTests extends ESTestCase {
     public void testBucketOnlyInAggs() {
         assertEquals(
             "1:23: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
-            defaultMapping().error("FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0")
+            defaultAnalyzer().error("FROM test | WHERE ABS(BUCKET(emp_no, 100.)) > 0")
         );
         assertEquals(
             "1:22: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
-            defaultMapping().error("FROM test | EVAL 3 + BUCKET(emp_no, 100.)")
+            defaultAnalyzer().error("FROM test | EVAL 3 + BUCKET(emp_no, 100.)")
         );
         assertEquals(
             "1:18: cannot use grouping function [BUCKET(emp_no, 100.)] outside of a STATS command",
-            defaultMapping().error("FROM test | SORT BUCKET(emp_no, 100.)")
+            defaultAnalyzer().error("FROM test | SORT BUCKET(emp_no, 100.)")
         );
     }
 
     public void testDoubleRenamingField() {
         assertEquals(
             "1:44: Column [emp_no] renamed to [r1] and is no longer available [emp_no as r3]",
-            defaultMapping().error("from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3")
+            defaultAnalyzer().error("from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3")
         );
     }
 
     public void testDuplicateRenaming() {
         assertEquals(
             "1:34: Column [emp_no] renamed to [r1] and is no longer available [emp_no as r1]",
-            defaultMapping().error("from test | rename emp_no as r1, emp_no as r1 | keep r1")
+            defaultAnalyzer().error("from test | rename emp_no as r1, emp_no as r1 | keep r1")
         );
     }
 
     public void testDoubleRenamingReference() {
         assertEquals(
             "1:61: Column [r1] renamed to [r2] and is no longer available [r1 as r3]",
-            defaultMapping().error("from test | rename emp_no as r1, r1 as r2, first_name as x, r1 as r3 | keep r3")
+            defaultAnalyzer().error("from test | rename emp_no as r1, r1 as r2, first_name as x, r1 as r3 | keep r3")
         );
     }
 
     public void testDropAfterRenaming() {
-        assertEquals("1:40: Unknown column [emp_no]", defaultMapping().error("from test | rename emp_no as r1 | drop emp_no"));
+        assertEquals("1:40: Unknown column [emp_no]", defaultAnalyzer().error("from test | rename emp_no as r1 | drop emp_no"));
     }
 
     public void testDropUnknownPattern() {
-        assertEquals("1:18: No matches found for pattern [foobar*]", defaultMapping().error("from test | drop foobar*"));
+        assertEquals("1:18: No matches found for pattern [foobar*]", defaultAnalyzer().error("from test | drop foobar*"));
     }
 
     public void testNonStringFieldsInDissect() {
         assertEquals(
             "1:21: Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
-            defaultMapping().error("from test | dissect emp_no \"%{foo}\"")
+            defaultAnalyzer().error("from test | dissect emp_no \"%{foo}\"")
         );
     }
 
     public void testNonStringFieldsInGrok() {
         assertEquals(
             "1:18: Grok only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
-            defaultMapping().error("from test | grok emp_no \"%{WORD:foo}\"")
+            defaultAnalyzer().error("from test | grok emp_no \"%{WORD:foo}\"")
         );
     }
 
     public void testMixedNonConvertibleTypesInIn() {
         assertEquals(
             "1:19: 2nd argument of [emp_no in (1, \"two\")] must be [integer], found value [\"two\"] type [keyword]",
-            defaultMapping().error("from test | where emp_no in (1, \"two\")")
+            defaultAnalyzer().error("from test | where emp_no in (1, \"two\")")
         );
     }
 
     public void testMixedNumericalNonConvertibleTypesInIn() {
         assertEquals(
             "1:19: 2nd argument of [3 in (1, to_ul(3))] must be [integer], found value [to_ul(3)] type [unsigned_long]",
-            defaultMapping().error("from test | where 3 in (1, to_ul(3))")
+            defaultAnalyzer().error("from test | where 3 in (1, to_ul(3))")
         );
         assertEquals(
             "1:19: 1st argument of [to_ul(3) in (1, 3)] must be [unsigned_long], found value [1] type [integer]",
-            defaultMapping().error("from test | where to_ul(3) in (1, 3)")
+            defaultAnalyzer().error("from test | where to_ul(3) in (1, 3)")
         );
     }
 
@@ -790,7 +790,7 @@ public class VerifierTests extends ESTestCase {
                 }
                 var operation = left + " " + comp + " " + right;
                 assertThat(
-                    defaultMapping().error("row n = to_" + type + "(1), ul = to_ul(1) | where " + operation),
+                    defaultAnalyzer().error("row n = to_" + type + "(1), ul = to_ul(1) | where " + operation),
                     containsString(
                         "first argument of ["
                             + operation
@@ -828,7 +828,7 @@ public class VerifierTests extends ESTestCase {
                 }
                 var op = left + " " + operation + " " + right;
                 assertThat(
-                    defaultMapping().error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
+                    defaultAnalyzer().error("row n = to_" + type + "(1), ul = to_ul(1) | eval " + op),
                     containsString("[" + operation + "] has arguments with incompatible types [" + leftType + "] and [" + rightType + "]")
                 );
             }
@@ -838,7 +838,7 @@ public class VerifierTests extends ESTestCase {
     public void testUnsignedLongNegation() {
         assertEquals(
             "1:29: argument of [-x] must be [numeric, date_period or time_duration], found value [x] type [unsigned_long]",
-            defaultMapping().error("row x = to_ul(1) | eval y = -x")
+            defaultAnalyzer().error("row x = to_ul(1) | eval y = -x")
         );
     }
 
@@ -848,57 +848,57 @@ public class VerifierTests extends ESTestCase {
      */
     public void testNullComparisonValidation() {
         // null compared with numeric types (all comparison operators)
-        defaultMapping().query("from test | where emp_no == ?", new Object[] { null });
-        defaultMapping().query("from test | where null == emp_no");
-        defaultMapping().query("from test | where emp_no != null");
-        defaultMapping().query("from test | where emp_no > null");
-        defaultMapping().query("from test | where emp_no < null");
-        defaultMapping().query("from test | where emp_no >= null");
-        defaultMapping().query("from test | where emp_no <= null");
+        defaultAnalyzer().query("from test | where emp_no == ?", new Object[] { null });
+        defaultAnalyzer().query("from test | where null == emp_no");
+        defaultAnalyzer().query("from test | where emp_no != null");
+        defaultAnalyzer().query("from test | where emp_no > null");
+        defaultAnalyzer().query("from test | where emp_no < null");
+        defaultAnalyzer().query("from test | where emp_no >= null");
+        defaultAnalyzer().query("from test | where emp_no <= null");
 
         // null compared with string types
-        defaultMapping().query("from test | where first_name == null");
-        defaultMapping().query("from test | where null != first_name");
+        defaultAnalyzer().query("from test | where first_name == null");
+        defaultAnalyzer().query("from test | where null != first_name");
 
         // null compared with datetime
-        defaultMapping().query("from test | where hire_date == null");
-        defaultMapping().query("from test | where null > hire_date");
+        defaultAnalyzer().query("from test | where hire_date == null");
+        defaultAnalyzer().query("from test | where null > hire_date");
 
         // ROW with null comparisons
-        defaultMapping().query("ROW x = null, y = \"foo\" | WHERE x == y");
-        defaultMapping().query("ROW x = null, y = 1 | WHERE x > y");
-        defaultMapping().query("ROW x = null, y = 1 | WHERE x < y");
-        defaultMapping().query("ROW x = null, y = 1 | WHERE x >= y");
-        defaultMapping().query("ROW x = null, y = 1 | WHERE x <= y");
-        defaultMapping().query("ROW x = null, y = 1 | WHERE x != y");
+        defaultAnalyzer().query("ROW x = null, y = \"foo\" | WHERE x == y");
+        defaultAnalyzer().query("ROW x = null, y = 1 | WHERE x > y");
+        defaultAnalyzer().query("ROW x = null, y = 1 | WHERE x < y");
+        defaultAnalyzer().query("ROW x = null, y = 1 | WHERE x >= y");
+        defaultAnalyzer().query("ROW x = null, y = 1 | WHERE x <= y");
+        defaultAnalyzer().query("ROW x = null, y = 1 | WHERE x != y");
 
         // Two nulls comparison
-        defaultMapping().query("ROW x = null, y = null | WHERE x == y");
+        defaultAnalyzer().query("ROW x = null, y = null | WHERE x == y");
 
         // null on both left and right sides with EVAL
-        defaultMapping().query("ROW x = null, y = 1 | EVAL result = x == y");
-        defaultMapping().query("ROW x = 1, y = null | EVAL result = x == y");
+        defaultAnalyzer().query("ROW x = null, y = 1 | EVAL result = x == y");
+        defaultAnalyzer().query("ROW x = 1, y = null | EVAL result = x == y");
 
         // null with different types should all pass validation
-        defaultMapping().query("from test | where null == salary");
-        defaultMapping().query("from test | where null == languages");
+        defaultAnalyzer().query("from test | where null == salary");
+        defaultAnalyzer().query("from test | where null == languages");
 
         // null compared with unsigned_long (all comparison operators)
         // unsigned_long normally can't mix with other numeric types, but null should be compatible
-        defaultMapping().query("row ul = to_ul(1) | where ul == null");
-        defaultMapping().query("row ul = to_ul(1) | where ul != null");
-        defaultMapping().query("row ul = to_ul(1) | where ul > null");
-        defaultMapping().query("row ul = to_ul(1) | where ul >= null");
-        defaultMapping().query("row ul = to_ul(1) | where ul < null");
-        defaultMapping().query("row ul = to_ul(1) | where ul <= null");
-        defaultMapping().query("row ul = to_ul(1) | where null == ul");
-        defaultMapping().query("row ul = to_ul(1) | where null != ul");
-        defaultMapping().query("row ul = to_ul(1) | where null > ul");
-        defaultMapping().query("row ul = to_ul(1) | where null < ul");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul == null");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul != null");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul > null");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul >= null");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul < null");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul <= null");
+        defaultAnalyzer().query("row ul = to_ul(1) | where null == ul");
+        defaultAnalyzer().query("row ul = to_ul(1) | where null != ul");
+        defaultAnalyzer().query("row ul = to_ul(1) | where null > ul");
+        defaultAnalyzer().query("row ul = to_ul(1) | where null < ul");
 
         // unsigned_long with null in EVAL
-        defaultMapping().query("row ul = to_ul(1) | eval result = ul == null");
-        defaultMapping().query("row ul = to_ul(1) | eval result = null == ul");
+        defaultAnalyzer().query("row ul = to_ul(1) | eval result = ul == null");
+        defaultAnalyzer().query("row ul = to_ul(1) | eval result = null == ul");
     }
 
     /**
@@ -907,33 +907,33 @@ public class VerifierTests extends ESTestCase {
      */
     public void testNullInExpressionValidation() {
         // null in IN list with integer field
-        defaultMapping().query("from test | where emp_no in (1, null)");
-        defaultMapping().query("from test | where emp_no in (null)");
-        defaultMapping().query("from test | where emp_no in (1, 2, null)");
+        defaultAnalyzer().query("from test | where emp_no in (1, null)");
+        defaultAnalyzer().query("from test | where emp_no in (null)");
+        defaultAnalyzer().query("from test | where emp_no in (1, 2, null)");
 
         // null value tested against IN list
-        defaultMapping().query("ROW x = null | WHERE x in (1, 2, 3)");
-        defaultMapping().query("ROW x = null | WHERE x in (\"foo\", \"bar\")");
+        defaultAnalyzer().query("ROW x = null | WHERE x in (1, 2, 3)");
+        defaultAnalyzer().query("ROW x = null | WHERE x in (\"foo\", \"bar\")");
 
         // null in IN list with keyword field
-        defaultMapping().query("from test | where first_name in (\"Georgi\", null)");
-        defaultMapping().query("from test | where first_name in (null)");
+        defaultAnalyzer().query("from test | where first_name in (\"Georgi\", null)");
+        defaultAnalyzer().query("from test | where first_name in (null)");
 
         // null in IN list with datetime field
-        defaultMapping().query("from test | where hire_date in (null)");
+        defaultAnalyzer().query("from test | where hire_date in (null)");
 
         // null in IN list with unsigned_long
-        defaultMapping().query("row ul = to_ul(1) | where ul in (to_ul(1), null)");
-        defaultMapping().query("row ul = to_ul(1) | where ul in (null)");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul in (to_ul(1), null)");
+        defaultAnalyzer().query("row ul = to_ul(1) | where ul in (null)");
 
         // null value IN unsigned_long list
-        defaultMapping().query("ROW x = null | WHERE x in (to_ul(1), to_ul(2))");
+        defaultAnalyzer().query("ROW x = null | WHERE x in (to_ul(1), to_ul(2))");
 
         // EVAL with IN containing null
-        defaultMapping().query("ROW x = 1 | EVAL result = x in (1, null)");
-        defaultMapping().query("ROW x = 1 | EVAL result = x in (null)");
-        defaultMapping().query("ROW x = null | EVAL result = x in (1, 2)");
-        defaultMapping().query("ROW x = null | EVAL result = x in (null)");
+        defaultAnalyzer().query("ROW x = 1 | EVAL result = x in (1, null)");
+        defaultAnalyzer().query("ROW x = 1 | EVAL result = x in (null)");
+        defaultAnalyzer().query("ROW x = null | EVAL result = x in (1, 2)");
+        defaultAnalyzer().query("ROW x = null | EVAL result = x in (null)");
     }
 
     public void testSumOnDate() {
@@ -941,54 +941,54 @@ public class VerifierTests extends ESTestCase {
             "1:19: argument of [sum(hire_date)] must be [aggregate_metric_double,"
                 + " exponential_histogram, tdigest or numeric except unsigned_long or counter types],"
                 + " found value [hire_date] type [datetime]",
-            defaultMapping().error("from test | stats sum(hire_date)")
+            defaultAnalyzer().error("from test | stats sum(hire_date)")
         );
     }
 
     public void testWrongInputParam() {
         assertEquals(
             "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
-            defaultMapping().error("from test | where emp_no == ?", "foo")
+            defaultAnalyzer().error("from test | where emp_no == ?", "foo")
         );
     }
 
     public void testPeriodAndDurationInRowAssignment() {
         for (var unit : TIME_DURATIONS) {
-            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", defaultMapping().error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", defaultAnalyzer().error("row a = 1 " + unit));
             assertEquals(
                 "1:9: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
-                defaultMapping().error("row a = 1 " + unit + "::time_duration")
+                defaultAnalyzer().error("row a = 1 " + unit + "::time_duration")
             );
             assertEquals(
                 "1:9: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
-                defaultMapping().error("row a = \"1 " + unit + "\"::time_duration")
+                defaultAnalyzer().error("row a = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
                 "1:9: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
-                defaultMapping().error("row a = to_timeduration(1 " + unit + ")")
+                defaultAnalyzer().error("row a = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
                 "1:9: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
-                defaultMapping().error("row a = to_timeduration(\"1 " + unit + "\")")
+                defaultAnalyzer().error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
-            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", defaultMapping().error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", defaultAnalyzer().error("row a = 1 " + unit));
             assertEquals(
                 "1:9: cannot use [1 " + unit + "::date_period] directly in a row assignment",
-                defaultMapping().error("row a = 1 " + unit + "::date_period")
+                defaultAnalyzer().error("row a = 1 " + unit + "::date_period")
             );
             assertEquals(
                 "1:9: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
-                defaultMapping().error("row a = \"1 " + unit + "\"::date_period")
+                defaultAnalyzer().error("row a = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
                 "1:9: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
-                defaultMapping().error("row a = to_dateperiod(1 " + unit + ")")
+                defaultAnalyzer().error("row a = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
                 "1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
-                defaultMapping().error("row a = to_dateperiod(\"1 " + unit + "\")")
+                defaultAnalyzer().error("row a = to_dateperiod(\"1 " + unit + "\")")
             );
         }
     }
@@ -1000,35 +1000,35 @@ public class VerifierTests extends ESTestCase {
                     + "from a [TIME_DURATION] amount [1 "
                     + unit
                     + "]",
-                defaultMapping().error("row 1 " + unit + " - now() ")
+                defaultAnalyzer().error("row 1 " + unit + " - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [TIME_DURATION] amount [1 "
                     + unit
                     + "::time_duration]",
-                defaultMapping().error("row 1 " + unit + "::time_duration" + " - now() ")
+                defaultAnalyzer().error("row 1 " + unit + "::time_duration" + " - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [TIME_DURATION] amount [\"1 "
                     + unit
                     + "\"::time_duration]",
-                defaultMapping().error("row \"1 " + unit + "\"::time_duration" + " - now() ")
+                defaultAnalyzer().error("row \"1 " + unit + "\"::time_duration" + " - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [TIME_DURATION] amount [to_timeduration(1 "
                     + unit
                     + ")]",
-                defaultMapping().error("row to_timeduration(1 " + unit + ") - now() ")
+                defaultAnalyzer().error("row to_timeduration(1 " + unit + ") - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [TIME_DURATION] amount [to_timeduration(\"1 "
                     + unit
                     + "\")]",
-                defaultMapping().error("row to_timeduration(\"1 " + unit + "\") - now() ")
+                defaultAnalyzer().error("row to_timeduration(\"1 " + unit + "\") - now() ")
             );
         }
         for (var unit : DATE_PERIODS) {
@@ -1037,35 +1037,35 @@ public class VerifierTests extends ESTestCase {
                     + "from a [DATE_PERIOD] amount [1 "
                     + unit
                     + "]",
-                defaultMapping().error("row 1 " + unit + " - now() ")
+                defaultAnalyzer().error("row 1 " + unit + " - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [DATE_PERIOD] amount [1 "
                     + unit
                     + "::date_period]",
-                defaultMapping().error("row 1 " + unit + "::date_period" + " - now() ")
+                defaultAnalyzer().error("row 1 " + unit + "::date_period" + " - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [DATE_PERIOD] amount [\"1 "
                     + unit
                     + "\"::date_period]",
-                defaultMapping().error("row \"1 " + unit + "\"::date_period" + " - now() ")
+                defaultAnalyzer().error("row \"1 " + unit + "\"::date_period" + " - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [DATE_PERIOD] amount [to_dateperiod(1 "
                     + unit
                     + ")]",
-                defaultMapping().error("row to_dateperiod(1 " + unit + ") - now() ")
+                defaultAnalyzer().error("row to_dateperiod(1 " + unit + ") - now() ")
             );
             assertEquals(
                 "1:5: [-] arguments are in unsupported order: cannot subtract a [DATETIME] value [now()] "
                     + "from a [DATE_PERIOD] amount [to_dateperiod(\"1 "
                     + unit
                     + "\")]",
-                defaultMapping().error("row to_dateperiod(\"1 " + unit + "\") - now() ")
+                defaultAnalyzer().error("row to_dateperiod(\"1 " + unit + "\") - now() ")
             );
         }
     }
@@ -1074,114 +1074,117 @@ public class VerifierTests extends ESTestCase {
         for (var unit : TIME_DURATIONS) {
             assertEquals(
                 "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "]",
-                defaultMapping().error("row x = 1 | eval y = 1 " + unit)
+                defaultAnalyzer().error("row x = 1 | eval y = 1 " + unit)
             );
             assertEquals(
                 "1:18: EVAL does not support type [time_duration] as the return data type of expression [1 " + unit + "::time_duration]",
-                defaultMapping().error("row x = 1 | eval y = 1 " + unit + "::time_duration")
+                defaultAnalyzer().error("row x = 1 | eval y = 1 " + unit + "::time_duration")
             );
             assertEquals(
                 "1:18: EVAL does not support type [time_duration] as the return data type of expression [\"1 "
                     + unit
                     + "\"::time_duration]",
-                defaultMapping().error("row x = 1 | eval y = \"1 " + unit + "\"::time_duration")
+                defaultAnalyzer().error("row x = 1 | eval y = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
                 "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(1 " + unit + ")]",
-                defaultMapping().error("row x = 1 | eval y = to_timeduration(1 " + unit + ")")
+                defaultAnalyzer().error("row x = 1 | eval y = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
                 "1:18: EVAL does not support type [time_duration] as the return data type of expression [to_timeduration(\"1 "
                     + unit
                     + "\")]",
-                defaultMapping().error("row x = 1 | eval y = to_timeduration(\"1 " + unit + "\")")
+                defaultAnalyzer().error("row x = 1 | eval y = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
             assertEquals(
                 "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "]",
-                defaultMapping().error("row x = 1 | eval y = 1 " + unit)
+                defaultAnalyzer().error("row x = 1 | eval y = 1 " + unit)
             );
             assertEquals(
                 "1:18: EVAL does not support type [date_period] as the return data type of expression [1 " + unit + "::date_period]",
-                defaultMapping().error("row x = 1 | eval y = 1 " + unit + "::date_period")
+                defaultAnalyzer().error("row x = 1 | eval y = 1 " + unit + "::date_period")
             );
             assertEquals(
                 "1:18: EVAL does not support type [date_period] as the return data type of expression [\"1 " + unit + "\"::date_period]",
-                defaultMapping().error("row x = 1 | eval y = \"1 " + unit + "\"::date_period")
+                defaultAnalyzer().error("row x = 1 | eval y = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
                 "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(1 " + unit + ")]",
-                defaultMapping().error("row x = 1 | eval y = to_dateperiod(1 " + unit + ")")
+                defaultAnalyzer().error("row x = 1 | eval y = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
                 "1:18: EVAL does not support type [date_period] as the return data type of expression [to_dateperiod(\"1 " + unit + "\")]",
-                defaultMapping().error("row x = 1 | eval y = to_dateperiod(\"1 " + unit + "\")")
+                defaultAnalyzer().error("row x = 1 | eval y = to_dateperiod(\"1 " + unit + "\")")
             );
         }
     }
 
     public void testFilterNonBoolField() {
-        assertEquals("1:19: Condition expression needs to be boolean, found [INTEGER]", defaultMapping().error("from test | where emp_no"));
+        assertEquals(
+            "1:19: Condition expression needs to be boolean, found [INTEGER]",
+            defaultAnalyzer().error("from test | where emp_no")
+        );
 
         assertEquals(
             "1:19: Condition expression needs to be boolean, found [KEYWORD]",
-            defaultMapping().error("from test | where concat(first_name, \"foobar\")")
+            defaultAnalyzer().error("from test | where concat(first_name, \"foobar\")")
         );
     }
 
     public void testFilterNullField() {
         // `where null` should return empty result set
-        defaultMapping().query("from test | where null");
+        defaultAnalyzer().query("from test | where null");
 
         // Value null of type `BOOLEAN`
-        defaultMapping().query("from test | where null::boolean");
+        defaultAnalyzer().query("from test | where null::boolean");
 
         // Provide `NULL` type in `EVAL`
-        defaultMapping().query("from test | EVAL x = null | where x");
+        defaultAnalyzer().query("from test | EVAL x = null | where x");
 
         // `to_string(null)` is of `KEYWORD` type null, resulting in `to_string(null) == "abc"` being of `BOOLEAN`
-        defaultMapping().query("from test | where to_string(null) == \"abc\"");
+        defaultAnalyzer().query("from test | where to_string(null) == \"abc\"");
 
         // Other DataTypes can contain null values
         assertEquals(
             "1:19: Condition expression needs to be boolean, found [KEYWORD]",
-            defaultMapping().error("from test | where null::string")
+            defaultAnalyzer().error("from test | where null::string")
         );
         assertEquals(
             "1:19: Condition expression needs to be boolean, found [INTEGER]",
-            defaultMapping().error("from test | where null::integer")
+            defaultAnalyzer().error("from test | where null::integer")
         );
         assertEquals(
             "1:45: Condition expression needs to be boolean, found [DATETIME]",
-            defaultMapping().error("from test | EVAL x = null::datetime | where x")
+            defaultAnalyzer().error("from test | EVAL x = null::datetime | where x")
         );
     }
 
     public void testFilterDateConstant() {
         assertEquals(
             "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
-            defaultMapping().error("from test | where 1 year")
+            defaultAnalyzer().error("from test | where 1 year")
         );
         assertEquals(
             "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
-            defaultMapping().error("from test | where \"1 year\"::date_period")
+            defaultAnalyzer().error("from test | where \"1 year\"::date_period")
         );
         assertEquals(
             "1:19: Condition expression needs to be boolean, found [DATE_PERIOD]",
-            defaultMapping().error("from test | where to_dateperiod(\"1 year\")")
+            defaultAnalyzer().error("from test | where to_dateperiod(\"1 year\")")
         );
     }
 
     public void testNestedAggField() {
-        assertEquals("1:27: Unknown column [avg]", defaultMapping().error("from test | stats c = avg(avg)"));
+        assertEquals("1:27: Unknown column [avg]", defaultAnalyzer().error("from test | stats c = avg(avg)"));
     }
 
     public void testNotFoundFieldInNestedFunction() {
         assertEquals("""
             1:30: Unknown column [missing]
             line 1:43: Unknown column [not_found]
-            line 1:23: Unknown column [avg]""", defaultMapping().error("from test | stats c = avg by missing + 1, not_found"));
+            line 1:23: Unknown column [avg]""", defaultAnalyzer().error("from test | stats c = avg by missing + 1, not_found"));
     }
 
     public void testMultipleAggsOutsideStats() {
@@ -1191,7 +1194,7 @@ public class VerifierTests extends ESTestCase {
                 line 1:96: aggregate function [median(emp_no)] not allowed outside STATS command
                 line 1:22: aggregate function [sum(salary)] not allowed outside STATS command
                 line 1:39: aggregate function [avg(languages)] not allowed outside STATS command""",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "from test | eval s = sum(salary), l = avg(languages) | where salary > avg(salary) and emp_no > median(emp_no)"
             )
         );
@@ -1201,19 +1204,19 @@ public class VerifierTests extends ESTestCase {
         String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
         assertEquals(
             "1:130: cannot sort on geo_point",
-            defaultMapping().error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape")
+            defaultAnalyzer().error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape")
         );
         assertEquals(
             "1:136: cannot sort on cartesian_point",
-            defaultMapping().error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
+            defaultAnalyzer().error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
         );
         assertEquals(
             "1:130: cannot sort on geo_shape",
-            defaultMapping().error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape")
+            defaultAnalyzer().error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape")
         );
         assertEquals(
             "1:136: cannot sort on cartesian_shape",
-            defaultMapping().error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
+            defaultAnalyzer().error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
         );
         var airports = analyzer().addIndex("airports", "mapping-airports.json").stripErrorPrefix(true);
         var airportsWeb = analyzer().addIndex("airports_web", "mapping-airports_web.json").stripErrorPrefix(true);
@@ -1233,13 +1236,13 @@ public class VerifierTests extends ESTestCase {
                 literalError = "1:95: Unknown function [" + gridFunc + "]";
                 indexError = "1:39: Unknown function [" + gridFunc + "]";
             }
-            assertThat(grid, defaultMapping().error(literalQuery), startsWith(literalError));
+            assertThat(grid, defaultAnalyzer().error(literalQuery), startsWith(literalError));
             assertThat(grid, airports.error(indexQuery), startsWith(indexError));
         }
     }
 
     public void testSourceSorting() {
-        assertEquals("1:35: cannot sort on _source", defaultMapping().error("from test metadata _source | sort _source"));
+        assertEquals("1:35: cannot sort on _source", defaultAnalyzer().error("from test metadata _source | sort _source"));
     }
 
     public void testCountersSorting() {
@@ -1263,7 +1266,7 @@ public class VerifierTests extends ESTestCase {
     public void testInlineImpossibleConvert() {
         assertEquals(
             "1:5: argument of [false::ip] must be [ip or string], found value [false] type [boolean]",
-            defaultMapping().error("ROW false::ip")
+            defaultAnalyzer().error("ROW false::ip")
         );
     }
 
@@ -1416,19 +1419,19 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error("FROM test | STATS " + agg_func + "(emp_no) by foobar"),
+            defaultAnalyzer().error("FROM test | STATS " + agg_func + "(emp_no) by foobar"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]")
         );
         assertThat(
-            defaultMapping().error("FROM test | STATS " + agg_func + "(x) by foobar, x = emp_no"),
+            defaultAnalyzer().error("FROM test | STATS " + agg_func + "(x) by foobar, x = emp_no"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]")
         );
         assertThat(
-            defaultMapping().error("FROM test | STATS " + agg_func + "(foobar) by foobar"),
+            defaultAnalyzer().error("FROM test | STATS " + agg_func + "(foobar) by foobar"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]")
         );
         assertThat(
-            defaultMapping().error("FROM test | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
+            defaultAnalyzer().error("FROM test | STATS " + agg_func + "(foobar) by BUCKET(hire_date, 10)"),
             matchesRegex(
                 "1:\\d+: function expects exactly four arguments when the first one is of type \\[DATETIME]"
                     + " and the second of type \\[INTEGER]\n"
@@ -1436,12 +1439,12 @@ public class VerifierTests extends ESTestCase {
             )
         );
         assertThat(
-            defaultMapping().error("FROM test | STATS " + agg_func + "(foobar) by emp_no"),
+            defaultAnalyzer().error("FROM test | STATS " + agg_func + "(foobar) by emp_no"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]")
         );
         // TODO: Ideally, we'd detect that count_distinct(x) doesn't require an error message.
         assertThat(
-            defaultMapping().error("FROM test | STATS " + agg_func + "(x) by x = foobar"),
+            defaultAnalyzer().error("FROM test | STATS " + agg_func + "(x) by x = foobar"),
             matchesRegex("1:\\d+: Unknown column \\[foobar]\n" + "line 1:\\d+: Unknown column \\[x]")
         );
     }
@@ -1487,31 +1490,31 @@ public class VerifierTests extends ESTestCase {
     public void testWeightedAvg() {
         assertEquals(
             "1:35: SECOND argument of [weighted_avg(v, null)] cannot be null or 0, received [null]",
-            defaultMapping().error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)")
+            defaultAnalyzer().error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)")
         );
         assertEquals(
             "1:27: SECOND argument of [weighted_avg(salary, null)] cannot be null or 0, received [null]",
-            defaultMapping().error("from test | stats w_avg = weighted_avg(salary, null)")
+            defaultAnalyzer().error("from test | stats w_avg = weighted_avg(salary, null)")
         );
         assertEquals(
             "1:45: SECOND argument of [weighted_avg(v, w)] cannot be null or 0, received [null]",
-            defaultMapping().error("row v = [1, 2, 3], w = null | stats w_avg = weighted_avg(v, w)")
+            defaultAnalyzer().error("row v = [1, 2, 3], w = null | stats w_avg = weighted_avg(v, w)")
         );
         assertEquals(
             "1:44: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
-            defaultMapping().error("from test | eval w = null |  stats w_avg = weighted_avg(salary, w)")
+            defaultAnalyzer().error("from test | eval w = null |  stats w_avg = weighted_avg(salary, w)")
         );
         assertEquals(
             "1:51: SECOND argument of [weighted_avg(salary, w)] cannot be null or 0, received [null]",
-            defaultMapping().error("from test | eval w = null + null |  stats w_avg = weighted_avg(salary, w)")
+            defaultAnalyzer().error("from test | eval w = null + null |  stats w_avg = weighted_avg(salary, w)")
         );
         assertEquals(
             "1:35: SECOND argument of [weighted_avg(v, 0)] cannot be null or 0, received [0]",
-            defaultMapping().error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, 0)")
+            defaultAnalyzer().error("row v = [1, 2, 3] | stats w_avg = weighted_avg(v, 0)")
         );
         assertEquals(
             "1:27: SECOND argument of [weighted_avg(salary, 0.0)] cannot be null or 0, received [0.0]",
-            defaultMapping().error("from test | stats w_avg = weighted_avg(salary, 0.0)")
+            defaultAnalyzer().error("from test | stats w_avg = weighted_avg(salary, 0.0)")
         );
     }
 
@@ -1520,7 +1523,7 @@ public class VerifierTests extends ESTestCase {
             "1:36: [:] operator is only supported in WHERE and STATS commands or in EVAL within score(.) function"
                 + "\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
-            defaultMapping().error("row title = \"brown fox\" | eval x = title:\"fox\" ")
+            defaultAnalyzer().error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
     }
 
@@ -1580,7 +1583,7 @@ public class VerifierTests extends ESTestCase {
     public void testMultiMatchWithLookupJoinField() {
         assumeTrue("multi_match function available", EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled());
         assertThat(
-            defaultWithLanguagesLookup().error(
+            analyzerWithLanguagesLookup().error(
                 "FROM test | EVAL language_code = languages "
                     + "| LOOKUP JOIN languages_lookup ON language_code "
                     + "| WHERE multi_match(\"test\", language_name)"
@@ -1600,7 +1603,7 @@ public class VerifierTests extends ESTestCase {
     private void checkNonFieldBasedFullTextFunctionsNotAllowedAfterCommands(String functionName, String functionInvocation) {
         // Source commands
         assertThat(
-            defaultMapping().error("show info | where " + functionInvocation),
+            defaultAnalyzer().error("show info | where " + functionInvocation),
             containsString("[" + functionName + "] function cannot be used after SHOW")
         );
         assertThat(
@@ -1849,7 +1852,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     private void testFullTextFunctionTargetsExistingField(String functionInvocation) throws Exception {
-        assertThat(defaultMapping().error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
+        assertThat(defaultAnalyzer().error("from test | keep emp_no | where " + functionInvocation), containsString("Unknown column"));
     }
 
     public void testFullTextFunctionsAfterSimpleRename() throws Exception {
@@ -1926,104 +1929,104 @@ public class VerifierTests extends ESTestCase {
         for (String functionName : List.of("coalesce", "greatest", "least")) {
             assertEquals(
                 "1:22: second argument of [" + functionName + "(languages, height)] must be [integer], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages, height)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(languages.long, height)] must be [long], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages.long, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages.long, height)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(salary, languages.long)] must be [integer], found value [languages.long] type [long]",
-                defaultMapping().error("from test | eval x = " + functionName + "(salary, languages.long)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(salary, languages.long)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(languages.short, height)] must be [integer], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages.short, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages.short, height)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(languages.byte, height)] must be [integer], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages.byte, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages.byte, height)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(languages, height.float)] must be [integer], found value [height.float] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages, height.float)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages, height.float)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(languages, height.scaled_float)] must be [integer], "
                     + "found value [height.scaled_float] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages, height.scaled_float)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages, height.scaled_float)")
             );
             assertEquals(
                 "1:22: second argument of ["
                     + functionName
                     + "(languages, height.half_float)] must be [integer], "
                     + "found value [height.half_float] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(languages, height.half_float)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(languages, height.half_float)")
             );
 
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages, height)] must be [integer], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages, height)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages.long, height)] must be [long], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages.long, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages.long, height)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, salary, languages.long)] must be [integer], "
                     + "found value [languages.long] type [long]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, salary, languages.long)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, salary, languages.long)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages.short, height)] must be [integer], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages.short, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages.short, height)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages.byte, height)] must be [integer], found value [height] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages.byte, height)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages.byte, height)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages, height.float)] must be [integer], "
                     + "found value [height.float] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages, height.float)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages, height.float)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages, height.scaled_float)] must be [integer], "
                     + "found value [height.scaled_float] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages, height.scaled_float)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages, height.scaled_float)")
             );
             assertEquals(
                 "1:22: third argument of ["
                     + functionName
                     + "(null, languages, height.half_float)] must be [integer], "
                     + "found value [height.half_float] type [double]",
-                defaultMapping().error("from test | eval x = " + functionName + "(null, languages, height.half_float)")
+                defaultAnalyzer().error("from test | eval x = " + functionName + "(null, languages, height.half_float)")
             );
 
             // counter
@@ -2073,7 +2076,7 @@ public class VerifierTests extends ESTestCase {
         // case, a subset tests of coalesce/greatest/least
         assertEquals(
             "1:22: third argument of [case(languages == 1, salary, height)] must be [integer], found value [height] type [double]",
-            defaultMapping().error("from test | eval x = case(languages == 1, salary, height)")
+            defaultAnalyzer().error("from test | eval x = case(languages == 1, salary, height)")
         );
         assertEquals(
             "1:22: third argument of [case(name == \"a\", network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
@@ -2084,9 +2087,9 @@ public class VerifierTests extends ESTestCase {
     public void testConditionalFunctionsWithSupportedNonNumericTypes() {
         for (String functionName : List.of("greatest", "least")) {
             // Keyword
-            defaultMapping().query("from test | eval x = " + functionName + "(\"a\", \"b\")");
-            defaultMapping().query("from test | eval x = " + functionName + "(first_name, last_name)");
-            defaultMapping().query("from test | eval x = " + functionName + "(first_name, \"b\")");
+            defaultAnalyzer().query("from test | eval x = " + functionName + "(\"a\", \"b\")");
+            defaultAnalyzer().query("from test | eval x = " + functionName + "(first_name, last_name)");
+            defaultAnalyzer().query("from test | eval x = " + functionName + "(first_name, \"b\")");
 
             // Text
             // Note: In ESQL text fields are not optimized for sorting/aggregation but Greatest/Least should work if they implement
@@ -2094,14 +2097,16 @@ public class VerifierTests extends ESTestCase {
             fullText().query("from test | eval x = " + functionName + "(title, \"b\")");
 
             // IP
-            defaultMapping().query("from test | eval x = " + functionName + "(to_ip(\"127.0.0.1\"), to_ip(\"127.0.0.2\"))");
+            defaultAnalyzer().query("from test | eval x = " + functionName + "(to_ip(\"127.0.0.1\"), to_ip(\"127.0.0.2\"))");
 
             // Version
-            defaultMapping().query("from test | eval x = " + functionName + "(to_version(\"1.0.0\"), to_version(\"1.1.0\"))");
+            defaultAnalyzer().query("from test | eval x = " + functionName + "(to_version(\"1.0.0\"), to_version(\"1.1.0\"))");
 
             // Date
-            defaultMapping().query("from test | eval x = " + functionName + "(\"2023-01-01\" :: datetime, \"2023-01-02\" :: datetime)");
-            defaultMapping().query("from test | eval x = " + functionName + "(\"2023-01-01\" :: date_nanos, \"2023-01-02\" :: date_nanos)");
+            defaultAnalyzer().query("from test | eval x = " + functionName + "(\"2023-01-01\" :: datetime, \"2023-01-02\" :: datetime)");
+            defaultAnalyzer().query(
+                "from test | eval x = " + functionName + "(\"2023-01-01\" :: date_nanos, \"2023-01-02\" :: date_nanos)"
+            );
         }
     }
 
@@ -2109,24 +2114,24 @@ public class VerifierTests extends ESTestCase {
         // arithmetic operations in eval
         assertEquals(
             "1:39: EVAL does not support type [date_period] as the return data type of expression [3 months + 5 days]",
-            defaultMapping().error("row x = \"2024-01-01\"::datetime | eval y = 3 months + 5 days")
+            defaultAnalyzer().error("row x = \"2024-01-01\"::datetime | eval y = 3 months + 5 days")
         );
 
         assertEquals(
             "1:39: EVAL does not support type [date_period] as the return data type of expression "
                 + "[\"3 months\"::date_period + \"5 days\"::date_period]",
-            defaultMapping().error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\"::date_period + \"5 days\"::date_period")
+            defaultAnalyzer().error("row x = \"2024-01-01\"::datetime | eval y = \"3 months\"::date_period + \"5 days\"::date_period")
         );
 
         assertEquals(
             "1:39: EVAL does not support type [time_duration] as the return data type of expression [3 hours + 5 minutes]",
-            defaultMapping().error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
+            defaultAnalyzer().error("row x = \"2024-01-01\"::datetime | eval y = 3 hours + 5 minutes")
         );
 
         assertEquals(
             "1:39: EVAL does not support type [time_duration] as the return data type of expression "
                 + "[\"3 hours\"::time_duration + \"5 minutes\"::time_duration]",
-            defaultMapping().error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
+            defaultAnalyzer().error("row x = \"2024-01-01\"::datetime | eval y = \"3 hours\"::time_duration + \"5 minutes\"::time_duration")
         );
 
         // where
@@ -2135,62 +2140,62 @@ public class VerifierTests extends ESTestCase {
                 + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, dense_vector, double, geo_point, geo_shape, "
                 + "geohash, geohex, geotile, integer, ip, keyword, "
                 + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
-            defaultMapping().error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
+            defaultAnalyzer().error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
 
         assertEquals(
             "1:26: first argument of [\"3 hours\"::time_duration <= to_timeduration(\"3 hours\")] must be "
                 + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
                 + "found value [\"3 hours\"::time_duration] type [time_duration]",
-            defaultMapping().error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
+            defaultAnalyzer().error("row x = \"3 days\" | where \"3 hours\"::time_duration <= to_timeduration(\"3 hours\")")
         );
 
         assertEquals(
             "1:19: second argument of [first_name <= to_timeduration(\"3 hours\")] must be "
                 + "[date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version], "
                 + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
-            defaultMapping().error("from test | where first_name <= to_timeduration(\"3 hours\")")
+            defaultAnalyzer().error("from test | where first_name <= to_timeduration(\"3 hours\")")
         );
 
         assertEquals(
             "1:19: 1st argument of [first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)] must be [keyword], "
                 + "found value [to_timeduration(\"3 hours\")] type [time_duration]",
-            defaultMapping().error("from test | where first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)")
+            defaultAnalyzer().error("from test | where first_name IN ( to_timeduration(\"3 hours\"), \"3 days\"::date_period)")
         );
     }
 
     public void testToDatePeriodToTimeDurationWithInvalidType() {
         assertEquals(
             "1:36: argument of [1.5::date_period] must be [date_period or string], found value [1.5] type [double]",
-            defaultMapping().error("from test  | EVAL x = birth_date + 1.5::date_period")
+            defaultAnalyzer().error("from test  | EVAL x = birth_date + 1.5::date_period")
         );
         assertEquals(
             "1:37: argument of [to_timeduration(1)] must be [time_duration or string], found value [1] type [integer]",
-            defaultMapping().error("from test   | EVAL x = birth_date - to_timeduration(1)")
+            defaultAnalyzer().error("from test   | EVAL x = birth_date - to_timeduration(1)")
         );
         assertEquals(
             "1:45: argument of [x::date_period] must be [date_period or string], found value [x] type [double]",
-            defaultMapping().error("from test  | EVAL x = 1.5, y = birth_date + x::date_period")
+            defaultAnalyzer().error("from test  | EVAL x = 1.5, y = birth_date + x::date_period")
         );
         assertEquals(
             "1:44: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [integer]",
-            defaultMapping().error("from test   | EVAL x = 1, y = birth_date - to_timeduration(x)")
+            defaultAnalyzer().error("from test   | EVAL x = 1, y = birth_date - to_timeduration(x)")
         );
         assertEquals(
             "1:64: argument of [x::date_period] must be [date_period or string], found value [x] type [datetime]",
-            defaultMapping().error("from test  | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
+            defaultAnalyzer().error("from test  | EVAL x = \"2024-09-08\"::datetime, y = birth_date + x::date_period")
         );
         assertEquals(
             "1:65: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [datetime]",
-            defaultMapping().error("from test   | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
+            defaultAnalyzer().error("from test   | EVAL x = \"2024-09-08\"::datetime, y = birth_date - to_timeduration(x)")
         );
         assertEquals(
             "1:58: argument of [x::date_period] must be [date_period or string], found value [x] type [ip]",
-            defaultMapping().error("from test  | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
+            defaultAnalyzer().error("from test  | EVAL x = \"2024-09-08\"::ip, y = birth_date + x::date_period")
         );
         assertEquals(
             "1:59: argument of [to_timeduration(x)] must be [time_duration or string], found value [x] type [ip]",
-            defaultMapping().error("from test   | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
+            defaultAnalyzer().error("from test   | EVAL x = \"2024-09-08\"::ip, y = birth_date - to_timeduration(x)")
         );
     }
 
@@ -2198,11 +2203,11 @@ public class VerifierTests extends ESTestCase {
         // DateTrunc
         for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
             assertThat(
-                defaultMapping().error("from test   | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                defaultAnalyzer().error("from test   | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
                 containsString("1:35: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
             assertThat(
-                defaultMapping().error(
+                defaultAnalyzer().error(
                     "from test   | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"
                 ),
                 containsString("1:67: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
@@ -2210,7 +2215,7 @@ public class VerifierTests extends ESTestCase {
         }
         for (String interval : List.of("1", "0.5", "invalid")) {
             assertThat(
-                defaultMapping().error("from test   | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                defaultAnalyzer().error("from test   | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
                 containsString(
                     "1:24: first argument of [date_trunc(\""
                         + interval
@@ -2220,7 +2225,7 @@ public class VerifierTests extends ESTestCase {
                 )
             );
             assertThat(
-                defaultMapping().error(
+                defaultAnalyzer().error(
                     "from test   | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"
                 ),
                 containsString(
@@ -2237,117 +2242,117 @@ public class VerifierTests extends ESTestCase {
         // Bucket
         assertEquals(
             "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'yar']",
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
         );
         assertEquals(
             "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'hur']",
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
         );
         assertEquals(
             "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'mu']",
-            defaultMapping().error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
+            defaultAnalyzer().error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
         );
         assertEquals(
             "1:34: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
                 + "found value [\"1\"] type [keyword]",
-            defaultMapping().error("from test | stats max(emp_no) by bucket(hire_date, \"1\")")
+            defaultAnalyzer().error("from test | stats max(emp_no) by bucket(hire_date, \"1\")")
         );
         assertEquals(
             "1:40: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
                 + "found value [\"1\"] type [keyword]",
-            defaultMapping().error("from test | stats max = max(emp_no) by bucket(hire_date, \"1\") | sort max ")
+            defaultAnalyzer().error("from test | stats max = max(emp_no) by bucket(hire_date, \"1\") | sort max ")
         );
         assertEquals(
             "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
                 + "found value [\"1\"] type [keyword]",
-            defaultMapping().error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
+            defaultAnalyzer().error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
         );
     }
 
     public void testCategorizeOnlyFirstGrouping() {
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no");
 
         assertEquals(
             "1:39: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
         );
         assertEquals(
             "1:55: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
         );
         assertEquals(
             "1:55: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
         );
         assertEquals(
             "1:63: CATEGORIZE grouping function [CATEGORIZE(last_name)] can only be in the first grouping expression",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(last_name)")
         );
         assertEquals(
             "1:63: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no, CATEGORIZE(first_name)")
         );
     }
 
     public void testCategorizeNestedGrouping() {
-        defaultMapping().query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
+        defaultAnalyzer().query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
 
         assertEquals(
             "1:40: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
         );
         assertEquals(
             "1:31: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
         );
     }
 
     public void testCategorizeWithinAggregations() {
-        defaultMapping().query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
-        defaultMapping().query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY cat = CATEGORIZE(first_name)");
-        defaultMapping().query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY CATEGORIZE(first_name)");
+        defaultAnalyzer().query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        defaultAnalyzer().query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY cat = CATEGORIZE(first_name)");
+        defaultAnalyzer().query("from test | STATS MV_COUNT(CATEGORIZE(first_name)), COUNT(*) BY CATEGORIZE(first_name)");
 
         assertEquals(
             "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within an aggregation",
-            defaultMapping().error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
         );
         assertEquals(
             "1:25: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
-            defaultMapping().error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
         );
         assertEquals(
             "1:30: cannot reference CATEGORIZE grouping function [cat] within an aggregation",
-            defaultMapping().error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
         );
         assertEquals(
             "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within an aggregation",
-            defaultMapping().error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
         );
 
         assertEquals(
             "1:28: can only use grouping function [CATEGORIZE(last_name)] as part of the BY clause",
-            defaultMapping().error("FROM test | STATS MV_COUNT(CATEGORIZE(last_name)) BY CATEGORIZE(first_name)")
+            defaultAnalyzer().error("FROM test | STATS MV_COUNT(CATEGORIZE(last_name)) BY CATEGORIZE(first_name)")
         );
     }
 
     public void testCategorizeWithFilteredAggregations() {
-        defaultMapping().query("FROM test | STATS COUNT(*) WHERE first_name == \"John\" BY CATEGORIZE(last_name)");
-        defaultMapping().query("FROM test | STATS COUNT(*) WHERE last_name == \"Doe\" BY CATEGORIZE(last_name)");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) WHERE first_name == \"John\" BY CATEGORIZE(last_name)");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) WHERE last_name == \"Doe\" BY CATEGORIZE(last_name)");
 
         assertEquals(
             "1:34: can only use grouping function [CATEGORIZE(first_name)] as part of the BY clause",
-            defaultMapping().error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(first_name) == \"John\" BY CATEGORIZE(last_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(first_name) == \"John\" BY CATEGORIZE(last_name)")
         );
         assertEquals(
             "1:34: can only use grouping function [CATEGORIZE(last_name)] as part of the BY clause",
-            defaultMapping().error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(last_name) == \"Doe\" BY CATEGORIZE(last_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) WHERE CATEGORIZE(last_name) == \"Doe\" BY CATEGORIZE(last_name)")
         );
         assertEquals(
             "1:34: cannot reference CATEGORIZE grouping function [category] within an aggregation filter",
-            defaultMapping().error("FROM test | STATS COUNT(*) WHERE category == \"Doe\" BY category = CATEGORIZE(last_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) WHERE category == \"Doe\" BY category = CATEGORIZE(last_name)")
         );
     }
 
@@ -2356,59 +2361,59 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:31: second argument of [CATEGORIZE(last_name, first_name)] must be a map expression, received [first_name]",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, first_name)")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, first_name)")
         );
         assertEquals(
             "1:31: Invalid option [blah] in [CATEGORIZE(last_name, { \"blah\": 42 })], "
                 + "expected one of [analyzer, output_format, similarity_threshold]",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"blah\": 42 })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"blah\": 42 })")
         );
     }
 
     public void testCategorizeOptionOutputFormat() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"regex\" })");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"REGEX\" })");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"tokens\" })");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"ToKeNs\" })");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"regex\" })");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"REGEX\" })");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"tokens\" })");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"ToKeNs\" })");
         assertEquals(
             "1:31: invalid output format [blah], expecting one of [REGEX, TOKENS]",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"blah\" })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"blah\" })")
         );
         assertEquals(
             "1:31: invalid output format [42], expecting one of [REGEX, TOKENS]",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": 42 })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": 42 })")
         );
         assertEquals(
             "1:31: Invalid option [output_format] in [CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })],"
                 + " expected a [KEYWORD] value",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })")
         );
     }
 
     public void testCategorizeOptionSimilarityThreshold() {
         assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
 
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })");
-        defaultMapping().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 100 })");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })");
+        defaultAnalyzer().query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 100 })");
         assertEquals(
             "1:31: invalid similarity threshold [0], expecting a number between 1 and 100, inclusive",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 0 })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 0 })")
         );
         assertEquals(
             "1:31: invalid similarity threshold [101], expecting a number between 1 and 100, inclusive",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 101 })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 101 })")
         );
         assertEquals(
             "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })], "
                 + "cannot cast [blah] to [integer]",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })")
         );
         assertEquals(
             "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })],"
                 + " expected a [INTEGER] value",
-            defaultMapping().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })")
+            defaultAnalyzer().error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })")
         );
     }
 
@@ -2418,7 +2423,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:38: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
                 + "INLINE STATS [INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
-            defaultMapping().error("FROM test | INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
+            defaultAnalyzer().error("FROM test | INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
         );
 
         assertEquals("""
@@ -2427,7 +2432,7 @@ public class VerifierTests extends ESTestCase {
             line 2:92: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
             line 2:33: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
             INLINE STATS [INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
-            c2 = CATEGORIZE(first_name)]""", defaultMapping().error("""
+            c2 = CATEGORIZE(first_name)]""", defaultAnalyzer().error("""
             FROM test
             | INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
             | INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)
@@ -2450,12 +2455,12 @@ public class VerifierTests extends ESTestCase {
             ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
             : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
         for (DataType type : sortableTypes) {
-            defaultMapping().query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
+            defaultAnalyzer().query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
         for (DataType type : unsortableTypes) {
             assertEquals(
                 "2:4: change point key [key] must be sortable",
-                defaultMapping().error(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type))
+                defaultAnalyzer().error(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type))
             );
         }
     }
@@ -2481,106 +2486,106 @@ public class VerifierTests extends ESTestCase {
             )
             : List.of(BOOLEAN, CARTESIAN_POINT, CARTESIAN_SHAPE, DATE_NANOS, DATETIME, GEO_POINT, GEO_SHAPE, IP, KEYWORD, VERSION);
         for (DataType type : numericTypes) {
-            defaultMapping().query(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type));
+            defaultAnalyzer().query(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type));
         }
         for (DataType type : nonNumericTypes) {
             assertEquals(
                 "2:4: change point value [value] must be numeric",
-                defaultMapping().error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
+                defaultAnalyzer().error(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type))
             );
         }
         assertEquals(
             "2:4: change point value [value] must be numeric",
-            defaultMapping().error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key")
+            defaultAnalyzer().error("ROW key=0, value=NULL\n | CHANGE_POINT value ON key")
         );
     }
 
     public void testSortByAggregate() {
         assertEquals(
             "1:18: aggregate function [count(*)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 | SORT count(*)")
+            defaultAnalyzer().error("ROW a = 1 | SORT count(*)")
         );
         assertEquals(
             "1:28: aggregate function [count(*)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 | SORT to_string(count(*))")
+            defaultAnalyzer().error("ROW a = 1 | SORT to_string(count(*))")
         );
         assertEquals(
             "1:22: aggregate function [max(a)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 | SORT 1 + max(a)")
+            defaultAnalyzer().error("ROW a = 1 | SORT 1 + max(a)")
         );
         assertEquals(
             "1:18: aggregate function [count(*)] not allowed outside STATS command",
-            defaultMapping().error("FROM test | SORT count(*)")
+            defaultAnalyzer().error("FROM test | SORT count(*)")
         );
         assertEquals(
             "1:18: aggregate function [present(gender)] not allowed outside STATS command",
-            defaultMapping().error("FROM test | SORT present(gender)")
+            defaultAnalyzer().error("FROM test | SORT present(gender)")
         );
     }
 
     public void testFilterByAggregate() {
         assertEquals(
             "1:19: aggregate function [count(*)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 | WHERE count(*) > 0")
+            defaultAnalyzer().error("ROW a = 1 | WHERE count(*) > 0")
         );
         assertEquals(
             "1:29: aggregate function [count(*)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
+            defaultAnalyzer().error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
         );
         assertEquals(
             "1:23: aggregate function [max(a)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 | WHERE 1 + max(a) > 0")
+            defaultAnalyzer().error("ROW a = 1 | WHERE 1 + max(a) > 0")
         );
         assertEquals(
             "1:19: aggregate function [min(languages)] not allowed outside STATS command",
-            defaultMapping().error("FROM test | WHERE min(languages) > 2")
+            defaultAnalyzer().error("FROM test | WHERE min(languages) > 2")
         );
         assertEquals(
             "1:19: aggregate function [present(gender)] not allowed outside STATS command",
-            defaultMapping().error("FROM test | WHERE present(gender)")
+            defaultAnalyzer().error("FROM test | WHERE present(gender)")
         );
     }
 
     public void testDissectByAggregate() {
         assertEquals(
             "1:21: aggregate function [min(first_name)] not allowed outside STATS command",
-            defaultMapping().error("from test | dissect min(first_name) \"%{foo}\"")
+            defaultAnalyzer().error("from test | dissect min(first_name) \"%{foo}\"")
         );
         assertEquals(
             "1:21: aggregate function [avg(salary)] not allowed outside STATS command",
-            defaultMapping().error("from test | dissect avg(salary) \"%{foo}\"")
+            defaultAnalyzer().error("from test | dissect avg(salary) \"%{foo}\"")
         );
     }
 
     public void testGrokByAggregate() {
         assertEquals(
             "1:18: aggregate function [max(last_name)] not allowed outside STATS command",
-            defaultMapping().error("from test | grok max(last_name) \"%{WORD:foo}\"")
+            defaultAnalyzer().error("from test | grok max(last_name) \"%{WORD:foo}\"")
         );
         assertEquals(
             "1:18: aggregate function [sum(salary)] not allowed outside STATS command",
-            defaultMapping().error("from test | grok sum(salary) \"%{WORD:foo}\"")
+            defaultAnalyzer().error("from test | grok sum(salary) \"%{WORD:foo}\"")
         );
     }
 
     public void testAggregateInRow() {
         assertEquals(
             "1:13: aggregate function [count(*)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = 1 + count(*)")
+            defaultAnalyzer().error("ROW a = 1 + count(*)")
         );
-        assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", defaultMapping().error("ROW a = avg(2)"));
+        assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", defaultAnalyzer().error("ROW a = avg(2)"));
         assertEquals(
             "1:9: aggregate function [present(123)] not allowed outside STATS command",
-            defaultMapping().error("ROW a = present(123)")
+            defaultAnalyzer().error("ROW a = present(123)")
         );
     }
 
     public void testLookupJoinDataTypeMismatch() {
-        defaultWithLanguagesLookup().query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
+        analyzerWithLanguagesLookup().query("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
 
         assertEquals(
             "1:87: JOIN left field [language_code] of type [KEYWORD] is incompatible with right field [language_code] of type [INTEGER]",
-            defaultWithLanguagesLookup().error(
+            analyzerWithLanguagesLookup().error(
                 "FROM test | EVAL language_code = languages::keyword | LOOKUP JOIN languages_lookup ON language_code"
             )
         );
@@ -2599,7 +2604,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
-            defaultWithLanguagesLookup().error(queryString)
+            analyzerWithLanguagesLookup().error(queryString)
         );
     }
 
@@ -2692,7 +2697,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             " ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]",
-            defaultWithLanguagesLookup().error(queryString)
+            analyzerWithLanguagesLookup().error(queryString)
         );
     }
 
@@ -2709,7 +2714,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
-            defaultWithLanguagesLookup().error(queryString)
+            analyzerWithLanguagesLookup().error(queryString)
         );
     }
 
@@ -2826,7 +2831,7 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
         assertThat(
-            defaultMapping().error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
+            defaultAnalyzer().error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
             containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
         );
     }
@@ -2858,7 +2863,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "2:23: second argument of [decay(value, null, scale, "
                 + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value = 10, scale = 10\n"
                     + "| eval decay_result = decay(value, null, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
             )
@@ -2868,7 +2873,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "2:23: third argument of [decay(value, origin, null, "
                 + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value = 10, origin = 10\n"
                     + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
             )
@@ -2877,7 +2882,7 @@ public class VerifierTests extends ESTestCase {
         // Offset value type
         assertEquals(
             "2:23: offset option has invalid type, expected [numeric], found [keyword]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value = 10, origin = 10, scale = 1\n"
                     + "| eval decay_result = decay(value, origin, scale, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
             )
@@ -2885,7 +2890,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:118: offset option has invalid type, expected [time_duration], found [keyword]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
                     + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
             )
@@ -2893,7 +2898,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "1:110: offset option has invalid type, expected [numeric], found [keyword]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value =  TO_CARTESIANPOINT(\"POINT(10 0)\"), origin = TO_CARTESIANPOINT(\"POINT(0 0)\")"
                     + "| eval decay_result = decay(value, origin, 10.0, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})"
             )
@@ -2903,7 +2908,7 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "2:23: Invalid option [type] in "
                 + "[decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})], allowed types [[KEYWORD]]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value = 10, origin = 10, scale = 1\n"
                     + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": 123})"
             )
@@ -2911,7 +2916,7 @@ public class VerifierTests extends ESTestCase {
 
         assertEquals(
             "2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]",
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row value = 10, origin = 10, scale = 1\n"
                     + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})"
             )
@@ -2959,20 +2964,20 @@ public class VerifierTests extends ESTestCase {
     public void testToIPInvalidOptions() {
         String query = "ROW result = to_ip(\"127.0.0.1\", 123)";
         assertThat(
-            defaultMapping().error(query),
+            defaultAnalyzer().error(query),
             containsString("second argument of [to_ip(\"127.0.0.1\", 123)] must be a map expression, received [123]")
         );
 
         query = "ROW result = to_ip(\"127.0.0.1\", { \"leading_zeros\": { \"foo\": \"bar\" } })";
-        assertThat(defaultMapping().error(query), containsString("Invalid option [leading_zeros]"));
+        assertThat(defaultAnalyzer().error(query), containsString("Invalid option [leading_zeros]"));
 
         query = "ROW result = to_ip(\"127.0.0.1\", { \"leading_zeros\": \"abcdef\" })";
-        assertThat(defaultMapping().error(query), containsString("Illegal leading_zeros [abcdef]"));
+        assertThat(defaultAnalyzer().error(query), containsString("Illegal leading_zeros [abcdef]"));
     }
 
     public void testInvalidTBucketCalls() {
         assertThat(
-            defaultMapping().error("from test | stats max(emp_no) by tbucket(1 hour)"),
+            defaultAnalyzer().error("from test | stats max(emp_no) by tbucket(1 hour)"),
             equalTo("1:34: [tbucket(1 hour)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
         assertThat(
@@ -3045,130 +3050,130 @@ public class VerifierTests extends ESTestCase {
     public void testFuse() {
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
-        defaultMapping().query(queryPrefix + " | fuse");
-        defaultMapping().query(queryPrefix + " | fuse rrf");
-        defaultMapping().query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123 } ");
-        defaultMapping().query(queryPrefix + " | fuse rrf with { \"weights\": { \"fork1\":  123 } }");
-        defaultMapping().query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+        defaultAnalyzer().query(queryPrefix + " | fuse");
+        defaultAnalyzer().query(queryPrefix + " | fuse rrf");
+        defaultAnalyzer().query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123 } ");
+        defaultAnalyzer().query(queryPrefix + " | fuse rrf with { \"weights\": { \"fork1\":  123 } }");
+        defaultAnalyzer().query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
 
-        defaultMapping().query(queryPrefix + " | fuse with { \"rank_constant\": 123 } ");
-        defaultMapping().query(queryPrefix + " | fuse with { \"weights\": { \"fork1\":  123 } }");
-        defaultMapping().query(queryPrefix + " | fuse with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+        defaultAnalyzer().query(queryPrefix + " | fuse with { \"rank_constant\": 123 } ");
+        defaultAnalyzer().query(queryPrefix + " | fuse with { \"weights\": { \"fork1\":  123 } }");
+        defaultAnalyzer().query(queryPrefix + " | fuse with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
 
-        defaultMapping().query(queryPrefix + " | fuse linear");
-        defaultMapping().query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
-        defaultMapping().query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
+        defaultAnalyzer().query(queryPrefix + " | fuse linear");
+        defaultAnalyzer().query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
+        defaultAnalyzer().query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
 
-        defaultMapping().query(queryPrefix + " | fuse linear score by _score with { \"normalizer\": \"minmax\" } ");
-        defaultMapping().query(
+        defaultAnalyzer().query(queryPrefix + " | fuse linear score by _score with { \"normalizer\": \"minmax\" } ");
+        defaultAnalyzer().query(
             queryPrefix + " | eval new_score = _score + 1 | fuse linear score by new_score with { \"normalizer\": \"minmax\" } "
         );
-        defaultMapping().query(queryPrefix + " | fuse linear group by _fork with { \"normalizer\": \"minmax\" } ");
-        defaultMapping().query(
+        defaultAnalyzer().query(queryPrefix + " | fuse linear group by _fork with { \"normalizer\": \"minmax\" } ");
+        defaultAnalyzer().query(
             queryPrefix + " | eval new_fork = to_upper(_fork) | fuse linear group by new_fork with { \"normalizer\": \"minmax\" } "
         );
-        defaultMapping().query(queryPrefix + " | fuse linear key by _id,_index with { \"normalizer\": \"minmax\" } ");
-        defaultMapping().query(
+        defaultAnalyzer().query(queryPrefix + " | fuse linear key by _id,_index with { \"normalizer\": \"minmax\" } ");
+        defaultAnalyzer().query(
             queryPrefix + " | eval new_id = concat(_id, _index) | fuse linear key by new_id with { \"normalizer\": \"minmax\" } "
         );
-        defaultMapping().query(
+        defaultAnalyzer().query(
             queryPrefix + " | fuse linear score by _score key by _id, _index group by _fork with { \"normalizer\": \"minmax\" } "
         );
 
-        assertThat(defaultMapping().error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
+        assertThat(defaultAnalyzer().error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": \"a\" }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": \"a\" }"),
             containsString("expected rank_constant to be numeric, got [\"a\"]")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": { \"a\": 123 } }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": { \"a\": 123 } }"),
             containsString("expected rank_constant to be a literal")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": -123 }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": -123 }"),
             containsString("expected rank_constant to be positive, got [-123]")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": 0 }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": 0 }"),
             containsString("expected rank_constant to be positive, got [0]")
         );
 
         for (var fuseMethod : List.of("rrf", "linear")) {
             assertThat(
-                defaultMapping().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": 123 }"),
+                defaultAnalyzer().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": 123 }"),
                 containsString("expected weights to be a MapExpression")
             );
 
             assertThat(
-                defaultMapping().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": \"a\" } }"),
+                defaultAnalyzer().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": \"a\" } }"),
                 containsString("expected weight to be numeric")
             );
 
             assertThat(
-                defaultMapping().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
+                defaultAnalyzer().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
                 containsString("expected weight to be a literal")
             );
 
             assertThat(
-                defaultMapping().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": -123 } }"),
+                defaultAnalyzer().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": -123 } }"),
                 containsString("expected weight to be positive, got [-123]")
             );
 
             assertThat(
-                defaultMapping().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
+                defaultAnalyzer().error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
                 containsString("expected weight to be positive, got [0]")
             );
         }
 
-        assertThat(defaultMapping().error(queryPrefix + " | fuse linear WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
+        assertThat(defaultAnalyzer().error(queryPrefix + " | fuse linear WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse linear WITH { \"normalizer\": 123 }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse linear WITH { \"normalizer\": 123 }"),
             containsString("expected normalizer to be a string, got [123]")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse linear WITH { \"normalizer\": { \"a\": 123 } }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse linear WITH { \"normalizer\": { \"a\": 123 } }"),
             containsString("expected normalizer to be a literal")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
+            defaultAnalyzer().error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
             containsString("[\"foo\"] is not a valid normalizer")
         );
 
-        assertThat(defaultMapping().error(queryPrefix + " | fuse linear SCORE BY foobar"), containsString("Unknown column [foobar]"));
+        assertThat(defaultAnalyzer().error(queryPrefix + " | fuse linear SCORE BY foobar"), containsString("Unknown column [foobar]"));
 
-        assertThat(defaultMapping().error(queryPrefix + " | fuse linear GROUP BY foobar"), containsString("Unknown column [foobar]"));
+        assertThat(defaultAnalyzer().error(queryPrefix + " | fuse linear GROUP BY foobar"), containsString("Unknown column [foobar]"));
 
-        assertThat(defaultMapping().error(queryPrefix + " | fuse linear KEY BY _id, foobar"), containsString("Unknown column [foobar]"));
+        assertThat(defaultAnalyzer().error(queryPrefix + " | fuse linear KEY BY _id, foobar"), containsString("Unknown column [foobar]"));
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse linear SCORE BY first_name"),
+            defaultAnalyzer().error(queryPrefix + " | fuse linear SCORE BY first_name"),
             containsString("expected SCORE BY column [first_name] to be DOUBLE, not KEYWORD")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse linear GROUP BY _score"),
+            defaultAnalyzer().error(queryPrefix + " | fuse linear GROUP BY _score"),
             containsString("expected GROUP BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
         );
 
         assertThat(
-            defaultMapping().error(queryPrefix + " | fuse linear KEY BY _score"),
+            defaultAnalyzer().error(queryPrefix + " | fuse linear KEY BY _score"),
             containsString("expected KEY BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
         );
 
         assertThat(
-            defaultMapping().error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
+            defaultAnalyzer().error("FROM test METADATA _index, _score, _id | EVAL _fork = \"fork1\" | FUSE"),
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
 
         assertThat(
-            defaultMapping().error("FROM test | LIMIT 10 | FUSE"),
+            defaultAnalyzer().error("FROM test | LIMIT 10 | FUSE"),
             equalTo(
                 "1:24: FUSE requires a score column, default [_score] column not found.\n"
                     + "line 1:24: FUSE requires a column to group by, default [_fork] column not found.\n"
@@ -3178,7 +3183,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-            assertThat(defaultMapping().error("""
+            assertThat(defaultAnalyzer().error("""
                 FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
                      (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
                 | FUSE GROUP BY label
@@ -3249,7 +3254,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
-        var withInference = defaultMapping().addAnalysisTestsInferenceResolution();
+        var withInference = defaultAnalyzer().addAnalysisTestsInferenceResolution();
         assertThat(
             withInference.error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", TEXT_EMBEDDING_INFERENCE_ID),
             equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
@@ -3268,17 +3273,17 @@ public class VerifierTests extends ESTestCase {
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
         assertThat(
-            defaultMapping().error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", "query text"),
+            defaultAnalyzer().error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
         );
 
         assertThat(
-            defaultMapping().error("from test | EVAL embedding = TEXT_EMBEDDING(?, 42)", "query text"),
+            defaultAnalyzer().error("from test | EVAL embedding = TEXT_EMBEDDING(?, 42)", "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, 42)] must be [string], found value [42] type [integer]")
         );
 
         assertThat(
-            defaultMapping().error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", "query text"),
+            defaultAnalyzer().error("from test | EVAL embedding = TEXT_EMBEDDING(?, last_name)", "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, last_name)] must be a constant, received [last_name]")
         );
     }
@@ -3350,7 +3355,7 @@ public class VerifierTests extends ESTestCase {
     public void testLimitBeforeInlineStats_WithFork() {
         assumeTrue("LIMIT before INLINE STATS limitation check", EsqlCapabilities.Cap.FORBID_LIMIT_BEFORE_INLINE_STATS.isEnabled());
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "FROM test\n"
                     + "| WHERE emp_no == 10048 OR emp_no == 10081\n"
                     + "| FORK (EVAL a = CONCAT(first_name, \" \", emp_no::keyword, \" \", last_name)\n"
@@ -3369,7 +3374,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "FROM test\n"
                     + "| KEEP emp_no, languages, gender\n"
                     + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
@@ -3385,7 +3390,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "FROM test\n"
                     + "| KEEP emp_no, languages, gender\n"
                     + "| FORK (WHERE emp_no == 10048 OR emp_no == 10081)\n"
@@ -3408,7 +3413,7 @@ public class VerifierTests extends ESTestCase {
         var sourceCommands = new String[] { "FROM test | ", "ROW salary=1,gender=\"M\",languages=1 | " };
 
         assertThat(
-            defaultMapping().error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            defaultAnalyzer().error(randomFrom(sourceCommands) + "LIMIT 5 | INLINE STATS max(salary) BY gender"),
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
@@ -3416,7 +3421,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            defaultAnalyzer().error(randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender"),
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
@@ -3424,7 +3429,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
+            defaultAnalyzer().error(randomFrom(sourceCommands) + "INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"),
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
@@ -3432,7 +3437,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 randomFrom(sourceCommands) + "LIMIT 1 | LIMIT 2 | INLINE STATS avg(salary) | LIMIT 5 | INLINE STATS max(salary) BY gender"
             ),
             allOf(
@@ -3448,7 +3453,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(randomFrom(sourceCommands) + """
+            defaultAnalyzer().error(randomFrom(sourceCommands) + """
                 EVAL x = 1
                 | LIMIT 1
                 | INLINE STATS avg(salary)
@@ -3506,7 +3511,7 @@ public class VerifierTests extends ESTestCase {
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
+        String errorMessage = defaultAnalyzer().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | WHERE emp_no > 10000
             | SORT is_rehired, still_hired
@@ -3519,7 +3524,7 @@ public class VerifierTests extends ESTestCase {
     // Fork inside subquery is tested in LogicalPlanOptimizerTests
     public void testSubqueryInFromWithForkInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
+        String errorMessage = defaultAnalyzer().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
@@ -3590,7 +3595,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testTopSnippetsFunctionInvalidInputs() {
         // Null field allowed
-        defaultMapping().query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
+        defaultAnalyzer().query("from test | EVAL snippets = TOP_SNIPPETS(null, \"query\")");
 
         assertThat(
             fullText().error("from test | EVAL snippets = TOP_SNIPPETS(42, \"query\")", VerificationException.class),
@@ -3752,7 +3757,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testMetricsInfoRequiresTsSource() {
         assertThat(
-            defaultMapping().error("FROM test | METRICS_INFO"),
+            defaultAnalyzer().error("FROM test | METRICS_INFO"),
             containsString("METRICS_INFO can only be used with TS source command")
         );
     }
@@ -3780,7 +3785,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTsInfoRequiresTsSource() {
-        assertThat(defaultMapping().error("FROM test | TS_INFO"), containsString("TS_INFO can only be used with TS source command"));
+        assertThat(defaultAnalyzer().error("FROM test | TS_INFO"), containsString("TS_INFO can only be used with TS source command"));
     }
 
     public void testTsInfoWithTsSource() {
@@ -3811,47 +3816,47 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRDiversifyFieldIsValid() {
-        defaultMapping().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
+        defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
-            defaultMapping().error("row dense_embedding=\"hello\" | mmr on dense_embedding limit 10", VerificationException.class),
+            defaultAnalyzer().error("row dense_embedding=\"hello\" | mmr on dense_embedding limit 10", VerificationException.class),
             equalTo("1:31: MMR diversify field must be a dense vector field")
         );
     }
 
     public void testMMRLimitIsValid() {
-        defaultMapping().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
+        defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10");
 
         assertThat(
-            defaultMapping().error("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5"),
+            defaultAnalyzer().error("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit -5"),
             equalTo("1:58: MMR limit must be a positive integer")
         );
     }
 
     public void testMMRResolvedQueryVectorIsValid() {
-        defaultMapping().query(
+        defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
         );
 
-        defaultMapping().query(
+        defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10"
         );
-        defaultMapping().query("""
+        defaultAnalyzer().query("""
             row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | mmr TEXT_EMBEDDING("some text", "some model") on dense_embedding limit 10
             """);
 
-        defaultMapping().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
-        defaultMapping().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
+        defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"7e7e\" on dense_embedding limit 10");
+        defaultAnalyzer().query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [15, 16, 20] on dense_embedding limit 10");
     }
 
     public void testMMRLambdaValueIsValid() {
-        defaultMapping().query(
+        defaultAnalyzer().query(
             "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 0.5 }"
         );
 
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"unknown\": true }",
                 VerificationException.class
             ),
@@ -3859,7 +3864,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with "
                     + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
                 VerificationException.class
@@ -3868,14 +3873,14 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": 2.5 }",
                 VerificationException.class
             ),
             equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
         );
         assertThat(
-            defaultMapping().error(
+            defaultAnalyzer().error(
                 "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr on dense_embedding limit 10 with { \"lambda\": -2.5 }",
                 VerificationException.class
             ),
@@ -3884,14 +3889,14 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMMRLimitedInput() {
-        assertThat(defaultMapping().error("""
+        assertThat(defaultAnalyzer().error("""
             FROM test
             | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | MMR ON dense_embedding LIMIT 10
             """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
 
         if (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled()) {
-            assertThat(defaultMapping().error("""
+            assertThat(defaultAnalyzer().error("""
                 FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
                      (FROM test METADATA _index, _id, _score | LIMIT 10)
                 | MMR ON dense_embedding LIMIT 10
@@ -3901,26 +3906,26 @@ public class VerifierTests extends ESTestCase {
 
     public void testLimitByNotEnabled() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        assertThat(defaultMapping().error("""
+        assertThat(defaultAnalyzer().error("""
             FROM test
             | LIMIT 5 BY languages
             """), containsString("LIMIT BY is not yet supported"));
     }
 
     public void testTopSnippetsQueryFoldableAfterOptimization() {
-        defaultMapping().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+        defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }
 
     public void testTopSnippetsQueryFoldableConcatConstants() {
-        defaultMapping().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+        defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
     }
 
-    private static TestAnalyzer defaultMapping() {
+    private static TestAnalyzer defaultAnalyzer() {
         return analyzer().addIndex("test", "mapping-default.json").stripErrorPrefix(true);
     }
 
-    private static TestAnalyzer defaultWithLanguagesLookup() {
-        return defaultMapping().addLookupIndex("languages_lookup", "mapping-languages.json");
+    private static TestAnalyzer analyzerWithLanguagesLookup() {
+        return defaultAnalyzer().addLookupIndex("languages_lookup", "mapping-languages.json");
     }
 
     private static TestAnalyzer fullText() {
