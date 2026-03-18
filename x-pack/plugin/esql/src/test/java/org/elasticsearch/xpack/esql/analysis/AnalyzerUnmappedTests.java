@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -217,7 +216,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | WHERE does_not_exist2::LONG < 10
             """;
         var failure = "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?";
-        assertUnmappedFailure(EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions(), query, failure);
+        assertUnmappedFailure(analyzer().addAnalysisTestsIndexResolutions(), query, failure);
     }
 
     public void testFailSubquerysWithNoMainAndStatsOnlyLoad() {
@@ -232,7 +231,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | WHERE does_not_exist2::LONG < 10
             """;
         var failure = "line 6:9: Unknown column [does_not_exist2], did you mean [does_not_exist1]?";
-        assertUnmappedFailure(EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions(), query, failure);
+        assertUnmappedFailure(analyzer().addAnalysisTestsIndexResolutions(), query, failure);
     }
 
     public void testFailAfterForkOfStats() {
@@ -384,7 +383,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS max(rate(network.total_cost)) BY tbucket = BUCKET(newTs, 1hour)
             """);
         assertThat(
-            EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions().statementError(stmt1),
+            analyzer().addAnalysisTestsIndexResolutions().statementError(stmt1),
             containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
@@ -394,7 +393,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS max(rate(network.total_cost))
             """);
         assertThat(
-            EsqlTestUtils.analyzer().addAnalysisTestsIndexResolutions().statementError(stmt2),
+            analyzer().addAnalysisTestsIndexResolutions().statementError(stmt2),
             containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
     }
@@ -575,8 +574,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             );
         }
         assertThat(
-            EsqlTestUtils.analyzer()
-                .addIndex("test", "mapping-full_text_search.json")
+            analyzer().addIndex("test", "mapping-full_text_search.json")
                 .statementError(setUnmappedLoad("FROM test | WHERE knn(vector, [1, 2, 3]) | KEEP vector")),
             containsString("does not support full-text search function [KNN]")
         );

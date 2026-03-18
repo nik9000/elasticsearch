@@ -457,7 +457,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRowWithUnresolvableForwardReferences() {
-        assertThat(EsqlTestUtils.analyzer().error("ROW a = b + c, b = 1, c = 2"), containsString("""
+        assertThat(analyzer().error("ROW a = b + c, b = 1, c = 2"), containsString("""
             Found 2 problems
             line 1:9: Unknown column [b]
             line 1:13: Unknown column [c]"""));
@@ -5028,7 +5028,7 @@ public class AnalyzerTests extends ESTestCase {
             Map.of(),
             Set.of()
         );
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(esIndex);
+        var testAnalyzer = analyzer().addIndex(esIndex);
         var stddevPlan = testAnalyzer.query("""
             from k8s,k8s-downsampled | stats std_dev = std_dev(metric_field)
             """);
@@ -6380,8 +6380,7 @@ public class AnalyzerTests extends ESTestCase {
         var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
         var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/*.parquet", resolvedSource));
 
-        var analyzed = EsqlTestUtils.analyzer()
-            .externalSourceResolution(externalResolution)
+        var analyzed = analyzer().externalSourceResolution(externalResolution)
             .minimumTransportVersion(TransportVersion.current())
             .query("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
 
@@ -6423,8 +6422,7 @@ public class AnalyzerTests extends ESTestCase {
         var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, FileSet.UNRESOLVED);
         var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/single.parquet", resolvedSource));
 
-        var analyzed = EsqlTestUtils.analyzer()
-            .externalSourceResolution(externalResolution)
+        var analyzed = analyzer().externalSourceResolution(externalResolution)
             .minimumTransportVersion(TransportVersion.current())
             .query("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
 
