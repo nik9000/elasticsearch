@@ -190,7 +190,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -5465,8 +5464,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public static boolean releaseBuildForInlineStats(@Nullable String query) {
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
             if (query != null) {
-                var e = expectThrows(ParsingException.class, () -> analyze(query));
-                assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+                assertThat(
+                    EsqlTestUtils.analyzer().addEmployees("test").error(query, ParsingException.class),
+                    containsString("mismatched input 'INLINE' expecting")
+                );
             }
             return true;
         }
@@ -6286,8 +6287,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | RENAME languages AS int
             | LOOKUP_?? int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(
+                defaultAnalyzer().error(query, ParsingException.class),
+                containsString("line 3:3: mismatched input 'LOOKUP' expecting {")
+            );
             return;
         }
         var plan = optimizedPlan(query);
@@ -6367,8 +6370,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP_?? int_number_names ON int
             | STATS MIN(emp_no) BY name""";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(
+                defaultAnalyzer().error(query, ParsingException.class),
+                containsString("line 3:3: mismatched input 'LOOKUP' expecting {")
+            );
             return;
         }
         var plan = optimizedPlan(query);

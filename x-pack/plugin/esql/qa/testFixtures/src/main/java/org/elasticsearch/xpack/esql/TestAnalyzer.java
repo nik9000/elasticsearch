@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -27,10 +29,12 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
+import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -42,6 +46,9 @@ import java.util.function.Supplier;
 
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -305,13 +312,6 @@ public class TestAnalyzer {
     /**
      * Build the analyzer, parse the query, and analyze it.
      */
-    public LogicalPlan query(String query) {
-        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query));
-    }
-
-    /**
-     * Build the analyzer, parse the query, and analyze it.
-     */
     public LogicalPlan query(String query, QueryParams params) {
         return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, params));
     }
@@ -321,6 +321,26 @@ public class TestAnalyzer {
      */
     public LogicalPlan query(String query, Object... params) {
         return query(query, toQueryParams(params));
+    }
+
+    /**
+     * Build the analyzer, parse the query, and analyze it.
+     */
+    public LogicalPlan query(String query) {
+        return query(query, new QueryParams());
+    }
+
+    /**
+     * Build the analyzer, parse the <strong>statement</strong>, and analyze it.
+     */
+    public LogicalPlan statement(String query) {
+        var analyzed = buildAnalyzer().analyze(TEST_PARSER.createStatement(query).plan());
+        var failures = new Failures();
+        PlanConsistencyChecker.checkPlan(analyzed, failures);
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+        return analyzed;
     }
 
     /**

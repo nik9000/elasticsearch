@@ -39,8 +39,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
@@ -238,18 +236,6 @@ public final class AnalyzerTestUtils {
      * @deprecated use {@link EsqlTestUtils#analyzer}.
      */
     @Deprecated
-    public static LogicalPlan analyze(String query) {
-        var indexName = indexFromQuery(query);
-        var indexResolutions = indexResolutions(indexName);
-        var analyzer = analyzer(indexResolutions, TEST_VERIFIER, TEST_CFG);
-        return analyzer.analyze(TEST_PARSER.parseQuery(query));
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
     public static LogicalPlan analyzeStatement(String query) {
         return analyzeStatement(query, true);
     }
@@ -263,7 +249,21 @@ public final class AnalyzerTestUtils {
         var statement = TEST_PARSER.createStatement(query);
         var relations = statement.plan().collectFirstChildren(UnresolvedRelation.class::isInstance);
         var indexName = relations.isEmpty() ? null : ((UnresolvedRelation) relations.getFirst()).indexPattern().indexPattern();
-        var indexResolutions = indexResolutions(indexName);
+        Map<IndexPattern, IndexResolution> indexResolutions = indexName == null
+            ? Map.of()
+            : Map.of(
+                new IndexPattern(Source.EMPTY, indexName),
+                IndexResolution.valid(
+                    new EsIndex(
+                        indexName,
+                        EsqlTestUtils.loadMapping("mapping-basic.json"),
+                        Map.of(indexName, IndexMode.STANDARD),
+                        Map.of(),
+                        Map.of(),
+                        Set.of()
+                    )
+                )
+            );
         var analyzer = analyzer(indexResolutions, TEST_VERIFIER, configuration(query), statement);
         var analyzed = analyzer.analyze(statement.plan());
         if (checkPlan) {
@@ -275,36 +275,6 @@ public final class AnalyzerTestUtils {
         }
         return analyzed;
     }
-
-
-
-
-
-    private static final Map<String, EsField> MAPPING_BASIC_RESOLUTION = EsqlTestUtils.loadMapping("mapping-basic.json");
-
-    private static Map<IndexPattern, IndexResolution> indexResolutions(@Nullable String indexName) {
-        if (indexName == null) {
-            return Map.of();
-        }
-
-        var indexResolution = IndexResolution.valid(
-            new EsIndex(indexName, MAPPING_BASIC_RESOLUTION, Map.of(indexName, IndexMode.STANDARD), Map.of(), Map.of(), Set.of())
-        );
-        return Map.of(new IndexPattern(Source.EMPTY, indexName), indexResolution);
-    }
-
-    private static final Pattern INDEX_FROM_PATTERN = Pattern.compile("(?i)FROM\\s+([\\w-]+)");
-
-    private static String indexFromQuery(String query) {
-        // Extract the index name from the FROM clause of the query using regexp
-        Matcher matcher = INDEX_FROM_PATTERN.matcher(query);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
-
-
 
     public static UnresolvedRelation unresolvedRelation(String index) {
         return new UnresolvedRelation(

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,7 +28,6 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -135,7 +135,7 @@ public class PlanStreamInputTests extends ESTestCase {
             String query = queryFn.apply(delim);
             Configuration config = configuration(query);
 
-            LogicalPlan planIn = analyze(query);
+            LogicalPlan planIn = EsqlTestUtils.analyzer().addEmployees("test").query(query);
             LogicalPlan planOut = serializeDeserialize(
                 planIn,
                 PlanStreamOutput::writeNamedWriteable,
