@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
@@ -41,8 +40,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,15 +57,6 @@ import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 public final class AnalyzerTestUtils {
 
     private AnalyzerTestUtils() {}
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static Analyzer defaultAnalyzer() {
-        return analyzer(analyzerDefaultMapping());
-    }
 
     /**
      * Build an analyzer.
@@ -298,17 +286,6 @@ public final class AnalyzerTestUtils {
         return analyzed;
     }
 
-    public static LogicalPlan analyze(String query, TransportVersion transportVersion) {
-        Analyzer baseAnalyzer = expandedDefaultAnalyzer();
-        if (baseAnalyzer.context() instanceof MutableAnalyzerContext mutableContext) {
-            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(transportVersion)) {
-                return analyze(query, baseAnalyzer);
-            }
-        } else {
-            throw new UnsupportedOperationException("Analyzer Context is not mutable");
-        }
-    }
-
     private static final Map<String, EsField> MAPPING_BASIC_RESOLUTION = EsqlTestUtils.loadMapping("mapping-basic.json");
 
     private static Map<IndexPattern, IndexResolution> indexResolutions(@Nullable String indexName) {
@@ -457,7 +434,7 @@ public final class AnalyzerTestUtils {
     );
     public static final String ERROR_INFERENCE_ID = "error-inference-id";
 
-    public static InferenceResolution defaultInferenceResolution() {
+    private static InferenceResolution defaultInferenceResolution() {
         return InferenceResolution.builder()
             .withResolvedInference(new ResolvedInference(RERANKING_INFERENCE_ID, TaskType.RERANK))
             .withResolvedInference(new ResolvedInference(COMPLETION_INFERENCE_ID, TaskType.COMPLETION))
@@ -549,19 +526,6 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution tsdbIndexResolution() {
         return loadMapping("tsdb-mapping.json", "test");
-    }
-
-    public static IndexResolution k8sIndexResolution() {
-        return loadMapping("k8s-mappings.json", "k8s");
-    }
-
-    public static <E> E randomValueOtherThanTest(Predicate<E> exclude, Supplier<E> supplier) {
-        while (true) {
-            E value = supplier.get();
-            if (exclude.test(value) == false) {
-                return value;
-            }
-        }
     }
 
     public static IndexResolution indexWithDateDateNanosUnionType() {

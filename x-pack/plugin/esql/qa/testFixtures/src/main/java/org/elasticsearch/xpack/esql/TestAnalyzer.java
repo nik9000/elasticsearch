@@ -66,6 +66,7 @@ public class TestAnalyzer {
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
     private TimestampBounds timestampBounds;
     private Supplier<TransportVersion> minimumTransportVersion = TransportVersionUtils::randomCompatibleVersion;
+    private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
     private boolean stripErrorPrefix;
 
     TestAnalyzer() {}
@@ -240,6 +241,11 @@ public class TestAnalyzer {
         return this;
     }
 
+    public TestAnalyzer externalSourceResolution(ExternalSourceResolution externalSourceResolution) {
+        this.externalSourceResolution = externalSourceResolution;
+        return this;
+    }
+
     private static final String RERANKING_INFERENCE_ID = "reranking-inference-id";
     private static final String COMPLETION_INFERENCE_ID = "completion-inference-id";
     private static final String TEXT_EMBEDDING_INFERENCE_ID = "text-embedding-inference-id";
@@ -372,7 +378,7 @@ public class TestAnalyzer {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
-            ExternalSourceResolution.EMPTY,
+            externalSourceResolution,
             minimumTransportVersion.get(),
             unmappedResolution,
             timestampBounds

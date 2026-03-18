@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
@@ -96,7 +95,6 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -154,7 +152,6 @@ import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -173,7 +170,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -191,7 +187,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -5137,24 +5132,10 @@ public class AnalyzerTests extends ESTestCase {
         Instant start = Instant.parse("2024-01-01T00:00:00Z");
         Instant end = Instant.parse("2024-01-02T00:00:00Z");
         var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(start, end);
-        var indexResolution = loadMapping("mapping-sample_data.json", "sample_data");
-        var indexResolutions = Map.of(new IndexPattern(Source.EMPTY, "sample_data"), indexResolution);
-        var mergedResolutions = AnalyzerTestUtils.mergeIndexResolutions(indexResolutions, AnalyzerTestUtils.defaultSubqueryResolution());
-        var context = new AnalyzerContext(
-            EsqlTestUtils.TEST_CFG,
-            new EsqlFunctionRegistry(),
-            null,
-            mergedResolutions,
-            AnalyzerTestUtils.defaultLookupResolution(),
-            defaultEnrichResolution(),
-            defaultInferenceResolution(),
-            ExternalSourceResolution.EMPTY,
-            EsqlTestUtils.randomMinimumVersion(),
-            UNMAPPED_FIELDS.defaultValue(),
-            bounds
-        );
-        var analyzer = new Analyzer(context, TEST_VERIFIER);
-        LogicalPlan plan = analyze("FROM sample_data | STATS count = COUNT() BY bucket = TBUCKET(100)", analyzer);
+        LogicalPlan plan = EsqlTestUtils.analyzer()
+            .addIndex("sample_data", "mapping-sample_data.json")
+            .timestampBounds(bounds)
+            .query("FROM sample_data | STATS count = COUNT() BY bucket = TBUCKET(100)");
 
         Limit limit = as(plan, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
@@ -5238,38 +5219,29 @@ public class AnalyzerTests extends ESTestCase {
             Map.of(),
             Set.of()
         );
-        var analyzer = new Analyzer(
-            testAnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                TEST_FUNCTION_REGISTRY,
-                indexResolutions(esIndex),
-                defaultEnrichResolution(),
-                defaultInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-        var stddevPlan = analyze("""
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(esIndex);
+        var stddevPlan = testAnalyzer.query("""
             from k8s,k8s-downsampled | stats std_dev = std_dev(metric_field)
-            """, analyzer);
+            """);
         assertProjection(stddevPlan, "std_dev");
 
-        var plan = analyze("""
+        var plan = testAnalyzer.query("""
             from k8s,k8s-downsampled | stats max = max(metric_field),
             avg = avg(metric_field),
             sum = sum(metric_field),
             min = min(metric_field),
             count = count(metric_field)
-            """, analyzer);
+            """);
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
-        var plan2 = analyze("""
+        var plan2 = testAnalyzer.query("""
             TS k8s,k8s-downsampled | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),
             min = min(max_over_time(metric_field)),
             count = count(count_over_time(metric_field)),
             avg = avg(min_over_time(metric_field))
             by cluster, time_bucket = bucket(@timestamp,1minute)
-            """, analyzer);
+            """);
         assertProjection(plan2, "s1", "s2", "min", "count", "avg", "cluster", "time_bucket");
     }
 
@@ -6283,11 +6255,15 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
         );
 
-        String query = "FROM test | LOOKUP JOIN languages_lookup "
-            + "ON languages == language_code AND MATCH(language_name, \"English\")"
-            + "| KEEP languages";
-
-        LogicalPlan analyzedPlan = analyze(query, Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+        LogicalPlan analyzedPlan = EsqlTestUtils.analyzer()
+            .addIndex("test", "mapping-default.json")
+            .addLookupIndex("languages_lookup", "mapping-languages.json")
+            .minimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+            .query(
+                "FROM test | LOOKUP JOIN languages_lookup "
+                    + "ON languages == language_code AND MATCH(language_name, \"English\")"
+                    + "| KEEP languages"
+            );
 
         Limit limit = as(analyzedPlan, Limit.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -6631,22 +6607,10 @@ public class AnalyzerTests extends ESTestCase {
         var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
         var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/*.parquet", resolvedSource));
 
-        var context = new AnalyzerContext(
-            EsqlTestUtils.TEST_CFG,
-            TEST_FUNCTION_REGISTRY,
-            null,
-            Map.of(),
-            Map.of(),
-            defaultEnrichResolution(),
-            defaultInferenceResolution(),
-            externalResolution,
-            TransportVersion.current(),
-            QuerySettings.UNMAPPED_FIELDS.defaultValue()
-        );
-        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
-
-        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
-        var analyzed = testAnalyzer.analyze(plan);
+        var analyzed = EsqlTestUtils.analyzer()
+            .externalSourceResolution(externalResolution)
+            .minimumTransportVersion(TransportVersion.current())
+            .query("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
 
         var externalRelations = new ArrayList<ExternalRelation>();
         analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
@@ -6686,22 +6650,10 @@ public class AnalyzerTests extends ESTestCase {
         var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, FileSet.UNRESOLVED);
         var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/single.parquet", resolvedSource));
 
-        var context = new AnalyzerContext(
-            EsqlTestUtils.TEST_CFG,
-            TEST_FUNCTION_REGISTRY,
-            null,
-            Map.of(),
-            Map.of(),
-            defaultEnrichResolution(),
-            defaultInferenceResolution(),
-            externalResolution,
-            TransportVersion.current(),
-            QuerySettings.UNMAPPED_FIELDS.defaultValue()
-        );
-        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
-
-        var plan = TEST_PARSER.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
-        var analyzed = testAnalyzer.analyze(plan);
+        var analyzed = EsqlTestUtils.analyzer()
+            .externalSourceResolution(externalResolution)
+            .minimumTransportVersion(TransportVersion.current())
+            .query("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
 
         var externalRelations = new ArrayList<ExternalRelation>();
         analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
