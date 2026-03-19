@@ -18,8 +18,8 @@ import java.util.List;
 
 import static org.elasticsearch.compute.data.BasicBlockTests.assertFilter;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMask;
-import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertKeepMaskEmpty;
+import static org.elasticsearch.compute.data.BasicBlockTests.assertSlice;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
