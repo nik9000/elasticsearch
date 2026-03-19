@@ -3890,14 +3890,6 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testLimitByNotEnabled() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        assertThat(defaultAnalyzer().error("""
-            FROM test
-            | LIMIT 5 BY languages
-            """), containsString("LIMIT BY is not yet supported"));
-    }
-
     public void testTopSnippetsQueryFoldableAfterOptimization() {
         defaultAnalyzer().query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
     }
