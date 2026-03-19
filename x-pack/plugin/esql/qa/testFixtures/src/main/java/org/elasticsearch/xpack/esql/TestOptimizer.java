@@ -126,10 +126,98 @@ public class TestOptimizer {
     }
 
     /**
-     * Adds the standard set of lookup resolutions used by many analyzer tests.
+     * Adds a lookup index by loading the mapping from a resource file.
      */
-    public TestOptimizer addAnalysisTestsLookupResolutions() {
-        analyzer.addAnalysisTestsLookupResolutions();
+    public TestOptimizer addLookupIndex(String name, String mappingLocation) {
+        analyzer.addLookupIndex(name, mappingLocation);
+        return this;
+    }
+
+    /**
+     * Adds the languages index.
+     */
+    public TestOptimizer addLanguages() {
+        analyzer.addLanguages();
+        return this;
+    }
+
+    /**
+     * Adds the languages_lookup lookup index.
+     */
+    public TestOptimizer addLanguagesLookup() {
+        analyzer.addLanguagesLookup();
+        return this;
+    }
+
+    /**
+     * Adds the sample_data index.
+     */
+    public TestOptimizer addSampleData() {
+        analyzer.addSampleData();
+        return this;
+    }
+
+    /**
+     * Adds the sample_data_lookup lookup index.
+     */
+    public TestOptimizer addSampleDataLookup() {
+        analyzer.addSampleDataLookup();
+        return this;
+    }
+
+    /**
+     * Adds the test_lookup lookup index.
+     */
+    public TestOptimizer addTestLookup() {
+        analyzer.addTestLookup();
+        return this;
+    }
+
+    /**
+     * Adds the spatial_lookup lookup index.
+     */
+    public TestOptimizer addSpatialLookup() {
+        analyzer.addSpatialLookup();
+        return this;
+    }
+
+    /**
+     * Adds the test index with mapping-default.json.
+     */
+    public TestOptimizer addDefaultIndex() {
+        analyzer.addDefaultIndex();
+        return this;
+    }
+
+    /**
+     * Adds the airports index.
+     */
+    public TestOptimizer addAirports() {
+        analyzer.addAirports();
+        return this;
+    }
+
+    /**
+     * Adds the test_mixed_types index with mapping-default-incompatible.json.
+     */
+    public TestOptimizer addDefaultIncompatible() {
+        analyzer.addDefaultIncompatible();
+        return this;
+    }
+
+    /**
+     * Adds the k8s index with k8s-mappings.json in time series mode.
+     */
+    public TestOptimizer addK8s() {
+        analyzer.addK8s();
+        return this;
+    }
+
+    /**
+     * Adds the k8s index with k8s-downsampled-mappings.json in time series mode.
+     */
+    public TestOptimizer addK8sDownsampled() {
+        analyzer.addK8sDownsampled();
         return this;
     }
 

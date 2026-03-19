@@ -39,8 +39,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testRemoteEnrichAfterCoordinatorOnlyPlans() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addAnalysisTestsInferenceResolution()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(Enrich.Mode.COORDINATOR, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
@@ -219,8 +220,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
      * The validation should not trigger for remote enrich after a lookup join. Lookup joins can be executed anywhere.
      */
     public void testRemoteEnrichAfterLookupJoin() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
 
         String lookupCommand = randomBoolean() ? "LOOKUP JOIN test_lookup ON languages" : "LOOKUP JOIN languages_lookup ON language_code";
@@ -259,7 +261,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testRemoteLookupJoinWithPipelineBreaker() {
         var testAnalyzer = analyzer().addIndex("test,remote:test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addAnalysisTestsEnrichResolution();
         assertEquals(
             "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",
@@ -310,7 +313,8 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreakerCCS() {
         var testAnalyzer = analyzer().addIndex("test,remote:test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(
                 Enrich.Mode.COORDINATOR,
@@ -370,8 +374,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testRemoteEnrichAfterLookupJoinWithPipelineBreaker() {
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
             .addEnrichPolicy(
                 Enrich.Mode.COORDINATOR,
@@ -432,8 +437,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testDanglingOrderByInInlineStats() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
-        var testAnalyzer = analyzer().addIndex("test", "mapping-default.json")
-            .addAnalysisTestsLookupResolutions()
+        var testAnalyzer = analyzer().addDefaultIndex()
+            .addLanguagesLookup()
+            .addTestLookup()
             .addAnalysisTestsEnrichResolution();
 
         var err = error(testAnalyzer.query("""

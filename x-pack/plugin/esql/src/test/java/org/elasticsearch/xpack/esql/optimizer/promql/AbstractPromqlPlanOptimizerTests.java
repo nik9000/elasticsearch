@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     protected static TestAnalyzer tsAnalyzer() {
-        return analyzerWithEnrichPolicies().addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        return analyzerWithEnrichPolicies().addK8s();
     }
 
     protected LogicalPlan planPromql(String query) {

@@ -582,10 +582,19 @@ public final class EsqlTestUtils {
      */
     @Deprecated
     public static TestAnalyzer fullyLoadedAnalyzer() {
-        return analyzer().addAnalysisTestsLookupResolutions()
+        return analyzer().addLanguagesLookup()
+            .addTestLookup()
+            .addSpatialLookup()
             .addAnalysisTestsEnrichResolution()
             .addAnalysisTestsInferenceResolution()
-            .addAnalysisTestsIndexResolutions();
+            .addLanguages()
+            .addSampleData()
+            .addDefaultIncompatible()
+            .addIndex("colors", "mapping-colors.json")
+            .addK8sDownsampled()
+            .addRemoteMissingIndex()
+            .addEmptyIndex()
+            .addNoFieldsIndex();
     }
 
     /**

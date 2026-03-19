@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -14,8 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -154,21 +153,24 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
-        String msg = test().addAnalysisTestsIndexResolutions().addAnalysisTestsLookupResolutions().statementError(setUnmappedLoad("""
-            FROM test,
-                (FROM languages
-                 | WHERE language_code > 10
-                 | RENAME language_name as languageName),
-                (FROM sample_data
-                | STATS max(@timestamp)),
-                (FROM test
-                | EVAL language_code = languages
-                | LOOKUP JOIN languages_lookup ON language_code)
-            | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
-            | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """));
+        String msg = test().addLanguages()
+            .addSampleData()
+            .addLanguagesLookup()
+            .statementError(setUnmappedLoad("""
+                FROM test,
+                    (FROM languages
+                     | WHERE language_code > 10
+                     | RENAME language_name as languageName),
+                    (FROM sample_data
+                    | STATS max(@timestamp)),
+                    (FROM test
+                    | EVAL language_code = languages
+                    | LOOKUP JOIN languages_lookup ON language_code)
+                | WHERE emp_no > 10000 OR does_not_exist1::LONG < 10
+                | STATS COUNT(*) BY emp_no, language_code, does_not_exist2
+                | RENAME emp_no AS empNo, language_code AS languageCode
+                | MV_EXPAND languageCode
+                """));
         assertThat(msg, containsString("Found 4 problems"));
         assertThat(msg, containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
         assertThat(msg, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
@@ -177,7 +179,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testFailSubquerysWithNoMainAndStatsOnlyNullify() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertUnmappedFailure(analyzer().addAnalysisTestsIndexResolutions(), """
+        assertUnmappedFailure(analyzer().addLanguages(), """
             FROM
                 (FROM languages
                  | STATS c = COUNT(*) BY emp_no, does_not_exist1),
@@ -189,7 +191,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     public void testFailSubquerysWithNoMainAndStatsOnlyLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        assertUnmappedFailure(analyzer().addAnalysisTestsIndexResolutions(), """
+        assertUnmappedFailure(analyzer().addLanguages(), """
             FROM
                 (FROM languages
                  | STATS c = COUNT(*) BY emp_no, does_not_exist1),
@@ -321,13 +323,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testChangedTimestmapFieldWithRate() {
-        assertThat(analyzer().addAnalysisTestsIndexResolutions().statementError(setUnmappedNullify("""
+        assertThat(analyzer().addK8sDownsampled().statementError(setUnmappedNullify("""
             TS k8s
             | RENAME @timestamp AS newTs
             | STATS max(rate(network.total_cost)) BY tbucket = BUCKET(newTs, 1hour)
             """)), containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX));
 
-        assertThat(analyzer().addAnalysisTestsIndexResolutions().statementError(setUnmappedNullify("""
+        assertThat(analyzer().addK8sDownsampled().statementError(setUnmappedNullify("""
             TS k8s
             | DROP @timestamp
             | STATS max(rate(network.total_cost))
@@ -357,7 +359,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testLoadModeDisallowsLookupJoin() {
         var stmt = setUnmappedLoad("FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code");
         assertThat(
-            test().addAnalysisTestsLookupResolutions().statementError(stmt),
+            test().addLanguagesLookup().statementError(stmt),
             containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
         );
     }
@@ -371,7 +373,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | KEEP emp_no, language_name
             """);
         assertThat(
-            test().addAnalysisTestsLookupResolutions().statementError(stmt),
+            test().addLanguagesLookup().statementError(stmt),
             containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
         );
     }
@@ -381,7 +383,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var stmt = setUnmappedLoad("FROM test, (FROM languages | WHERE language_code > 1)");
         assertThat(
-            test().addAnalysisTestsIndexResolutions().statementError(stmt),
+            test().addLanguages().statementError(stmt),
             containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
         );
     }
@@ -395,7 +397,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 (FROM sample_data | STATS max(@timestamp))
             """);
         assertThat(
-            test().addAnalysisTestsIndexResolutions().statementError(stmt),
+            test().addLanguages().addSampleData().statementError(stmt),
             containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
         );
     }
@@ -405,7 +407,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
         var stmt = setUnmappedLoad("FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)");
         assertThat(
-            test().addAnalysisTestsIndexResolutions().statementError(stmt),
+            test().addLanguages().addSampleData().statementError(stmt),
             containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
         );
     }
@@ -420,7 +422,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | LOOKUP JOIN languages_lookup ON language_code)
             """);
         assertThat(
-            test().addAnalysisTestsLookupResolutions().statementError(stmt),
+            test().addLanguagesLookup().statementError(stmt),
             containsString("Subqueries and views are not supported with unmapped_fields=\"load\"")
         );
     }
@@ -432,7 +434,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | LOOKUP JOIN languages_lookup ON language_code
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        var analyzer = test().addAnalysisTestsLookupResolutions();
+        var analyzer = test().addLanguagesLookup();
         assertThat(analyzer.statementError(query), containsString("FORK is not supported with unmapped_fields=\"load\""));
         assertThat(analyzer.statementError(query), containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
     }
@@ -444,7 +446,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             FROM test, (FROM languages | WHERE language_code > 1)
             | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
             """);
-        var analyzer = test().addAnalysisTestsIndexResolutions();
+        var analyzer = test().addLanguages();
         assertThat(analyzer.statementError(query), containsString("Subqueries and views are not supported with unmapped_fields=\"load\""));
         assertThat(analyzer.statementError(query), containsString("FORK is not supported with unmapped_fields=\"load\""));
     }
@@ -552,7 +554,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS c = COUNT(*) BY tbucket(1 hour)
             """;
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            String err = test().statementError(statement);
+            String err = test().addLanguagesLookup().statementError(statement);
             assertThat(err, containsString("[tbucket(1 hour)] "));
             assertThat(err, not(containsString("LOOKUP JOIN is not supported")));
         }
@@ -561,7 +563,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testTbucketWithTimestampPresent() {
         var query = "FROM sample_data | STATS c = COUNT(*) BY tbucket(1 hour)";
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            var plan = test().statement(statement);
+            var plan = analyzer().addSampleData().statement(statement);
             var limit = as(plan, Limit.class);
             var aggregate = as(limit.child(), Aggregate.class);
             var relation = as(aggregate.child(), EsRelation.class);
@@ -573,7 +575,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testTrangeWithTimestampPresent() {
         var query = "FROM sample_data | WHERE trange(1 hour)";
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            var plan = test().statement(statement);
+            var plan = analyzer().addSampleData().statement(statement);
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             var relation = as(filter.child(), EsRelation.class);
@@ -583,13 +585,15 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testTbucketTimestampPresentButDroppedNullify() {
-        String err = test().statementError(setUnmappedNullify("FROM sample_data | DROP @timestamp | STATS c = COUNT(*) BY tbucket(1 hour)");
+        String err = analyzer().addSampleData()
+            .statementError(setUnmappedNullify("FROM sample_data | DROP @timestamp | STATS c = COUNT(*) BY tbucket(1 hour)"));
         assertThat(err, containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX));
         assertThat(err, not(containsString(Verifier.UNMAPPED_TIMESTAMP_SUFFIX)));
     }
 
     public void testTbucketTimestampPresentButRenamedNullify() {
-        String err = test().statementError(setUnmappedNullify("FROM sample_data | RENAME @timestamp AS ts | STATS c = COUNT(*) BY tbucket(1 hour)");
+        String err = analyzer().addSampleData()
+            .statementError(setUnmappedNullify("FROM sample_data | RENAME @timestamp AS ts | STATS c = COUNT(*) BY tbucket(1 hour)"));
         assertThat(err, containsString(UnresolvedTimestamp.UNRESOLVED_SUFFIX));
         assertThat(err, not(containsString(Verifier.UNMAPPED_TIMESTAMP_SUFFIX)));
     }

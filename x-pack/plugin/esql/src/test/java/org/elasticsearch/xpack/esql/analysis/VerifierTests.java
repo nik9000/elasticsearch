@@ -1218,7 +1218,7 @@ public class VerifierTests extends ESTestCase {
             "1:136: cannot sort on cartesian_shape",
             defaultAnalyzer().error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
         );
-        var airports = analyzer().addIndex("airports", "mapping-airports.json").stripErrorPrefix(true);
+        var airports = analyzer().addAirports().stripErrorPrefix(true);
         var airportsWeb = analyzer().addIndex("airports_web", "mapping-airports_web.json").stripErrorPrefix(true);
         var countriesBbox = analyzer().addIndex("countries_bbox", "mapping-countries_bbox.json").stripErrorPrefix(true);
         var countriesBboxWeb = analyzer().addIndex("countries_bbox_web", "mapping-countries_bbox_web.json").stripErrorPrefix(true);
@@ -2441,7 +2441,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testChangePoint() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        var airports = analyzer().addIndex("airports", "mapping-airports.json").stripErrorPrefix(true);
+        var airports = analyzer().addAirports().stripErrorPrefix(true);
         assertEquals("1:30: Unknown column [blahblah]", airports.error("FROM airports | CHANGE_POINT blahblah ON scalerank"));
         assertEquals("1:43: Unknown column [blahblah]", airports.error("FROM airports | CHANGE_POINT scalerank ON blahblah"));
         // TODO: nicer error message for missing default column "@timestamp"
@@ -3508,7 +3508,7 @@ public class VerifierTests extends ESTestCase {
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = defaultAnalyzer().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
+        String errorMessage = defaultAnalyzer().addDefaultIncompatible().error("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | WHERE emp_no > 10000
             | SORT is_rehired, still_hired
@@ -3521,7 +3521,7 @@ public class VerifierTests extends ESTestCase {
     // Fork inside subquery is tested in LogicalPlanOptimizerTests
     public void testSubqueryInFromWithForkInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = defaultAnalyzer().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
+        String errorMessage = defaultAnalyzer().addDefaultIncompatible().error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
@@ -3540,7 +3540,7 @@ public class VerifierTests extends ESTestCase {
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled()
         );
-        String errorMessage = lookupJoinFullText().addIndex("test_mixed_types", "mapping-default-incompatible.json").error("""
+        String errorMessage = lookupJoinFullText().addDefaultIncompatible().error("""
             FROM test, (FROM test_mixed_types
                                  | WHERE languages > 0
                                  | EVAL emp_no = emp_no::int
@@ -3899,11 +3899,11 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer defaultAnalyzer() {
-        return analyzer().addIndex("test", "mapping-default.json").stripErrorPrefix(true);
+        return analyzer().addDefaultIndex().stripErrorPrefix(true);
     }
 
     private static TestAnalyzer analyzerWithLanguagesLookup() {
-        return defaultAnalyzer().addLookupIndex("languages_lookup", "mapping-languages.json");
+        return defaultAnalyzer().addLanguagesLookup();
     }
 
     private static TestAnalyzer fullText() {
@@ -3923,12 +3923,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     private static TestAnalyzer k8s() {
-        return analyzer().addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES).stripErrorPrefix(true);
+        return analyzer().addK8s().stripErrorPrefix(true);
     }
 
     private static TestAnalyzer lookupJoinFullText() {
-        return analyzer().addIndex("test", "mapping-default.json")
-            .addLookupIndex("languages_lookup", "mapping-languages.json")
+        return analyzer().addDefaultIndex()
+            .addLanguagesLookup()
             .minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
             .stripErrorPrefix(true);
     }

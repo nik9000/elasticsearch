@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
@@ -92,7 +91,6 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -150,8 +148,6 @@ import static org.elasticsearch.web.UriParts.SCHEME;
 import static org.elasticsearch.web.UriParts.USERNAME;
 import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
@@ -665,7 +661,6 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *, first_name, last_name, *
             """, ParsingException.class), containsString("Cannot specify [*] more than once"));
-
     }
 
     public void testProjectMixedWildcard() {
@@ -1943,7 +1938,7 @@ public class AnalyzerTests extends ESTestCase {
             """), containsString("Unsupported type [boolean] for enrich matching field [x]; only [keyword, "));
 
         assertThat(
-            analyzer().addIndex("airports", "mapping-airports.json")
+            analyzer().addAirports()
                 .addEnrichPolicy(
                     EnrichPolicy.GEO_MATCH_TYPE,
                     "city_boundaries",
@@ -2043,7 +2038,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         assertProjection(
-            analyzer().addIndex("airports", "mapping-airports.json")
+            analyzer().addAirports()
                 .addEnrichPolicy(
                     EnrichPolicy.GEO_MATCH_TYPE,
                     "city_boundaries",
@@ -2445,7 +2440,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testLookupJoinUnknownField() {
-        var analyzer = basic().addAnalysisTestsLookupResolutions();
+        var analyzer = basic().addLanguagesLookup();
 
         String query = "FROM test | LOOKUP JOIN languages_lookup ON last_name";
         assertThat(analyzer.error(query), containsString("1:45: Unknown column [last_name] in right side of join"));
@@ -2469,7 +2464,7 @@ public class AnalyzerTests extends ESTestCase {
             + "| EVAL language_code = languages"
             + "| LOOKUP JOIN languages_lookup ON language_code"
             + "| LOOKUP JOIN languages_lookup ON language_code";
-        LogicalPlan analyzedPlan = basic().addAnalysisTestsLookupResolutions().query(query);
+        LogicalPlan analyzedPlan = basic().addLanguagesLookup().query(query);
 
         List<AttributeSet> lookupFields = new ArrayList<>();
         List<Set<String>> lookupFieldNames = new ArrayList<>();
@@ -3125,7 +3120,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         assertProjection(
-            nested.addLookupIndex("languages_lookup", "mapping-languages.json")
+            nested.addLanguagesLookup()
                 .query(
                     """
                         FROM test
@@ -3149,7 +3144,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testInvalidNamedDoubleParamsForIdentifiers() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
-        var mfn = multiFieldWithNested().addLookupIndex("languages_lookup", "mapping-languages.json");
+        var mfn = multiFieldWithNested().addLanguagesLookup();
         // missing field
         assertThat(
             mfn.error(
@@ -5065,7 +5060,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addLanguages().query("""
             FROM test, (FROM languages | WHERE language_code > 1)
             | WHERE emp_no > 10000
             | SORT emp_no, language_code
@@ -5122,7 +5117,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testSubqueryInFromWithoutMainIndexPattern() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addLanguages().query("""
             FROM (FROM languages | WHERE language_code > 1)
             | WHERE language_name is not null
             """);
@@ -5144,16 +5139,19 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMultipleSubqueriesInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().addAnalysisTestsLookupResolutions().query("""
-            FROM test
-            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
-            , (FROM sample_data | STATS max(@timestamp))
-            , (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
-            | WHERE emp_no > 10000
-            | STATS count(*) by emp_no, language_code
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """);
+        LogicalPlan plan = basic().addLanguages()
+            .addSampleData()
+            .addLanguagesLookup()
+            .query("""
+                FROM test
+                , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+                , (FROM sample_data | STATS max(@timestamp))
+                , (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+                | WHERE emp_no > 10000
+                | STATS count(*) by emp_no, language_code
+                | RENAME emp_no AS empNo, language_code AS languageCode
+                | MV_EXPAND languageCode
+                """);
 
         Limit limit = as(plan, Limit.class);
         MvExpand mvExpand = as(limit.child(), MvExpand.class);
@@ -5254,15 +5252,18 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMultipleSubqueryInFromWithoutMainIndexPattern() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().addAnalysisTestsLookupResolutions().query("""
-            FROM (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
-            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
-            , (FROM sample_data | STATS max(@timestamp))
-            | WHERE emp_no > 10000
-            | STATS count(*) by emp_no, language_code
-            | RENAME emp_no AS empNo, language_code AS languageCode
-            | MV_EXPAND languageCode
-            """);
+        LogicalPlan plan = basic().addLanguages()
+            .addSampleData()
+            .addLanguagesLookup()
+            .query("""
+                FROM (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+                , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+                , (FROM sample_data | STATS max(@timestamp))
+                | WHERE emp_no > 10000
+                | STATS count(*) by emp_no, language_code
+                | RENAME emp_no AS empNo, language_code AS languageCode
+                | MV_EXPAND languageCode
+                """);
 
         Limit limit = as(plan, Limit.class);
         MvExpand mvExpand = as(limit.child(), MvExpand.class);
@@ -5355,11 +5356,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNestedSubqueryInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
-            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)
-            | WHERE emp_no > 10000
-            | SORT emp_no, language_code
-            """);
+        LogicalPlan plan = basic().addLanguages()
+            .addSampleData()
+            .query("""
+                FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)
+                | WHERE emp_no > 10000
+                | SORT emp_no, language_code
+                """);
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
@@ -5394,11 +5397,13 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNestedSubqueryInFromWithMetadata() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
-            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
-            | WHERE emp_no > 10000
-            | SORT emp_no, language_code
-            """);
+        LogicalPlan plan = basic().addLanguages()
+            .addSampleData()
+            .query("""
+                FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
+                | WHERE emp_no > 10000
+                | SORT emp_no, language_code
+                """);
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
@@ -5441,7 +5446,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNestedSubqueriesInFromWithoutMainIndexPattern() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addSampleData().query("""
             FROM (FROM test, (FROM sample_data | STATS count(*)) | WHERE emp_no > 10)
             | WHERE languages is not null
             | SORT emp_no, languages
@@ -5486,7 +5491,7 @@ public class AnalyzerTests extends ESTestCase {
      */
     public void testMixedDataTypesInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").query("""
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | EVAL emp_no = emp_no::long
             | WHERE emp_no > 10000
@@ -5543,7 +5548,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMixedDataTypesWithExplicitCastingInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").query("""
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | EVAL emp_no = emp_no::long
             | WHERE emp_no > 10000
@@ -5612,7 +5617,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMixedDataTypesWithMultipleExplicitCastingInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = defaultMapping().addIndex("test_mixed_types", "mapping-default-incompatible.json").query("""
+        LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 0)
             | EVAL x = emp_no::long, y = emp_no::string, z = emp_no::double, first_name = first_name::string
             | WHERE z > 10000
@@ -5693,7 +5698,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithUnionAllOutputOverwritten() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addDefaultIncompatible().query("""
             FROM test, (FROM test_mixed_types | WHERE languages > 1)
             | EVAL emp_no = languages::long
             | WHERE emp_no > 1
@@ -5748,7 +5753,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = k8s().addIndex("sample_data", "mapping-sample_data.json").query("""
+        LogicalPlan plan = k8s().addSampleData().query("""
             FROM k8s, (FROM sample_data), (FROM sample_data | WHERE client_ip == "127.0.0.1")
             | WHERE @timestamp > "2025-10-07"
             """);
@@ -5785,7 +5790,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = sampleData().addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES).query("""
+        LogicalPlan plan = sampleData().addK8sDownsampled().query("""
             FROM sample_data,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
@@ -5827,7 +5832,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithTimeSeriesIndexInMainQueryAndSubquery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = k8s().addIndex("sample_data", "mapping-sample_data.json").query("""
+        LogicalPlan plan = k8s().addSampleData().query("""
             FROM k8s,
                        (FROM k8s | EVAL a = TO_AGGREGATE_METRIC_DOUBLE(1) | INLINE STATS tx_max = MAX(network.eth0.tx) BY pod),
                        (FROM sample_data | WHERE client_ip == "127.0.0.1")
@@ -5870,7 +5875,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testSubqueryWithFullTextFunctionInMainQuery() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addSampleData().query("""
             FROM sample_data, (FROM sample_data | WHERE message:"error")
             | WHERE match(client_ip,"127.0.0.1")
             """);
@@ -5911,7 +5916,7 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
 
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addSampleData().addRemoteMissingIndex().query("""
             FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
             | WHERE match(client_ip,"127.0.0.1")
             """);
@@ -5947,7 +5952,7 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
 
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addNoFieldsIndex().query("""
             FROM
                 no_fields_index,
                 (FROM no_fields_index),
@@ -5989,7 +5994,7 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
 
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addEmptyIndex().query("""
             FROM
                 empty_index,
                 (FROM empty_index),
@@ -6032,7 +6037,7 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
         );
 
-        LogicalPlan plan = basic().addAnalysisTestsIndexResolutions().query("""
+        LogicalPlan plan = basic().addNoFieldsIndex().addEmptyIndex().query("""
             FROM
                 (FROM no_fields_index),
                 (FROM no_fields_index),
@@ -6073,7 +6078,7 @@ public class AnalyzerTests extends ESTestCase {
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
         );
 
-        LogicalPlan analyzedPlan = defaultMapping().addLookupIndex("languages_lookup", "mapping-languages.json")
+        LogicalPlan analyzedPlan = defaultMapping().addLanguagesLookup()
             .minimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
             .query(
                 "FROM test | LOOKUP JOIN languages_lookup "
@@ -6371,7 +6376,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static TestAnalyzer k8s() {
-        return analyzer().addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+        return analyzer().addK8sDownsampled();
     }
 
     private static TestAnalyzer allTypes() {
@@ -6379,7 +6384,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static TestAnalyzer sampleData() {
-        return analyzer().addIndex("sample_data", "mapping-sample_data.json");
+        return analyzer().addSampleData();
     }
 
     private static TestAnalyzer books() {
@@ -6387,7 +6392,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static TestAnalyzer defaultMapping() {
-        return analyzer().addIndex("test", "mapping-default.json");
+        return analyzer().addDefaultIndex();
     }
 
     private static TestAnalyzer multiFieldVariation() {

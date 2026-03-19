@@ -239,7 +239,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
         Analyzer analyzer = analyzer().addEmployees("test")
             .addEnrichPolicy("match", "languages", "language_code", "languages_idx", "mapping-languages.json")
-            .addLookupIndex("languages_lookup", "mapping-languages.json")
+            .addLanguagesLookup()
             .configuration(configuration)
             .buildAnalyzer();
         TransportVersion minimumVersion = analyzer.context().minimumVersion();

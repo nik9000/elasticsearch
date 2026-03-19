@@ -27,7 +27,7 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
 
     protected LogicalPlan planK8s(String query) {
         return logicalOptimizer.optimize(
-            analyzerWithEnrichPolicies().addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES).query(query)
+            analyzerWithEnrichPolicies().addK8s().query(query)
         );
     }
 

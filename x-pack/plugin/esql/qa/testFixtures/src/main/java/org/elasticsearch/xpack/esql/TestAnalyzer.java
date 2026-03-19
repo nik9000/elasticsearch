@@ -18,9 +18,12 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -34,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -118,9 +122,25 @@ public class TestAnalyzer {
     }
 
     /**
-     * Adds the standard set of subquery index resolutions used by many analyzer tests.
+     * Adds an index with empty resolution (used for pruned subqueries).
      */
-    public TestAnalyzer addAnalysisTestsIndexResolutions() {
+    public TestAnalyzer addRemoteMissingIndex() {
+        addIndex("remote:missingIndex", IndexResolution.EMPTY_SUBQUERY);
+        return this;
+    }
+
+    /**
+     * Adds an index with empty mapping, indexNameWithModes, originalIndices and concreteIndices.
+     */
+    public TestAnalyzer addEmptyIndex() {
+        addIndex("empty_index", IndexResolution.empty("empty_index"));
+        return this;
+    }
+
+    /**
+     * Adds an index with empty mapping but valid indexNameWithModes, originalIndices and concreteIndices.
+     */
+    public TestAnalyzer addNoFieldsIndex() {
         String noFieldsIndexName = "no_fields_index";
         EsIndex noFieldsIndex = new EsIndex(
             noFieldsIndexName,
@@ -130,13 +150,6 @@ public class TestAnalyzer {
             Map.of("", List.of(noFieldsIndexName)),
             Set.of()
         );
-        addIndex("languages", "mapping-languages.json");
-        addIndex("sample_data", "mapping-sample_data.json");
-        addIndex("test_mixed_types", "mapping-default-incompatible.json");
-        addIndex("colors", "mapping-colors.json");
-        addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
-        addIndex("remote:missingIndex", IndexResolution.EMPTY_SUBQUERY);
-        addIndex("empty_index", IndexResolution.empty("empty_index"));
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
     }
@@ -170,6 +183,83 @@ public class TestAnalyzer {
     }
 
     /**
+     * Adds the languages index.
+     */
+    public TestAnalyzer addLanguages() {
+        return addIndex("languages", "mapping-languages.json");
+    }
+
+    /**
+     * Adds the languages_lookup lookup index.
+     */
+    public TestAnalyzer addLanguagesLookup() {
+        return addLookupIndex("languages_lookup", "mapping-languages.json");
+    }
+
+    /**
+     * Adds the sample_data index.
+     */
+    public TestAnalyzer addSampleData() {
+        return addIndex("sample_data", "mapping-sample_data.json");
+    }
+
+    /**
+     * Adds the sample_data_lookup lookup index.
+     */
+    public TestAnalyzer addSampleDataLookup() {
+        return addLookupIndex("sample_data_lookup", "mapping-sample_data.json");
+    }
+
+    /**
+     * Adds the test_lookup lookup index.
+     */
+    public TestAnalyzer addTestLookup() {
+        return addLookupIndex("test_lookup", "mapping-basic.json");
+    }
+
+    /**
+     * Adds the spatial_lookup lookup index.
+     */
+    public TestAnalyzer addSpatialLookup() {
+        return addLookupIndex("spatial_lookup", "mapping-multivalue_geometries.json");
+    }
+
+    /**
+     * Adds the test index with mapping-default.json.
+     */
+    public TestAnalyzer addDefaultIndex() {
+        return addIndex("test", "mapping-default.json");
+    }
+
+    /**
+     * Adds the airports index.
+     */
+    public TestAnalyzer addAirports() {
+        return addIndex("airports", "mapping-airports.json");
+    }
+
+    /**
+     * Adds the test_mixed_types index with mapping-default-incompatible.json.
+     */
+    public TestAnalyzer addDefaultIncompatible() {
+        return addIndex("test_mixed_types", "mapping-default-incompatible.json");
+    }
+
+    /**
+     * Adds the k8s index with k8s-mappings.json in time series mode.
+     */
+    public TestAnalyzer addK8s() {
+        return addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
+     * Adds the k8s index with k8s-downsampled-mappings.json in time series mode.
+     */
+    public TestAnalyzer addK8sDownsampled() {
+        return addIndex("k8s", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+    }
+
+    /**
      * Adds a lookup index.
      */
     public TestAnalyzer addLookupIndex(String name, IndexResolution resolution) {
@@ -189,15 +279,6 @@ public class TestAnalyzer {
      */
     public TestAnalyzer addLookupIndex(String name, String mappingLocation) {
         return addLookupIndex(loadMapping(mappingLocation, name, IndexMode.LOOKUP));
-    }
-
-    /**
-     * Adds the standard set of lookup resolutions used by many analyzer tests.
-     */
-    public TestAnalyzer addAnalysisTestsLookupResolutions() {
-        addLookupIndex("languages_lookup", "mapping-languages.json");
-        addLookupIndex("test_lookup", "mapping-basic.json");
-        return addLookupIndex("spatial_lookup", "mapping-multivalue_geometries.json");
     }
 
     /**
@@ -278,6 +359,37 @@ public class TestAnalyzer {
     public TestAnalyzer externalSourceResolution(ExternalSourceResolution externalSourceResolution) {
         this.externalSourceResolution = externalSourceResolution;
         return this;
+    }
+
+    /**
+     * Set external source resolution.
+     */
+    public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileSet fileSet) {
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return path;
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
+    }
+
+    /**
+     * Sets an "unresolved" external source.
+     */
+    public TestAnalyzer externalSourceUnresolved(String path, List<Attribute> schema) {
+        return externalSourceResolution(path, schema, FileSet.UNRESOLVED);
     }
 
     /**
@@ -377,20 +489,6 @@ public class TestAnalyzer {
     }
 
     /**
-     * Like {@link #error} but for <strong>statements</strong>.
-     * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
-     * applied to the analyzer context automatically.
-     */
-    public String statementError(String query) {
-        var e = expectThrows(
-            VerificationException.class,
-            "Expected error for statement [" + query + "] but no error was raised",
-            () -> statement(query)
-        );
-        return e.getMessage();
-    }
-
-    /**
      * If {@code true}, {@link #error} strips the {@code "Found N problem(s)\nline "} prefix
      * from the exception message, returning only the per-line diagnostic. Defaults to {@code false}.
      */
@@ -441,6 +539,69 @@ public class TestAnalyzer {
         String pattern = "\nline ";
         int index = message.indexOf(pattern);
         return message.substring(index + pattern.length());
+    }
+
+    /**
+     * Assert an error messages. Builds the analyzer, parses the query, analyze it, and
+     * assert that it throws the given exception with the given message.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     */
+    public String error(String query, Matcher<String> messageMatcher, Object... params) {
+        return error(query, VerificationException.class, messageMatcher, params);
+    }
+
+    /**
+     * Assert an error messages. Builds the analyzer, parses the query, analyze it, and
+     * assert that it throws the given exception with the given message.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     */
+    public String error(String query, Matcher<String> messageMatcher, QueryParams params) {
+        return error(query, VerificationException.class, messageMatcher, params);
+    }
+
+    /**
+     * Assert an error messages. Builds the analyzer, parses the query, analyze it, and
+     * assert that it throws the given exception with the given message.
+     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     */
+    public String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, Object... params) {
+        return error(query, exception, messageMatcher, toQueryParams(params));
+    }
+
+    private String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, QueryParams params) {
+        Throwable e = expectThrows(
+            exception,
+            "Expected error for query [" + query + "] but no error was raised",
+            () -> query(query, params)
+        );
+        assertThat(e, instanceOf(exception));
+
+        String message = e.getMessage();
+        if (stripErrorPrefix) {
+            if (e instanceof VerificationException) {
+                assertTrue(message.startsWith("Found "));
+            }
+            String pattern = "\nline ";
+            int index = message.indexOf(pattern);
+            message = message.substring(index + pattern.length());
+        }
+        assertThat(message, messageMatcher);
+        return message;
+    }
+
+    /**
+     * Like {@link #error} but for <strong>statements</strong>.
+     * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
+     * applied to the analyzer context automatically.
+     */
+    public String statementError(String query, Matcher<String> messageMatcher) {
+        var e = expectThrows(
+            VerificationException.class,
+            "Expected error for statement [" + query + "] but no error was raised",
+            () -> statement(query)
+        );
+        assertThat(e.getMessage(), messageMatcher);
+        return e.getMessage();
     }
 
     /**

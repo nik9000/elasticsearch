@@ -218,7 +218,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
-            TestAnalyzer testAnalyzer = analyzer().addAnalysisTestsLookupResolutions()
+            TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addAnalysisTestsEnrichResolution()
                 .minimumTransportVersion(transportVersion)
                 .unmappedResolution(statement.setting(UNMAPPED_FIELDS));

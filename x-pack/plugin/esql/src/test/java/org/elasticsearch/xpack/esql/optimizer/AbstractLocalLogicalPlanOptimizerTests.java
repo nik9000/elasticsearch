@@ -37,7 +37,9 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected static TestOptimizer testAnalyzer() {
-        return EsqlTestUtils.optimizer().addIndex("test", "mapping-basic.json").addAnalysisTestsLookupResolutions();
+        return EsqlTestUtils.optimizer()
+            .addIndex("test", "mapping-basic.json")
+            .addLanguagesLookup();
     }
 
     protected static TestOptimizer allTypes() {
@@ -46,7 +48,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static TestOptimizer ts() {
         return EsqlTestUtils.optimizer()
-            .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
+            .addK8s()
             .addIndex("k8s-downsampled", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
     }
 
@@ -67,7 +69,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
         );
         return EsqlTestUtils.optimizer()
             .addIndex(EsIndexGenerator.esIndex("test", metricsMapping, Map.of("test", IndexMode.TIME_SERIES)))
-            .addAnalysisTestsLookupResolutions()
+            .addLanguagesLookup()
             .addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages_idx", "id", "languages_idx", "mapping-languages.json");
     }
 

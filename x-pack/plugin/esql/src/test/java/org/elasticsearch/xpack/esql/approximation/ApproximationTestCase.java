@@ -58,8 +58,8 @@ public abstract class ApproximationTestCase extends ESTestCase {
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
         LogicalPlan plan = TEST_PARSER.createStatement(query, new QueryParams()).plan();
         plan = analyzer().addEmployees("test")
-            .addIndex("k8s", "k8s-mappings.json", IndexMode.TIME_SERIES)
-            .addLookupIndex("test_lookup", "mapping-basic.json")
+            .addK8s()
+            .addTestLookup()
             .buildAnalyzer()
             .analyze(plan);
         plan.setAnalyzed();
