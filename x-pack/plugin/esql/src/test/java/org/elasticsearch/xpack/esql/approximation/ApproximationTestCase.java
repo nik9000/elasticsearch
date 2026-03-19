@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -57,11 +56,7 @@ public abstract class ApproximationTestCase extends ESTestCase {
         SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
         LogicalPlan plan = TEST_PARSER.createStatement(query, new QueryParams()).plan();
-        plan = analyzer().addEmployees("test")
-            .addK8s()
-            .addTestLookup()
-            .buildAnalyzer()
-            .analyze(plan);
+        plan = analyzer().addEmployees("test").addK8s().addTestLookup().buildAnalyzer().analyze(plan);
         plan.setAnalyzed();
         preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, exceptionHolder::set));
         if (exceptionHolder.get() != null) {

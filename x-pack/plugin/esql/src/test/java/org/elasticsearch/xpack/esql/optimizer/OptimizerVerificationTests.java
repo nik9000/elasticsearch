@@ -437,10 +437,7 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
     public void testDanglingOrderByInInlineStats() {
         assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
-        var testAnalyzer = analyzer().addDefaultIndex()
-            .addLanguagesLookup()
-            .addTestLookup()
-            .addAnalysisTestsEnrichResolution();
+        var testAnalyzer = analyzer().addDefaultIndex().addLanguagesLookup().addTestLookup().addAnalysisTestsEnrichResolution();
 
         var err = error(testAnalyzer.query("""
             FROM test

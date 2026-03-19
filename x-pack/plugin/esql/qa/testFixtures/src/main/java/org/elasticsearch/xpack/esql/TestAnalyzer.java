@@ -513,10 +513,6 @@ public class TestAnalyzer {
         return error(query, VerificationException.class, params);
     }
 
-    /**
-     * Build the analyzer, parse the query, analyze it, and assert that it throws the given exception.
-     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
-     */
     public String error(String query, Class<? extends Exception> exception, Object... params) {
         return error(query, exception, toQueryParams(params));
     }
@@ -542,27 +538,69 @@ public class TestAnalyzer {
     }
 
     /**
-     * Assert an error messages. Builds the analyzer, parses the query, analyze it, and
+     * Assert an error message. Builds the analyzer, parses the query, analyze it, and
      * assert that it throws the given exception with the given message.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().error(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().error(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
      */
     public String error(String query, Matcher<String> messageMatcher, Object... params) {
         return error(query, VerificationException.class, messageMatcher, params);
     }
 
     /**
-     * Assert an error messages. Builds the analyzer, parses the query, analyze it, and
+     * Assert an error message. Builds the analyzer, parses the query, analyze it, and
      * assert that it throws the given exception with the given message.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().error(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().error(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
      */
     public String error(String query, Matcher<String> messageMatcher, QueryParams params) {
         return error(query, VerificationException.class, messageMatcher, params);
     }
 
     /**
-     * Assert an error messages. Builds the analyzer, parses the query, analyze it, and
+     * Assert an error message. Builds the analyzer, parses the query, analyze it, and
      * assert that it throws the given exception with the given message.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().error(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().error(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
      */
     public String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, Object... params) {
         return error(query, exception, messageMatcher, toQueryParams(params));
@@ -593,6 +631,20 @@ public class TestAnalyzer {
      * Like {@link #error} but for <strong>statements</strong>.
      * Statement-level settings (e.g. {@code SET unmapped_fields="nullify"}) are
      * applied to the analyzer context automatically.
+     * <p>
+     *     While this returns the failure message it's generally better to use it like:
+     * </p>
+     * {@snippet lang="java" :
+     *   analyzer().statementError(query, containsString("FORK is not supported"));
+     * }
+     * or
+     * {@snippet lang = "java":
+     *   analyzer().statementError(query, allOf(
+     *     containsString("FORK is not supported"),
+     *     containsString("Double, double toil and trouble;"),
+     *     containsString("Fire burn, and cauldron bubble")
+     *   ));
+     * }
      */
     public String statementError(String query, Matcher<String> messageMatcher) {
         var e = expectThrows(

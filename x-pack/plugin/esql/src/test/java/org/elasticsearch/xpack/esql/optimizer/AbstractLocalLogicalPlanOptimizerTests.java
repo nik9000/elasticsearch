@@ -37,9 +37,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected static TestOptimizer testAnalyzer() {
-        return EsqlTestUtils.optimizer()
-            .addIndex("test", "mapping-basic.json")
-            .addLanguagesLookup();
+        return EsqlTestUtils.optimizer().addIndex("test", "mapping-basic.json").addLanguagesLookup();
     }
 
     protected static TestOptimizer allTypes() {
@@ -47,9 +45,7 @@ public class AbstractLocalLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected static TestOptimizer ts() {
-        return EsqlTestUtils.optimizer()
-            .addK8s()
-            .addIndex("k8s-downsampled", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
+        return EsqlTestUtils.optimizer().addK8s().addIndex("k8s-downsampled", "k8s-downsampled-mappings.json", IndexMode.TIME_SERIES);
     }
 
     protected static TestOptimizer metrics() {

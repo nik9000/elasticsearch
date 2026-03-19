@@ -85,18 +85,11 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     }
 
     protected static TestAnalyzer defaultAnalyzer() {
-        return analyzerWithEnrichPolicies().addEmployees("test")
-            .addEmployees()
-            .addLanguagesLookup()
-            .addTestLookup()
-            .addSpatialLookup();
+        return analyzerWithEnrichPolicies().addEmployees("test").addEmployees().addLanguagesLookup().addTestLookup().addSpatialLookup();
     }
 
     protected static TestAnalyzer airportsAnalyzer() {
-        return analyzerWithEnrichPolicies().addAirports()
-            .addLanguagesLookup()
-            .addTestLookup()
-            .addSpatialLookup();
+        return analyzerWithEnrichPolicies().addAirports().addLanguagesLookup().addTestLookup().addSpatialLookup();
     }
 
     protected static TestAnalyzer typesAnalyzer() {

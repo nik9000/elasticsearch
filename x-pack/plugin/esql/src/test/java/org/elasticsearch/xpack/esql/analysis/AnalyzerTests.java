@@ -5139,19 +5139,16 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMultipleSubqueriesInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages()
-            .addSampleData()
-            .addLanguagesLookup()
-            .query("""
-                FROM test
-                , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
-                , (FROM sample_data | STATS max(@timestamp))
-                , (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
-                | WHERE emp_no > 10000
-                | STATS count(*) by emp_no, language_code
-                | RENAME emp_no AS empNo, language_code AS languageCode
-                | MV_EXPAND languageCode
-                """);
+        LogicalPlan plan = basic().addLanguages().addSampleData().addLanguagesLookup().query("""
+            FROM test
+            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+            , (FROM sample_data | STATS max(@timestamp))
+            , (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+            | WHERE emp_no > 10000
+            | STATS count(*) by emp_no, language_code
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """);
 
         Limit limit = as(plan, Limit.class);
         MvExpand mvExpand = as(limit.child(), MvExpand.class);
@@ -5252,18 +5249,15 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testMultipleSubqueryInFromWithoutMainIndexPattern() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages()
-            .addSampleData()
-            .addLanguagesLookup()
-            .query("""
-                FROM (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
-                , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
-                , (FROM sample_data | STATS max(@timestamp))
-                | WHERE emp_no > 10000
-                | STATS count(*) by emp_no, language_code
-                | RENAME emp_no AS empNo, language_code AS languageCode
-                | MV_EXPAND languageCode
-                """);
+        LogicalPlan plan = basic().addLanguages().addSampleData().addLanguagesLookup().query("""
+            FROM (FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code)
+            , (FROM languages | WHERE language_code > 10 | RENAME language_name as languageName)
+            , (FROM sample_data | STATS max(@timestamp))
+            | WHERE emp_no > 10000
+            | STATS count(*) by emp_no, language_code
+            | RENAME emp_no AS empNo, language_code AS languageCode
+            | MV_EXPAND languageCode
+            """);
 
         Limit limit = as(plan, Limit.class);
         MvExpand mvExpand = as(limit.child(), MvExpand.class);
@@ -5356,13 +5350,11 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNestedSubqueryInFrom() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages()
-            .addSampleData()
-            .query("""
-                FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)
-                | WHERE emp_no > 10000
-                | SORT emp_no, language_code
-                """);
+        LogicalPlan plan = basic().addLanguages().addSampleData().query("""
+            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10)
+            | WHERE emp_no > 10000
+            | SORT emp_no, language_code
+            """);
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
@@ -5397,13 +5389,11 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testNestedSubqueryInFromWithMetadata() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        LogicalPlan plan = basic().addLanguages()
-            .addSampleData()
-            .query("""
-                FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
-                | WHERE emp_no > 10000
-                | SORT emp_no, language_code
-                """);
+        LogicalPlan plan = basic().addLanguages().addSampleData().query("""
+            FROM test, (FROM languages, (FROM sample_data | STATS count(*)) | WHERE language_code > 10) metadata _index
+            | WHERE emp_no > 10000
+            | SORT emp_no, language_code
+            """);
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
