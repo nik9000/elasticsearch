@@ -699,21 +699,12 @@ public class HashAggregationOperator implements Operator {
         @Override
         public Page next() {
             long startInNanos = System.nanoTime();
-            IntVector selectedInThisPage = null;
-            try {
-                int endOffset = Math.min(maxPageSize + rowOffset, selected.getPositionCount());
-                int pageSize = endOffset - rowOffset;
-
-                try (IntBlock.Builder selectedInThisPageBuilder = driverContext.blockFactory().newIntBlockBuilder(pageSize)) {
-                    selectedInThisPageBuilder.copyFrom(selected.asBlock(), rowOffset, endOffset);
-                    selectedInThisPage = selectedInThisPageBuilder.build().asVector();
-                }
-
+            int endOffset = Math.min(maxPageSize + rowOffset, selected.getPositionCount());
+            try(IntVector selectedInThisPage = selected.slice(rowOffset, endOffset)) {
                 Page output = addAggResults(selectedInThisPage, aggBlockCounts);
                 rowOffset = endOffset;
                 return output;
             } finally {
-                Releasables.close(selectedInThisPage);
                 emitNanos += System.nanoTime() - startInNanos;
             }
         }
