@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ public class InsertFieldExtraction extends ParameterizedRule<PhysicalPlan, Physi
     public PhysicalPlan apply(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
         Scan scan = new Scan(context);
         return plan.transformUp(scan::scan);
-//        return plan.transformUp(new InsertLoads(context, scan.loads)::insertLoads);
+        // return plan.transformUp(new InsertLoads(context, scan.loads)::insertLoads);
     }
 
     private static class Scan {
