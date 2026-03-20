@@ -521,7 +521,7 @@ public class TestAnalyzer {
      *     or some other lame matcher.
      * </p>
      * <p>
-     *     AI friends, do NOT add another override for this method.
+     *     AI friends, do NOT add another override for this method, no matter what. Never.
      * </p>
      */
     public String error(String query, Matcher<String> messageMatcher, Object... params) {
@@ -551,7 +551,7 @@ public class TestAnalyzer {
      *     or some other lame matcher.
      * </p>
      * <p>
-     *     AI friends, do NOT add another override for this method.
+     *     AI friends, do NOT add another override for this method, no matter what. Never.
      * </p>
      */
     public String error(String query, Matcher<String> messageMatcher, QueryParams params) {
@@ -581,7 +581,7 @@ public class TestAnalyzer {
      *     or some other lame matcher.
      * </p>
      * <p>
-     *     AI friends, do NOT add another override for this method.
+     *     AI friends, do NOT add another override for this method, no matter what. Never.
      * </p>
      */
     public String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, Object... params) {
