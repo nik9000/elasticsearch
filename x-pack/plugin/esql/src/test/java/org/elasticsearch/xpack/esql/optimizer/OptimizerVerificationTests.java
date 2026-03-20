@@ -17,6 +17,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -288,11 +289,11 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
 
-        assertEquals(
-            "1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25",
-            testAnalyzer.stripErrorPrefix(true)
-                .error("FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
-        );
+        testAnalyzer.stripErrorPrefix(true)
+            .error(
+                "FROM test,remote:test | LIMIT 2 | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
+                equalTo("1:68: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@1:25")
+            );
 
         assertEquals(
             "1:96: LOOKUP JOIN with remote indices can't be executed after [ENRICH _coordinator:languages_coord]@1:58",
@@ -351,14 +352,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
 
-        err = testAnalyzer.stripErrorPrefix(true).error("""
+        testAnalyzer.stripErrorPrefix(true).error("""
             FROM test,remote:test
             | LIMIT 2
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
-            """);
-        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
+            """, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
 
         err = error(testAnalyzer.query("""
             FROM test,remote:test

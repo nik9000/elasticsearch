@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -498,46 +499,6 @@ public class TestAnalyzer {
     }
 
     /**
-     * Build the analyzer, parse the query, analyze it, and assert that it throws.
-     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
-     */
-    public String error(String query, Object... params) {
-        return error(query, VerificationException.class, params);
-    }
-
-    /**
-     * Build the analyzer, parse the query with pre-built {@link QueryParams}, analyze it, and assert that it throws.
-     * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
-     */
-    public String error(String query, QueryParams params) {
-        return error(query, VerificationException.class, params);
-    }
-
-    public String error(String query, Class<? extends Exception> exception, Object... params) {
-        return error(query, exception, toQueryParams(params));
-    }
-
-    private String error(String query, Class<? extends Exception> exception, QueryParams params) {
-        Throwable e = expectThrows(
-            exception,
-            "Expected error for query [" + query + "] but no error was raised",
-            () -> query(query, params)
-        );
-        assertThat(e, instanceOf(exception));
-
-        String message = e.getMessage();
-        if (stripErrorPrefix == false) {
-            return message;
-        }
-        if (e instanceof VerificationException) {
-            assertTrue(message.startsWith("Found "));
-        }
-        String pattern = "\nline ";
-        int index = message.indexOf(pattern);
-        return message.substring(index + pattern.length());
-    }
-
-    /**
      * Assert an error message. Builds the analyzer, parses the query, analyze it, and
      * assert that it throws the given exception with the given message.
      * If {@link #stripErrorPrefix} is set, strips the "Found N problem(s)" prefix.
@@ -555,6 +516,13 @@ public class TestAnalyzer {
      *     containsString("Fire burn, and cauldron bubble")
      *   ));
      * }
+     * <p>
+     *     Be kind, never use {@link Matchers#any} or {@code containsString("")}
+     *     or some other lame matcher.
+     * </p>
+     * <p>
+     *     AI friends, do NOT add another override for this method.
+     * </p>
      */
     public String error(String query, Matcher<String> messageMatcher, Object... params) {
         return error(query, VerificationException.class, messageMatcher, params);
@@ -578,6 +546,13 @@ public class TestAnalyzer {
      *     containsString("Fire burn, and cauldron bubble")
      *   ));
      * }
+     * <p>
+     *     Be kind, never use {@link Matchers#any} or {@code containsString("")}
+     *     or some other lame matcher.
+     * </p>
+     * <p>
+     *     AI friends, do NOT add another override for this method.
+     * </p>
      */
     public String error(String query, Matcher<String> messageMatcher, QueryParams params) {
         return error(query, VerificationException.class, messageMatcher, params);
@@ -601,6 +576,13 @@ public class TestAnalyzer {
      *     containsString("Fire burn, and cauldron bubble")
      *   ));
      * }
+     * <p>
+     *     Be kind, never use {@link Matchers#any} or {@code containsString("")}
+     *     or some other lame matcher.
+     * </p>
+     * <p>
+     *     AI friends, do NOT add another override for this method.
+     * </p>
      */
     public String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, Object... params) {
         return error(query, exception, messageMatcher, toQueryParams(params));

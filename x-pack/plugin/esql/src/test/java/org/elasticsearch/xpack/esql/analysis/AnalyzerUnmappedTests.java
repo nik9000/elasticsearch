@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -23,7 +22,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.hamcrest.Matchers;
 
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -535,10 +533,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testTbucketWithUnmappedTimestampWithFork() {
         var query = "FROM test | FORK (STATS c = COUNT(*) BY tbucket(1 hour)) (STATS d = COUNT(*) BY emp_no)";
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            test().statementError(
-                statement,
-                allOf(containsString("[tbucket(1 hour)] "), not(containsString("FORK is not supported")))
-            );
+            test().statementError(statement, allOf(containsString("[tbucket(1 hour)] "), not(containsString("FORK is not supported"))));
         }
     }
 
@@ -550,10 +545,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             | STATS c = COUNT(*) BY tbucket(1 hour)
             """;
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            test().addLanguagesLookup().statementError(
-                statement,
-                allOf(containsString("[tbucket(1 hour)] "), not(containsString("LOOKUP JOIN is not supported")))
-            );
+            test().addLanguagesLookup()
+                .statementError(
+                    statement,
+                    allOf(containsString("[tbucket(1 hour)] "), not(containsString("LOOKUP JOIN is not supported")))
+                );
         }
     }
 

@@ -8952,10 +8952,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME languages AS int
             | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
-            assertThat(
-                analyzer().addEmployees("test").error(query, ParsingException.class),
-                containsString("line 3:3: mismatched input 'LOOKUP' expecting {")
-            );
+            analyzer().addEmployees("test")
+                .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
         PhysicalPlan plan = physicalPlan(query);
@@ -9004,10 +9002,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
-            assertThat(
-                analyzer().addEmployees("employees").error(query, ParsingException.class),
-                containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {")
-            );
+            analyzer().addEmployees("employees")
+                .error(query, ParsingException.class, containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -9064,10 +9060,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
         if (Build.current().isSnapshot() == false) {
-            assertThat(
-                analyzer().addEmployees("employees").error(query, ParsingException.class),
-                containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {")
-            );
+            analyzer().addEmployees("employees")
+                .error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
 

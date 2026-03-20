@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.StatementParserTests;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Parses a plan, builds an AST for it, and then runs logical analysis on it.
@@ -27,32 +28,62 @@ public class AnalyzerParsingTests extends ESTestCase {
     private final TestAnalyzer defaultAnalyzer = analyzer().addEmployees("test");
 
     public void testCaseFunctionInvalidInputs() {
-        assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case()"));
-        assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(a)"));
-        assertEquals("1:22: error building [case]: expects at least two arguments", error("row a = 1 | eval x = case(1)"));
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = case()",
+            ParsingException.class,
+            equalTo("line 1:22: error building [case]: expects at least two arguments")
+        );
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = case(a)",
+            ParsingException.class,
+            equalTo("line 1:22: error building [case]: expects at least two arguments")
+        );
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = case(1)",
+            ParsingException.class,
+            equalTo("line 1:22: error building [case]: expects at least two arguments")
+        );
     }
 
     public void testConcatFunctionInvalidInputs() {
-        assertEquals("1:22: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat()"));
-        assertEquals("1:22: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(a)"));
-        assertEquals("1:22: error building [concat]: expects at least two arguments", error("row a = 1 | eval x = concat(1)"));
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = concat()",
+            ParsingException.class,
+            equalTo("line 1:22: error building [concat]: expects at least two arguments")
+        );
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = concat(a)",
+            ParsingException.class,
+            equalTo("line 1:22: error building [concat]: expects at least two arguments")
+        );
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = concat(1)",
+            ParsingException.class,
+            equalTo("line 1:22: error building [concat]: expects at least two arguments")
+        );
     }
 
     public void testCoalesceFunctionInvalidInputs() {
-        assertEquals("1:22: error building [coalesce]: expects at least one argument", error("row a = 1 | eval x = coalesce()"));
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = coalesce()",
+            ParsingException.class,
+            equalTo("line 1:22: error building [coalesce]: expects at least one argument")
+        );
     }
 
     public void testGreatestFunctionInvalidInputs() {
-        assertEquals("1:22: error building [greatest]: expects at least one argument", error("row a = 1 | eval x = greatest()"));
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = greatest()",
+            ParsingException.class,
+            equalTo("line 1:22: error building [greatest]: expects at least one argument")
+        );
     }
 
     public void testLeastFunctionInvalidInputs() {
-        assertEquals("1:22: error building [least]: expects at least one argument", error("row a = 1 | eval x = least()"));
-    }
-
-    private String error(String query) {
-        String message = defaultAnalyzer.error(query, ParsingException.class);
-        assertTrue(message.startsWith("line "));
-        return message.substring("line ".length());
+        defaultAnalyzer.error(
+            "row a = 1 | eval x = least()",
+            ParsingException.class,
+            equalTo("line 1:22: error building [least]: expects at least one argument")
+        );
     }
 }
