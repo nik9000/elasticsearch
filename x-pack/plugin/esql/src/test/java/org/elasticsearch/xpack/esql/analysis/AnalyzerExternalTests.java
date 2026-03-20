@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -91,8 +92,10 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testExternalWithMetricsInfoRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var err = external().error("EXTERNAL \"" + S3_PATH + "\" | METRICS_INFO");
-        assertThat(err, containsString("METRICS_INFO can only be used with TS source command"));
+        external().error(
+            "EXTERNAL \"" + S3_PATH + "\" | METRICS_INFO",
+            containsString("METRICS_INFO can only be used with TS source command")
+        );
     }
 
     /**
@@ -101,8 +104,7 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testExternalWithTsInfoRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var err = external().error("EXTERNAL \"" + S3_PATH + "\" | TS_INFO");
-        assertThat(err, containsString("TS_INFO can only be used with TS source command"));
+        external().error("EXTERNAL \"" + S3_PATH + "\" | TS_INFO", containsString("TS_INFO can only be used with TS source command"));
     }
 
     /**
@@ -112,9 +114,10 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testExternalWithMatchFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var err = external().error("EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH(first_name, \"foo\")");
-        assertThat(err, containsString("cannot operate on"));
-        assertThat(err, containsString("not a field from an index mapping"));
+        external().error(
+            "EXTERNAL \"" + S3_PATH + "\" | WHERE MATCH(first_name, \"foo\")",
+            allOf(containsString("cannot operate on"), containsString("not a field from an index mapping"))
+        );
     }
 
     /**
@@ -124,9 +127,10 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testExternalWithKqlFunctionRejected() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        var err = external().error("EXTERNAL \"" + S3_PATH + "\" | WHERE kql(\"first_name: foo\")");
-        assertThat(err, containsString("cannot be used after"));
-        assertThat(err, containsString("EXTERNAL"));
+        external().error(
+            "EXTERNAL \"" + S3_PATH + "\" | WHERE kql(\"first_name: foo\")",
+            allOf(containsString("cannot be used after"), containsString("EXTERNAL"))
+        );
     }
 
     /**
@@ -138,8 +142,10 @@ public class AnalyzerExternalTests extends ESTestCase {
         List<Attribute> schema = List.of(fieldAttribute("id", LONG), fieldAttribute("vector", DENSE_VECTOR));
         var testAnalyzer = analyzer().externalSourceUnresolved(S3_PATH, schema);
 
-        var err = testAnalyzer.error("EXTERNAL \"" + S3_PATH + "\" | WHERE knn(\"vector\", 3, 100)");
-        assertThat(err, anyOf(containsString("cannot operate on"), containsString("KNN"), containsString("knn")));
+        testAnalyzer.error(
+            "EXTERNAL \"" + S3_PATH + "\" | WHERE knn(\"vector\", 3, 100)",
+            anyOf(containsString("cannot operate on"), containsString("KNN"), containsString("knn"))
+        );
     }
 
     private static TestAnalyzer external() {

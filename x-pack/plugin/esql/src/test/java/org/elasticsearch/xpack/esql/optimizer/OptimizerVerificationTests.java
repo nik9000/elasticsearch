@@ -413,14 +413,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
 
-        err = testAnalyzer.stripErrorPrefix(true).error("""
+        testAnalyzer.stripErrorPrefix(true).error("""
             FROM test
             | LIMIT 2
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | ENRICH _remote:languages ON language_code
-            """);
-        assertThat(err, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
+            """, containsString("4:3: LOOKUP JOIN with remote indices can't be executed after [LIMIT 2]@2:3"));
 
         err = error(testAnalyzer.query("""
             FROM test
