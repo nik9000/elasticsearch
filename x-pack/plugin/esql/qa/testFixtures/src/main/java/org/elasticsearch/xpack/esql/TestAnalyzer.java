@@ -49,6 +49,7 @@ import java.util.function.Supplier;
 
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -452,6 +453,18 @@ public class TestAnalyzer {
     }
 
     /**
+     * Set the minimum transport version used by the analyzer. Some behaviors are
+     * disabled on older transport versions because the remote nodes won't
+     * understand them.
+     */
+    public TestAnalyzer randomMinimumTransportVersion(TransportVersion minimumTransportVersion) {
+        this.minimumTransportVersion = () -> randomFrom(
+            TransportVersionUtils.allReleasedVersions().tailSet(minimumTransportVersion).toArray(TransportVersion[]::new)
+        );
+        return this;
+    }
+
+    /**
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, QueryParams params) {
@@ -470,6 +483,14 @@ public class TestAnalyzer {
      */
     public LogicalPlan query(String query) {
         return query(query, new QueryParams());
+    }
+
+    /**
+     * Helper for building optimized coordinating node and local plans.
+     */
+    public TestPlans plans(String query) {
+        Analyzer analyzer = buildAnalyzer();
+        return new TestPlans(analyzer, analyzer.analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, new QueryParams())));
     }
 
     /**

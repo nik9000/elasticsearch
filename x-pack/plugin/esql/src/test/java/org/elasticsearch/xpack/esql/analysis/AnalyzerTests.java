@@ -6068,7 +6068,7 @@ public class AnalyzerTests extends ESTestCase {
         );
 
         LogicalPlan analyzedPlan = defaultMapping().addLanguagesLookup()
-            .minimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
+            .randomMinimumTransportVersion(Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION)
             .query(
                 "FROM test | LOOKUP JOIN languages_lookup "
                     + "ON languages == language_code AND MATCH(language_name, \"English\")"

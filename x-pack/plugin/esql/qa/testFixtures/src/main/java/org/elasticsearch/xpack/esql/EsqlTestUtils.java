@@ -85,8 +85,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -603,88 +601,6 @@ public final class EsqlTestUtils {
      */
     public static TestOptimizer optimizer() {
         return new TestOptimizer();
-    }
-
-    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        return testAnalyzerContext(configuration, functionRegistry, indexResolutions, Map.of(), enrichResolution, inferenceResolution);
-    }
-
-    /**
-     * Analyzer context for a random (but compatible) minimum transport version.
-     */
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution
-    ) {
-        return testAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            UNMAPPED_FIELDS.defaultValue()
-        );
-    }
-
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        UnmappedResolution unmappedResolution
-    ) {
-        return testAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            unmappedResolution,
-            null
-        );
-    }
-
-    /**
-     * Build an analyzer.
-     * @deprecated use {@link EsqlTestUtils#analyzer}.
-     */
-    @Deprecated
-    public static MutableAnalyzerContext testAnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        Map<IndexPattern, IndexResolution> indexResolutions,
-        Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        UnmappedResolution unmappedResolution,
-        @Nullable TimestampBounds timestampBounds
-    ) {
-        return new MutableAnalyzerContext(
-            configuration,
-            functionRegistry,
-            indexResolutions,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            randomMinimumVersion(),
-            unmappedResolution,
-            timestampBounds
-        );
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
