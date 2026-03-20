@@ -12,9 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;

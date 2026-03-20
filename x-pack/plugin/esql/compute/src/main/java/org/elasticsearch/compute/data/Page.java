@@ -400,7 +400,6 @@ public final class Page implements Writeable, Releasable {
             }
             success = true;
         } finally {
-            releaseBlocks();
             if (success == false) {
                 Releasables.closeExpectNoException(slicedBlocks);
             }

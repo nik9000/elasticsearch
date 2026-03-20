@@ -317,7 +317,11 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertSingleValueDenseBlock(vector.asBlock());
             if (positionCount > 2) {
-                assertLookup(vector.asBlock(), positions(blockFactory, 1, 2, new int[] { 1, 2 }), List.of(List.of(start + 1), List.of(start + 2), List.of(start + 1,start +  2)));
+                assertLookup(
+                    vector.asBlock(),
+                    positions(blockFactory, 1, 2, new int[] { 1, 2 }),
+                    List.of(List.of(start + 1), List.of(start + 2), List.of(start + 1, start + 2))
+                );
             }
             assertLookup(vector.asBlock(), positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, vector.asBlock());

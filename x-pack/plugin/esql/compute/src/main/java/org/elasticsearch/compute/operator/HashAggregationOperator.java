@@ -21,7 +21,6 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
@@ -700,7 +699,7 @@ public class HashAggregationOperator implements Operator {
         public Page next() {
             long startInNanos = System.nanoTime();
             int endOffset = Math.min(maxPageSize + rowOffset, selected.getPositionCount());
-            try(IntVector selectedInThisPage = selected.slice(rowOffset, endOffset)) {
+            try (IntVector selectedInThisPage = selected.slice(rowOffset, endOffset)) {
                 Page output = addAggResults(selectedInThisPage, aggBlockCounts);
                 rowOffset = endOffset;
                 return output;
