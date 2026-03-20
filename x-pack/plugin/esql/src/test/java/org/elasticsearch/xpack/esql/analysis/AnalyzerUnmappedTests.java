@@ -631,8 +631,16 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      */
     public void testFlattenedSubFieldRejectionWithSimpleCases() {
         assertUnmappedLoadError(index1(), "FROM test | KEEP field.a", unmappedLoadAndFlattenedSubfieldHelper("field.a", "field"));
-        assertUnmappedLoadError(index1(), "FROM test | STATS x = SAMPLE(field.a, 1)", unmappedLoadAndFlattenedSubfieldHelper("field.a", "field"));
-        assertUnmappedLoadError(index1(), "FROM test | EVAL x = TO_STRING(field.a)", unmappedLoadAndFlattenedSubfieldHelper("field.a", "field"));
+        assertUnmappedLoadError(
+            index1(),
+            "FROM test | STATS x = SAMPLE(field.a, 1)",
+            unmappedLoadAndFlattenedSubfieldHelper("field.a", "field")
+        );
+        assertUnmappedLoadError(
+            index1(),
+            "FROM test | EVAL x = TO_STRING(field.a)",
+            unmappedLoadAndFlattenedSubfieldHelper("field.a", "field")
+        );
         assertUnmappedLoadError(index1(), "FROM test | KEEP field.a.b", unmappedLoadAndFlattenedSubfieldHelper("field.a.b", "field"));
         assertUnmappedLoadError(index1(), "FROM test | KEEP field.a.b.c", unmappedLoadAndFlattenedSubfieldHelper("field.a.b.c", "field"));
         assertUnmappedLoadError(index1(), "FROM test | SORT field.x, field.z", unmappedLoadAndFlattenedSubfieldHelper("field.x", "field"));
@@ -686,7 +694,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
      */
     public void testFlattenedSubFieldRejectionWithLookupJoin() {
         assertUnmappedLoadError(
-            index1(),
+            index1().addLanguagesLookup(),
             """
                 FROM test
                 | EVAL language_code = 1
