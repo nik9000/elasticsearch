@@ -51,6 +51,7 @@ import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertPlanError;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -490,7 +491,7 @@ public class TestAnalyzer {
      */
     public TestPlans plans(String query) {
         Analyzer analyzer = buildAnalyzer();
-        return new TestPlans(analyzer, analyzer.analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, new QueryParams())));
+        return new TestPlans(analyzer, query, analyzer.analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, new QueryParams())));
     }
 
     /**
@@ -610,24 +611,7 @@ public class TestAnalyzer {
     }
 
     private String error(String query, Class<? extends Exception> exception, Matcher<String> messageMatcher, QueryParams params) {
-        Throwable e = expectThrows(
-            exception,
-            "Expected error for query [" + query + "] but no error was raised",
-            () -> query(query, params)
-        );
-        assertThat(e, instanceOf(exception));
-
-        String message = e.getMessage();
-        if (stripErrorPrefix) {
-            if (e instanceof VerificationException) {
-                assertTrue(message.startsWith("Found "));
-            }
-            String pattern = "\nline ";
-            int index = message.indexOf(pattern);
-            message = message.substring(index + pattern.length());
-        }
-        assertThat(message, messageMatcher);
-        return message;
+        return assertPlanError(stripErrorPrefix, query, exception, messageMatcher, () -> query(query, params));
     }
 
     /**

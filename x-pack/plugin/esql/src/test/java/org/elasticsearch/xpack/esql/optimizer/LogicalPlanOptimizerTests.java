@@ -180,6 +180,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptySource;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ignoreIds;
@@ -1055,7 +1056,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var anotherLimit = new Limit(EMPTY, L(limitValues[secondLimit]), oneLimit);
         assertEquals(
             new Limit(EMPTY, L(Math.min(limitValues[0], limitValues[1])), emptySource()),
-            new PushDownAndCombineLimits().rule(anotherLimit, logicalOptimizerCtx)
+            new PushDownAndCombineLimits().rule(anotherLimit, unboundLogicalOptimizerContext())
         );
     }
 
@@ -1076,7 +1077,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var limit = new Limit(EMPTY, L(10), join);
 
-        var optimizedPlan = rule.apply(limit, logicalOptimizerCtx);
+        var optimizedPlan = rule.apply(limit, unboundLogicalOptimizerContext());
 
         var expectedPlan = join instanceof InlineJoin
             ? new Limit(limit.source(), limit.limit(), join, false, false)
@@ -1084,7 +1085,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         assertEquals(expectedPlan, optimizedPlan);
 
-        var optimizedTwice = rule.apply(optimizedPlan, logicalOptimizerCtx);
+        var optimizedTwice = rule.apply(optimizedPlan, unboundLogicalOptimizerContext());
         // We mustn't create the limit after the JOIN multiple times when the rule is applied multiple times, that'd lead to infinite loops.
         assertEquals(optimizedPlan, optimizedTwice);
     }
@@ -1102,13 +1103,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             var value = i == limitWithMinimum ? minimum : randomIntBetween(100, 1000);
             plan = new Limit(EMPTY, L(value), plan);
         }
-        assertEquals(new Limit(EMPTY, L(minimum), relation), logicalOptimizer.optimize(plan));
+        assertEquals(new Limit(EMPTY, L(minimum), relation), buildLogicalOptimizer().optimize(plan));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivelyPushDownFilterPastRefAgg() {
         // expected plan: "from test | where emp_no > 1 and emp_no < 3 | stats x = count(1) by emp_no | where x > 7"
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where emp_no > 1
             | stats x = count(1) by emp_no
@@ -1142,7 +1143,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testNoPushDownOrFilterPastAgg() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | stats x = count(1) by emp_no
             | where emp_no < 3 or x > 9""");
@@ -1161,7 +1162,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivePushDownComplexFilterPastAgg() {
         // expected plan: from test | emp_no > 0 | stats x = count(1) by emp_no | where emp_no < 3 or x > 9
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | stats x = count(1) by emp_no
             | where (emp_no < 3 or x > 9) and emp_no > 0""");
@@ -1186,7 +1187,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testSelectivelyPushDownFilterPastEval() {
         // expected plan: "from test | where emp_no > 1 and emp_no < 3 | eval x = emp_no + 1 | where x < 7"
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where emp_no > 1
             | eval x = emp_no + 1
@@ -1223,7 +1224,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testNoPushDownOrFilterPastLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | limit 3
             | where emp_no < 3 or salary > 9""");
@@ -1240,7 +1241,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename emp_no as x
             | keep x
@@ -1254,7 +1255,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownEvalPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename emp_no as x
             | keep x
@@ -1275,7 +1276,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownDissectPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename first_name as x
             | keep x
@@ -1288,7 +1289,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownGrokPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename first_name as x
             | keep x
@@ -1301,7 +1302,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProjectUsingEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | eval y = emp_no + 1
             | rename y as x
@@ -1317,7 +1318,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProjectUsingDissect() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | dissect first_name "%{y}"
             | rename y as x
@@ -1335,7 +1336,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownFilterPastProjectUsingGrok() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | grok first_name "%{WORD:y}"
             | rename y as x
@@ -1353,7 +1354,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownLimitPastEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | eval x = emp_no + 100
             | limit 10""");
@@ -1363,7 +1364,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownLimitPastDissect() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | dissect first_name "%{y}"
             | limit 10""");
@@ -1373,7 +1374,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownLimitPastGrok() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | grok first_name "%{WORD:y}"
             | limit 10""");
@@ -1383,7 +1384,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownLimitPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename emp_no as a
             | keep a
@@ -1394,7 +1395,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPushDownLimitPastFilter() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | limit 100
             | where emp_no > 10
@@ -1406,7 +1407,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEliminateHigherLimitDueToDescendantLimit() throws Exception {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | limit 10
             | sort emp_no
@@ -1421,7 +1422,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDoNotEliminateHigherLimitDueToDescendantLimit() throws Exception {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | limit 10
             | where emp_no > 10
@@ -1435,7 +1436,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneSortBeforeStats() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | where emp_no > 10
@@ -1448,7 +1449,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPruneSortWithLimitBeforeStats() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | limit 100
@@ -1461,7 +1462,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderBy() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | sort salary""");
@@ -1472,7 +1473,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | eval x = salary + 1
@@ -1485,7 +1486,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughEvalWithTwoDefs() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | eval x = salary + 1, y = salary + 2
@@ -1500,7 +1501,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughDissect() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | dissect first_name "%{x}"
@@ -1513,7 +1514,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughGrok() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | grok first_name "%{WORD:x}"
@@ -1526,7 +1527,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | keep salary, emp_no
@@ -1539,7 +1540,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughProjectAndEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | rename emp_no as en
@@ -1556,7 +1557,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughProjectWithAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | rename salary as l
@@ -1570,7 +1571,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughFilter() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | where emp_no > 10
@@ -1591,7 +1592,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontCombineOrderByThroughMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -1614,7 +1615,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCopyDefaultLimitPastMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename first_name as x
             | keep x
@@ -1640,7 +1641,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testCopyDefaultLimitPastLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename languages AS language_code
             | keep language_code
@@ -1665,7 +1666,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontPushDownLimitPastMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | limit 1
             | keep first_name, last_name
@@ -1692,7 +1693,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontPushDownLimitPastLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | limit 1
             | rename languages AS language_code
@@ -1726,7 +1727,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleMvExpandWithSortAndLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
@@ -1779,7 +1780,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleLookupJoinWithSortAndLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
@@ -1823,7 +1824,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -1850,7 +1851,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDownLimitThroughMultipleSort_AfterMvExpand2() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -1884,7 +1885,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testDontPushDownLimitPastAggregate_AndMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | limit 50
@@ -1919,7 +1920,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_EsRelation[test][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
      */
     public void testPushDown_TheRightLimit_PastMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | mv_expand first_name
             | limit 50
@@ -1954,7 +1955,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDown_TheRightLimit_PastLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename languages as language_code
             | lookup join languages_lookup on language_code
@@ -1984,7 +1985,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPushDownLimit_PastEvalAndMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort first_name
             | mv_expand first_name
@@ -2013,7 +2014,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField_ResultTruncationDefaultSize() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -2044,7 +2045,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testFilterWithSortBeforeMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
@@ -2075,7 +2076,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testFilterWithSortBeforeLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where emp_no <= 10006
             | sort emp_no desc
@@ -2109,7 +2110,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultiMvExpand_SortDownBelow() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort last_name ASC
             | mv_expand emp_no
@@ -2143,7 +2144,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLimitThenSortBeforeMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row  a = null, b = 123, c = 234
             | mv_expand b
             | limit 7300
@@ -2182,7 +2183,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testLimitThenSortBeforeLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row  a = null, language_code = 123, c = 234
             | lookup join languages_lookup on language_code
             | limit 7300
@@ -2217,7 +2218,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRemoveUnusedSortBeforeMvExpand_DefaultLimit10000() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -2242,7 +2243,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedField() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -2273,7 +2274,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilter_NOT_OnExpandedField() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand first_name
@@ -2304,7 +2305,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSort_BeforeMvExpand_WithFilterOnExpandedFieldAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort gender
             | mv_expand first_name
@@ -2335,7 +2336,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row a = 1
             | sort a
             | mv_expand a
@@ -2358,7 +2359,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row language_code = 1
             | sort language_code
             | lookup join languages_lookup on language_code
@@ -2385,7 +2386,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortMvExpandLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | mv_expand emp_no
@@ -2412,7 +2413,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testSortLookupJoinLimit() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | rename emp_no as language_code
@@ -2444,7 +2445,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *  see <a href="https://github.com/elastic/elasticsearch/issues/102084">https://github.com/elastic/elasticsearch/issues/102084</a>
      */
     public void testWhereMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row  a = 1, b = -15
             | where b < 3
             | mv_expand b
@@ -2468,7 +2469,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testWhereLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row  a = 1, language_code = -15
             | where language_code < 3
             | lookup join languages_lookup on language_code
@@ -2493,7 +2494,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Notice that the `TopN` at the very top has limit 1, not 3!
      */
     public void testDescendantLimitMvExpand() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             ROW language_code = 1
             | MV_EXPAND language_code
             | LIMIT 1
@@ -2522,7 +2523,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Notice that the `TopN` at the very top has limit 1, not 3!
      */
     public void testDescendantLimitLookupJoin() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             ROW language_code = 1
             | LOOKUP JOIN languages_lookup ON language_code
             | LIMIT 1
@@ -2546,7 +2547,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneJoinOnNullMatchingField() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval language_code = null::integer
             | keep emp_no, first_name, languages, language_code
@@ -2574,7 +2575,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval language_code_left = null::integer
             | keep emp_no, first_name, languages, language_code_left
@@ -2600,7 +2601,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneJoinOnNullAssignedMatchingField() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval my_null = null::integer
             | rename languages as language_code
@@ -2629,7 +2630,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval my_null = null::integer
             | rename languages as language_code_right
@@ -2658,7 +2659,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAfterStats() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             ROW foo = 1
             | STATS x = max(foo)
             | EVAL x = 2
@@ -2679,7 +2680,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalAfterGroupBy() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             ROW foo = 1
             | STATS x = max(foo) by foo
             | KEEP x
@@ -2693,7 +2694,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineLimitWithOrderByThroughFilterAndEval() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort salary
             | eval x = emp_no / 2
@@ -2715,7 +2716,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // | where salary > 1
         // | sort emp_no, first_name
         // | keep l = salary, emp_no, first_name
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no
             | rename salary as l
@@ -2736,7 +2737,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPruneSameFieldDifferentDirectionSortClauses() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort salary nulls last, emp_no desc nulls first
             | where salary > 2
@@ -2779,7 +2780,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneRedundantSortClauses() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort salary desc nulls last, emp_no desc nulls first
             | where salary > 2
@@ -2822,7 +2823,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testDontPruneSameFieldDifferentDirectionSortClauses_UsingAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no desc
             | rename emp_no as e
@@ -2845,7 +2846,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPruneRedundantSortClausesUsingAlias() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | sort emp_no desc
             | rename emp_no as e
@@ -2870,7 +2871,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
-        LogicalPlan plan = optimizedPlan("FROM test | INSIST_\uD83D\uDC14 foo");
+        LogicalPlan plan = plan("FROM test | INSIST_\uD83D\uDC14 foo");
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -2907,7 +2908,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyLikeNoWildcard() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where first_name like "foo"
             """);
@@ -2921,7 +2922,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyLikeMatchAll() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where first_name like "*"
             """);
@@ -2933,7 +2934,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyRLikeNoWildcard() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where first_name rlike "foo"
             """);
@@ -2947,7 +2948,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testSimplifyRLikeMatchAll() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where first_name rlike ".*"
             """);
@@ -2975,7 +2976,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldNullInToLocalRelation() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where null in (first_name, ".*")
             """);
@@ -2983,7 +2984,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldNullListInToLocalRelation() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where first_name in (null, null)
             """);
@@ -2991,13 +2992,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldInKeyword() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where "foo" in ("bar", "baz")
             """);
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = plan("""
             from test
             | where "foo" in ("bar", "foo", "baz")
             """);
@@ -3006,13 +3007,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldInIP() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where to_ip("1.1.1.1") in (to_ip("1.1.1.2"), to_ip("1.1.1.2"))
             """);
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = plan("""
             from test
             | where to_ip("1.1.1.1") in (to_ip("1.1.1.1"), to_ip("1.1.1.2"))
             """);
@@ -3021,13 +3022,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldInVersion() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where to_version("1.2.3") in (to_version("1"), to_version("1.2.4"))
             """);
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = plan("""
             from test
             | where to_version("1.2.3") in (to_version("1"), to_version("1.2.3"))
             """);
@@ -3036,13 +3037,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldInNumerics() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | where 3 in (4.0, 5, 2147483648)
             """);
         assertThat(plan, instanceOf(LocalRelation.class));
 
-        plan = optimizedPlan("""
+        plan = plan("""
             from test
             | where 3 in (4.0, 3.0, to_long(3))
             """);
@@ -3051,7 +3052,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldInEval() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval a = 1, b = a + 1, c = b + a
             | where c > 10
@@ -3062,7 +3063,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldFromRow() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               row a = 1, b = 2, c = 3
             | where c > 10
             """);
@@ -3071,7 +3072,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testFoldFromRowInEval() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               row a = 1, b = 2, c = 3
             | eval x = c
             | where x > 10
@@ -3081,7 +3082,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testInvalidFoldDueToReplacement() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               from test
             | eval x = 1
             | eval x = emp_no
@@ -3099,7 +3100,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEnrich() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | eval x = to_string(languages)
             | enrich languages_idx on x
@@ -3113,7 +3114,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownEnrichPastProject() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | eval a = to_string(languages)
             | rename a as x
@@ -3126,7 +3127,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTopNEnrich() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename languages as x
             | eval x = to_string(x)
@@ -3141,7 +3142,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testEnrichNotNullFilter() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | eval x = to_string(languages)
             | enrich languages_idx on x
@@ -3290,7 +3291,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         FieldAttribute fa = getFieldAttribute("foo");
         In in = new In(EMPTY, ONE, List.of(TWO, THREE, fa, L(null)));
         Or expected = new Or(EMPTY, new In(EMPTY, ONE, List.of(TWO, THREE)), new In(EMPTY, ONE, List.of(fa, L(null))));
-        assertThat(new SplitInWithFoldableValue().rule(in, logicalOptimizerCtx), equalTo(expected));
+        assertThat(new SplitInWithFoldableValue().rule(in, unboundLogicalOptimizerContext()), equalTo(expected));
     }
 
     public void testReplaceFilterWithExact() {
@@ -3584,7 +3585,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMvExpandFoldable() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row a = [1, 2, 3]
             | mv_expand a
             | where a > 2
@@ -3609,7 +3610,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRenameStatsDropGroup() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row a = 1
             | rename a AS foo
             | stats bar = count(*) by foo
@@ -3630,7 +3631,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleRenameStatsDropGroup() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             row a = 1, b = 2
             | rename a AS foo, b as bar
             | stats baz = count(*) by foo, bar
@@ -3651,7 +3652,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultipleRenameStatsDropGroupMultirow() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename emp_no AS foo, gender as bar
             | stats baz = max(salary) by foo, bar
@@ -3664,7 +3665,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testLimitZeroUsesLocalRelation() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | stats count=count(*)
             | sort count desc
@@ -3682,7 +3683,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithoutGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats sum(emp_no)
             """);
@@ -3695,7 +3696,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testIsNotNullConstraintForStatsWithGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats sum(emp_no) by salary
             """);
@@ -3716,7 +3717,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithAndOnGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats sum(salary) by salary
             """);
@@ -3737,7 +3738,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithAndOnGroupingAlias() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval x = salary
             | stats sum(salary) by x
@@ -3759,7 +3760,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintSkippedForStatsWithAlias() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval x = emp_no
             | stats sum(x) by salary
@@ -3783,7 +3784,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithoutGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = sum(emp_no), b = min(salary)
             """);
@@ -3804,7 +3805,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = sum(emp_no), b = min(salary) by gender
             """);
@@ -3825,7 +3826,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForStatsWithMultiAggWithAndOnGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = sum(emp_no), b = min(salary) by emp_no
             """);
@@ -3848,7 +3849,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testIsNotNullConstraintForAliasedExpressions() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | eval x = emp_no / 10
             | eval y = x + salary
@@ -3961,7 +3962,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInGroups() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats c = count(salary) by emp_no % 2
             """);
@@ -3989,7 +3990,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInGroupsWithCategorize() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats c = count(salary) by CATEGORIZE(CONCAT(first_name, "abc"))
             """);
@@ -4023,7 +4024,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInAggs() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats c = count(salary + 1) by emp_no
             """);
@@ -4051,7 +4052,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInBothAggsAndGroups() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats c = count(salary + 1 + 100 / languages) by emp_no % 2
             """);
@@ -4078,7 +4079,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testNestedMultiExpressionsInGroupingAndAggs() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
             """);
@@ -4098,7 +4099,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsWithGroupingKeyInAggs() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats c = count(languages + emp_no % 2) by g = emp_no % 2
             """);
@@ -4138,7 +4139,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     @AwaitsFix(bugUrl = "disabled since canonical representation relies on hashing which is runtime defined")
     public void testNestedExpressionsWithMultiGrouping() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats m = max(languages + salary), c = count(languages + salary + emp_no % 2) by emp_no % 2, languages + salary
             """);
@@ -4186,7 +4187,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testNestedExpressionsInStatsWithExpression() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats e = max(languages + emp_no) + 1 by languages + emp_no
             """);
@@ -4324,7 +4325,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsExpOverAggs() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats x = avg(salary) /2 + max(salary)
             """);
@@ -4370,7 +4371,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsExpOverAggsMulti() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats x = avg(salary % 3) + max(emp_no), y = min(emp_no / 3) + 10 - median(salary) by z = languages % 2
             """);
@@ -4429,7 +4430,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsExpOverAggsWithScalars() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats x = CONCAT(TO_STRING(AVG(salary % 3)), TO_STRING(MAX(emp_no))),
                     y = (MIN(emp_no / 3) + PI() - MEDIAN(salary))/E()
@@ -4483,7 +4484,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testStatsWithCanonicalAggregate() throws Exception {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = sum(salary / 2 + languages),
                     b = sum(languages + salary / 2)
@@ -4826,25 +4827,25 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         EsIndex empty = EsIndexGenerator.esIndex("empty_test");
         var emptyAnalyzer = analyzerWithEnrichPolicies().addIndex(empty);
 
-        var plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test"));
+        var plan = emptyAnalyzer.plans("from empty_test").coordinatorLogicalOptimized();
         as(plan, LocalRelation.class);
         assertThat(plan.output(), equalTo(NO_FIELDS));
 
-        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test metadata _id | eval x = 1"));
+        plan = emptyAnalyzer.plans("from empty_test metadata _id | eval x = 1").coordinatorLogicalOptimized();
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "x"));
 
-        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test metadata _id, _version | limit 5"));
+        plan = emptyAnalyzer.plans("from empty_test metadata _id, _version | limit 5").coordinatorLogicalOptimized();
         as(plan, LocalRelation.class);
         assertThat(Expressions.names(plan.output()), contains("_id", "_version"));
 
-        plan = logicalOptimizer.optimize(emptyAnalyzer.query("from empty_test | eval x = \"abc\" | enrich languages_idx on x"));
+        plan = emptyAnalyzer.plans("from empty_test | eval x = \"abc\" | enrich languages_idx on x").coordinatorLogicalOptimized();
         LocalRelation local = as(plan, LocalRelation.class);
         assertThat(Expressions.names(local.output()), contains(NO_FIELDS.get(0).name(), "x", "language_code", "language_name"));
     }
 
     public void testPlanSanityCheck() throws Exception {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = min(salary) by emp_no
             """);
@@ -4861,7 +4862,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             asList(new Order(limit.source(), salary, Order.OrderDirection.ASC, Order.NullsPosition.FIRST))
         );
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(invalidPlan));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> buildLogicalOptimizer().optimize(invalidPlan));
         assertThat(e.getMessage(), containsString("Plan [OrderBy[[Order[salary"));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [salary"));
     }
@@ -4880,7 +4881,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPlanSanityCheckWithBinaryPlans() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | RENAME languages AS language_code
             | LOOKUP JOIN languages_lookup ON language_code
@@ -4891,11 +4892,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var join = as(upperLimit.child(), Join.class);
 
         var joinWithInvalidLeftPlan = join.replaceChildren(join.right(), join.right());
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidLeftPlan));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> buildLogicalOptimizer().optimize(joinWithInvalidLeftPlan));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from left hand side [languages"));
 
         var joinWithInvalidRightPlan = join.replaceChildren(join.left(), join.left());
-        e = expectThrows(IllegalStateException.class, () -> logicalOptimizer.optimize(joinWithInvalidRightPlan));
+        e = expectThrows(IllegalStateException.class, () -> buildLogicalOptimizer().optimize(joinWithInvalidRightPlan));
         assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references from right hand side [language_code"));
     }
 
@@ -4913,10 +4914,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilter() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and language_name == "English"
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -4929,10 +4930,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterMatch() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -4954,11 +4955,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterMatchWithWhereClause() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN languages_lookup ON languages == language_code and MATCH(language_name,"English")
             | WHERE language_name LIKE "French*"
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, false);
         var topFilter = as(upperLimit.child(), Filter.class);
@@ -4977,7 +4978,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     // https://github.com/elastic/elasticsearch/issues/104995
     public void testNoWrongIsNotNullPruning() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               ROW a = 5, b = [ 1, 2 ]
               | EVAL sum = a + b
               | LIMIT 1
@@ -5032,7 +5033,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         for (String overwritingCommand : overwritingCommands) {
             String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
-            var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
+            var plan = plan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
 
             var project = as(plan, Project.class);
             var projections = project.projections();
@@ -5400,7 +5401,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testReplaceSortByExpressionsWithStats() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats min = min(salary) by languages
             | sort min + languages
@@ -5445,7 +5446,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class); // TODO: this needs to go
         var inline = as(limit.child(), InlineJoin.class);
         var eval = as(inline.left(), Eval.class);
@@ -5494,7 +5495,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("a")));
@@ -5532,7 +5533,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var limit = asLimit(plan, 10000, false);
         var aggregate = as(limit.child(), Aggregate.class);
@@ -5563,7 +5564,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "b", "a")));
         var eval = as(project.child(), Eval.class);
@@ -5593,7 +5594,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n")));
@@ -5634,7 +5635,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "s", "m", "n")));
@@ -5679,7 +5680,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c1", "n1", "c2", "n2")));
@@ -5731,7 +5732,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n")));
@@ -5771,7 +5772,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n1", "n2")));
@@ -5813,7 +5814,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("c", "n", "emp_no")));
@@ -5845,7 +5846,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testReplaceSortByExpressionsMultipleSorts() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | sort salary/10000 + languages, emp_no desc
             | eval d = emp_no
@@ -5925,7 +5926,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         for (String overwritingCommand : overwritingCommands) {
             String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
-            var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
+            var plan = plan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
 
             var project = as(plan, Project.class);
             var projections = project.projections();
@@ -5992,7 +5993,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPartiallyFoldCase() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | EVAL c = CASE(true, emp_no, salary)
             """);
@@ -6051,7 +6052,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
         Expression unresolvedUpdated = unresolvedAttributeExp.transformUp(
             LITERALS_ON_THE_RIGHT.expressionToken(),
-            be -> LITERALS_ON_THE_RIGHT.rule(be, logicalOptimizerCtx)
+            be -> LITERALS_ON_THE_RIGHT.rule(be, unboundLogicalOptimizerContext())
         ).transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(FoldContext.small()), x.dataType()) : x);
 
         List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);
@@ -6186,13 +6187,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsUpperFalse() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
+        var plan = plan("FROM test | WHERE TO_UPPER(first_name) == \"VALÜe\"");
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsUpperTrue() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
+        var plan = plan("FROM test | WHERE TO_UPPER(first_name) != \"VALÜe\"");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var isNotNull = as(filter.condition(), IsNotNull.class);
@@ -6201,13 +6202,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsLowerFalse() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
+        var plan = plan("FROM test | WHERE TO_LOWER(first_name) == \"VALÜe\"");
         var local = as(plan, LocalRelation.class);
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsLowerTrue() {
-        var plan = optimizedPlan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
+        var plan = plan("FROM test | WHERE TO_LOWER(first_name) != \"VALÜe\"");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         assertThat(filter.condition(), instanceOf(IsNotNull.class));
@@ -6218,7 +6219,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
             value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
-            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
+            var plan = plan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             var insensitive = as(filter.condition(), InsensitiveEquals.class);
@@ -6233,7 +6234,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
             value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
-            var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
+            var plan = plan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
             var not = as(filter.condition(), Not.class);
@@ -6246,7 +6247,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testReplaceStringCasingWithInsensitiveEqualsUnwrap() {
-        var plan = optimizedPlan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
+        var plan = plan("FROM test | WHERE TO_UPPER(TO_LOWER(TO_UPPER(first_name))) == \"VALÜ\"");
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
         var insensitive = as(filter.condition(), InsensitiveEquals.class);
@@ -6288,7 +6289,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var join = as(plan, Join.class);
 
         // Right is the lookup table
@@ -6368,7 +6369,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             defaultAnalyzer().error(query, ParsingException.class, containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
@@ -6457,7 +6458,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | WHERE language_code > 1
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         var upperLimit = asLimit(project.child(), 1000, true);
@@ -6501,7 +6502,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE emp_no > 1
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         var upperLimit = asLimit(project.child(), 1000, true);
@@ -6545,7 +6546,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "English"
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, false);
@@ -6592,7 +6593,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "English" AND emp_no > 1
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, false);
@@ -6633,10 +6634,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterSpatialIntersects() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_INTERSECTS(TO_GEOSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"), shape)
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -6661,10 +6662,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterSpatialWithin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN spatial_lookup ON emp_no == id AND ST_WITHIN(shape, TO_GEOSHAPE("POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))"))
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -6689,11 +6690,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testLookupJoinRightFilterSpatialContains() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
 
-        var plan = optimizedPlan("""
+        var plan = defaultAnalyzer().minimumTransportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).plans("""
               FROM test
             | LOOKUP JOIN spatial_lookup
             ON emp_no == id AND ST_CONTAINS(shape, TO_GEOSHAPE("POLYGON((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))"))
-            """, ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION);
+            """).coordinatorLogicalOptimized();
 
         var upperLimit = asLimit(plan, 1000, true);
         var join = as(upperLimit.child(), Join.class);
@@ -6729,7 +6730,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | WHERE language_name == "English" OR emp_no > 1
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
@@ -6785,7 +6786,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             """ + commandDiscardingFields;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
@@ -6824,7 +6825,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var limit1 = asLimit(plan, 1000, true);
 
@@ -7671,7 +7672,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS sum(rate(network.total_bytes_in, 10m)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
                 | LIMIT 10
                 """;
-            logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
+            metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
         }
         // same but with last_over_time
         {
@@ -7680,7 +7681,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | STATS avg(last_over_time(network.bytes_in, 10 minute)) BY TBUCKET(20, "2024-05-10T00:00:00Z", "2024-05-10T01:00:00Z")
                 | LIMIT 10
                 """;
-            var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
+            var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             Holder<LastOverTime> holder = new Holder<>();
             plan.forEachExpressionDown(LastOverTime.class, holder::set);
             assertNotNull(holder.get());
@@ -7695,7 +7696,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 | LIMIT 10
                 """;
             var error = expectThrows(IllegalArgumentException.class, () -> {
-                logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query(query));
+                metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
             });
             assertThat(error.getMessage(), containsString("the window must be an exact multiple of the time bucket"));
         }
@@ -7998,7 +7999,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | WHERE MATCH(first_name, "Anna Smith", {"minimum_should_match": 2.0})
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         Match match = as(filter.condition(), Match.class);
@@ -8016,7 +8017,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | WHERE MULTI_MATCH("Anna Smith", first_name, last_name, {"minimum_should_match": 2.0})
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
         MultiMatch match = as(filter.condition(), MultiMatch.class);
@@ -8042,7 +8043,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnJoin() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT languages
             | RENAME languages AS language_code
@@ -8072,7 +8073,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpand() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT languages
             | EVAL foo = "bar"
@@ -8100,7 +8101,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandAndJoin() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT languages
             | EVAL language_code = languages
@@ -8130,7 +8131,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testMultlipleRedundantSortOnMvExpandAndJoin() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT first_name
             | EVAL language_code = languages
@@ -8164,7 +8165,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandEnrichGrokDissect() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT languages
             | EVAL foo = to_string(languages)
@@ -8203,7 +8204,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinEnrichGrokDissect() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT languages
             | EVAL foo = to_string(languages), language_code = languages
@@ -8242,7 +8243,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | SORT languages
             | EVAL foo = to_string(languages), language_code = languages
@@ -8280,7 +8281,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testEvalLookupMultipleSorts() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
               FROM test
             | EVAL language_code = 1
             | LOOKUP JOIN languages_lookup ON language_code
@@ -8420,7 +8421,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | EVAL irrelevant2 = 2
             | SAMPLE .1
             """;
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
 
         var eval = as(optimized, Eval.class);
         var limit = as(eval.child(), Limit.class);
@@ -8444,7 +8445,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "DISSECT first_name \"%{z}\""
         )) {
             var query = "FROM test | " + command + " | SAMPLE .5";
-            var optimized = optimizedPlan(query);
+            var optimized = plan(query);
 
             var unary = as(optimized, UnaryPlan.class);
             var limit = as(unary.child(), Limit.class);
@@ -8459,7 +8460,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = "FROM test | WHERE emp_no > 0 | SAMPLE 0.5 | LIMIT 100";
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
 
         var limit = as(optimized, Limit.class);
         var filter = as(limit.child(), Filter.class);
@@ -8473,7 +8474,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assumeTrue("sample must be enabled", EsqlCapabilities.Cap.SAMPLE_V3.isEnabled());
 
         var query = "FROM test | SORT emp_no | SAMPLE 0.5 | LIMIT 100";
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
 
         var topN = as(optimized, TopN.class);
         var sample = as(topN.child(), Sample.class);
@@ -8487,7 +8488,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         for (var command : List.of("LIMIT 100", "MV_EXPAND languages", "STATS COUNT()")) {
             var query = "FROM test | " + command + " | SAMPLE .5";
-            var optimized = optimizedPlan(query);
+            var optimized = plan(query);
 
             var limit = as(optimized, Limit.class);
             var sample = as(limit.child(), Sample.class);
@@ -8515,7 +8516,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | SAMPLE .5
             """;
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
 
         var limit = as(optimized, Limit.class);
         var sample = as(limit.child(), Sample.class);
@@ -8542,7 +8543,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | CHANGE_POINT emp_no ON hire_date
             | SAMPLE .5
             """;
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
 
         var limit = as(optimized, Limit.class);
         var sample = as(limit.child(), Sample.class);
@@ -8864,7 +8865,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testVerifierOnAdditionalAttributeAdded() throws Exception {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = min(salary) by emp_no
             """);
@@ -8896,7 +8897,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
         LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
             List.of(customRuleBatch),
-            logicalOptimizer.context().minimumVersion()
+            buildLogicalOptimizer().context().minimumVersion()
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
@@ -8904,7 +8905,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testVerifierOnAttributeDatatypeChanged() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = min(salary) by emp_no
             """);
@@ -8944,7 +8945,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
         LogicalPlanOptimizer customRulesLogicalPlanOptimizer = getCustomRulesLogicalPlanOptimizer(
             List.of(customRuleBatch),
-            logicalOptimizerCtx.minimumVersion()
+            unboundLogicalOptimizerContext().minimumVersion()
         );
         Exception e = expectThrows(VerificationException.class, () -> customRulesLogicalPlanOptimizer.optimize(plan));
         assertThat(e.getMessage(), containsString("Output has changed from"));
@@ -9025,7 +9026,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testTranslateMetricsGroupedByTBucketInTSMode() {
         var query = "TS k8s | STATS sum(rate(network.total_bytes_in)) BY tbucket(1h)";
-        var plan = logicalOptimizer.optimize(metricsAnalyzer().query(query));
+        var plan = metricsAnalyzer().plans(query).coordinatorLogicalOptimized();
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
@@ -9058,7 +9059,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP decay_result
             | LIMIT 5""";
 
-        Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
+        Exception e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized());
         assertThat(e.getMessage(), containsString("has non-literal value [origin]"));
     }
 
@@ -9069,7 +9070,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP decay_result
             | LIMIT 5""";
 
-        Exception e = expectThrows(VerificationException.class, () -> logicalOptimizer.optimize(defaultAnalyzer().query(query)));
+        Exception e = expectThrows(VerificationException.class, () -> defaultAnalyzer().plans(query).coordinatorLogicalOptimized());
         assertThat(e.getMessage(), containsString("has non-literal value [scale]"));
     }
 
@@ -9089,7 +9090,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "requires LOOKUP JOIN ON boolean expression capability",
             EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
         );
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | keep languages
             | lookup join languages_lookup ON language_code == languages
@@ -9132,7 +9133,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | lookup join languages_lookup ON language_code_left != language_code and language_code_left > language_code
             """;
 
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
         var project = as(plan, Project.class);
         var limit = asLimit(project.child(), 1000, true);
         var join = as(limit.child(), Join.class);
@@ -9176,7 +9177,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#21, language_name{f}#22]
      */
     public void LookupJoinSemanticFilterDeupPushdown() {
-        LogicalPlan plan = optimizedPlan("""
+        LogicalPlan plan = plan("""
             from test
             | rename first_name as language_name
             | lookup join languages_lookup on language_name
@@ -9232,8 +9233,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP @timestamp
             """, timestampValue);
 
-        LogicalPlan analyze = metricsAnalyzer().query(query);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+        LogicalPlan plan = metricsAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9263,8 +9263,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | KEEP @timestamp
             """, timestampValue);
 
-        LogicalPlan analyze = metricsAnalyzer().query(query);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+        LogicalPlan plan = metricsAnalyzer().plans(query).coordinatorLogicalOptimized();
 
         LocalRelation relation = as(plan, LocalRelation.class);
         assertThat(relation.output(), hasSize(1));
@@ -9275,13 +9274,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * LocalRelation[[@timestamp{r}#3],EMPTY]
      */
     public void testTranslateTRangeFoldsToLocalRelation() {
-        LogicalPlan analyze = metricsAnalyzer().query("""
+        LogicalPlan plan = metricsAnalyzer().plans("""
             TS k8s
             | EVAL @timestamp = null::datetime
             | WHERE TRANGE("2024-05-10T00:17:14.000Z", "2024-05-10T00:18:33.000Z")
             | KEEP @timestamp
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         LocalRelation relation = as(plan, LocalRelation.class);
         assertThat(relation.output(), hasSize(1));
@@ -9304,13 +9302,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongAndToIntegerSurrogateFoldsToLongAndToInteger() {
-        LogicalPlan analyze = baseConversionAnalyzer().query("""
+        LogicalPlan plan = baseConversionAnalyzer().plans("""
             FROM  base_conversion
             | EVAL to_long = TO_LONG(string), to_integer = TO_INTEGER(string)
             | KEEP to_long, to_integer
             | LIMIT 10
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9339,13 +9336,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongAndToIntegerSurrogateFoldsToLongBaseAndToIntegerBase() {
-        LogicalPlan analyze = baseConversionAnalyzer().query("""
+        LogicalPlan plan = baseConversionAnalyzer().plans("""
             FROM  base_conversion
             | EVAL to_long = TO_LONG(string, base), to_integer = TO_INTEGER(string, base)
             | KEEP to_long, to_integer
             | LIMIT 10
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9377,14 +9373,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testToLongSurrogateFoldsToLongBaseWithToInteger() {
-        LogicalPlan analyze = baseConversionAnalyzer().query("""
+        LogicalPlan plan = baseConversionAnalyzer().plans("""
             FROM  base_conversion
             | EVAL ubase = TO_UNSIGNED_LONG(base)
             | EVAL to_long = TO_LONG(string, ubase), to_integer = TO_INTEGER(string, ubase)
             | KEEP ubase, to_long, to_integer
             | LIMIT 10
-            """);
-        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(analyze);
+            """).coordinatorLogicalOptimized();
 
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -9443,7 +9438,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testFullTextFunctionOnNull() {
         String functionName = randomFrom("match", "match_phrase");
-        var plan = optimizedPlan(String.format(Locale.ROOT, """
+        var plan = plan(String.format(Locale.ROOT, """
             from test
             | where %s(null, "John") or %s(last_name, "Doe")
             """, functionName, functionName));
@@ -9466,7 +9461,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     public void testFullTextFunctionOnEvalNull() {
         String functionName = randomFrom("match", "match_phrase");
-        var plan = optimizedPlan(String.format(Locale.ROOT, """
+        var plan = plan(String.format(Locale.ROOT, """
             from test
             | eval some_field = null
             | where %s(some_field, "John") or %s(last_name, "Doe")
@@ -9541,11 +9536,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testTranslateMetricsAfterRenamingTimestamp() {
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
-                TS k8s |
-                EVAL @timestamp = region |
-                STATS max(network.cost), count(network.eth0.rx)
-                """))).getMessage(),
+            expectThrows(
+                VerificationException.class,
+                () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(network.cost), count(network.eth0.rx)
+                    """).coordinatorLogicalOptimized()
+            ).getMessage(),
             containsString(
                 "second argument of [implicit time-series aggregation function (LastOverTime) for network.cost] "
                     + "must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
@@ -9553,11 +9551,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
-                TS k8s |
-                EVAL @timestamp = region |
-                STATS max(last_over_time(network.cost)), count(last_over_time(network.eth0.rx))
-                """))).getMessage(),
+            expectThrows(
+                VerificationException.class,
+                () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(last_over_time(network.cost)), count(last_over_time(network.eth0.rx))
+                    """).coordinatorLogicalOptimized()
+            ).getMessage(),
             containsString(
                 "second argument of [last_over_time(network.cost)] must be [date_nanos or datetime], "
                     + "found value [@timestamp] type [keyword]"
@@ -9565,31 +9566,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
 
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
-                TS k8s |
-                EVAL @timestamp = region |
-                STATS max(max_over_time(network.cost)), count(count_over_time(network.eth0.rx))
-                """))).getMessage(),
+            expectThrows(
+                VerificationException.class,
+                () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
+                    TS k8s |
+                    EVAL @timestamp = region |
+                    STATS max(max_over_time(network.cost)), count(count_over_time(network.eth0.rx))
+                    """).coordinatorLogicalOptimized()
+            ).getMessage(),
             containsString("the TS STATS command requires an @timestamp field of type date or date_nanos but it was of type [keyword]")
         );
 
         assertThat(
-            expectThrows(VerificationException.class, () -> logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
-                TS k8s |
-                DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
-                STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
-                """))).getMessage(),
+            expectThrows(
+                VerificationException.class,
+                () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
+                    TS k8s |
+                    DISSECT event "%{@timestamp} %{network.total_bytes_in}" |
+                    STATS ohxqxpSqEZ = avg(network.eth0.currently_connected_clients)
+                    """).coordinatorLogicalOptimized()
+            ).getMessage(),
             containsString(
                 "second argument of [implicit time-series aggregation function (LastOverTime) for "
                     + "network.eth0.currently_connected_clients] must be [date_nanos or datetime], found value [@timestamp] type [keyword]"
             )
         );
 
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
             TS k8s |
             EVAL `@timestamp` = @timestamp + 1day |
             STATS std_dev(network.eth0.currently_connected_clients)
-            """));
+            """).coordinatorLogicalOptimized();
         var tsStats = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsStats.timestamp().dataType(), equalTo(DataType.DATETIME));
         LastOverTime lastOverTime = as(Alias.unwrap(tsStats.aggregates().getFirst()), LastOverTime.class);
@@ -9597,9 +9604,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         String errorMessage = expectThrows(
             VerificationException.class,
-            () -> logicalOptimizerWithLatestVersion.optimize(
-                metricsAnalyzer().query("TS k8s | KEEP network.total_bytes_in | STATS count(*)")
-            )
+            () -> metricsAnalyzer().minimumTransportVersion(TransportVersion.current())
+                .plans("TS k8s | KEEP network.total_bytes_in | STATS count(*)")
+                .coordinatorLogicalOptimized()
         ).getMessage();
         assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
         assertThat(
@@ -9746,7 +9753,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | ENRICH languages_idx ON message
             | STATS a = COUNT(TO_LOWER(language_name)), b = COUNT(language_name)
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         // Limit[1000[INTEGER],false,false]
         var limit = as(plan, Limit.class);
@@ -9825,7 +9832,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     (where emp_no < 10)
              | limit 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
         var fork = as(limit.child(), Fork.class);
@@ -9870,7 +9877,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     (where emp_no < 10 | limit 100)
              | limit 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
         var fork = as(limit.child(), Fork.class);
@@ -9929,7 +9936,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
              | mv_expand emp_no
              | limit 10
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         assertThat(((Literal) limit.limit()).value(), equalTo(10));
 
@@ -10208,7 +10215,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                     )
                 )
             );
-        var optimized = logicalOptimizer.optimize(analyzed);
+        var optimized = buildLogicalOptimizer().optimize(analyzed);
 
         var limit = asLimit(optimized, 1000, false, false);
         var relation = as(limit.child(), LocalRelation.class);
@@ -10227,7 +10234,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * SORT followed by LOOKUP JOIN should warn because the order is lost.
      */
     public void testWarnSortBeforeLookupJoin() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             FROM test
             | EVAL language_code = languages
             | SORT emp_no
@@ -10247,7 +10254,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * because the final SORT restores order.
      */
     public void testNoWarnSortBeforeLookupJoinWithSortAfter() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             FROM test
             | EVAL language_code = languages
             | SORT emp_no
@@ -10264,7 +10271,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * LOOKUP JOIN without a preceding SORT should NOT warn.
      */
     public void testNoWarnLookupJoinWithoutSort() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             FROM test
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
@@ -10279,7 +10286,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * TopN (which includes SORT) followed by LOOKUP JOIN should warn.
      */
     public void testWarnTopNBeforeLookupJoin() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             FROM test
             | EVAL language_code = languages
             | SORT emp_no
@@ -10295,10 +10302,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTranslateMetricsWithAliasToDimensionInGroup() {
-        var plan = logicalOptimizerWithLatestVersion.optimize(metricsAnalyzer().query("""
+        var plan = metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans("""
             TS k8s |
             STATS max(max_over_time(network.bytes_in)) by p = pod, bucket(@timestamp, 1 minute)
-            """));
+            """).coordinatorLogicalOptimized();
 
         // Project[[max(max_over_time(network.bytes_in)){r}#420, pod{r}#426, bucket(@timestamp, 1 minute){r}#418]]
         var project = as(plan, Project.class);
@@ -10358,7 +10365,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushDownSampleAndLimitThroughUriParts() {
         assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var query = "FROM test | URI_PARTS parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
         // UriParts should be above Sample and Limit
         var uriParts = as(optimized, UriParts.class);
         var limit = as(uriParts.child(), Limit.class);
@@ -10375,7 +10382,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | uri_parts u = x
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
 
         // UriParts should be pushed below Project
         var keep = as(plan, Project.class);
@@ -10397,7 +10404,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | uri_parts u = first_name
             | sort u.domain
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("u.domain"));
@@ -10408,7 +10415,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testPushDownSampleAndLimitThroughRegisteredDomain() {
         assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
         var query = "FROM test | registered_domain parts = \"www.example.co.uk\" | SAMPLE .5";
-        var optimized = optimizedPlan(query);
+        var optimized = plan(query);
         var registeredDomain = as(optimized, RegisteredDomain.class);
         var limit = as(registeredDomain.child(), Limit.class);
         var sample = as(limit.child(), Sample.class);
@@ -10424,7 +10431,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | registered_domain rd = x
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
 
         var keep = as(plan, Project.class);
         var registeredDomain = as(keep.child(), RegisteredDomain.class);
@@ -10444,7 +10451,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | registered_domain rd = first_name
             | sort rd.registered_domain
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
 
         var topN = as(plan, TopN.class);
         assertThat(orderNames(topN), contains("rd.registered_domain"));

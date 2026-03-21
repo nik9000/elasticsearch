@@ -47,7 +47,7 @@ public class PromqlFakeResolverTests extends AbstractLogicalPlanOptimizerTests {
         var plan = TEST_PARSER.parseQuery(query);
         plan = resolver.apply(plan);
         plan = defaultAnalyzer().buildAnalyzer().analyze(plan);
-        plan = logicalOptimizer.optimize(plan);
+        plan = buildLogicalOptimizer().optimize(plan);
         return plan.collect(LeafPlan.class).getFirst().output();
     }
 

@@ -2390,7 +2390,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | uri_parts u = first_name
             | WHERE u.domain == "elastic.co" AND salary > 5000
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
 
         // 1. The top level plan should be a Limit (can't be pushed down past filters)
         var limit = as(plan, Limit.class);
@@ -2428,7 +2428,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | registered_domain rd = first_name
             | WHERE rd.registered_domain == "example.co.uk" AND salary > 5000
             """;
-        LogicalPlan plan = optimizedPlan(query);
+        LogicalPlan plan = plan(query);
 
         var limit = as(plan, Limit.class);
 

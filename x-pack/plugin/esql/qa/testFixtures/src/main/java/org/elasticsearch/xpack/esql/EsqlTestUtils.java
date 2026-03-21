@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import org.apache.http.HttpEntity;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
@@ -200,6 +201,8 @@ import java.util.zip.ZipEntry;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static junit.framework.Assert.assertTrue;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
 import static org.elasticsearch.test.ESTestCase.assertEquals;
 import static org.elasticsearch.test.ESTestCase.between;
@@ -235,6 +238,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -1714,5 +1718,28 @@ public final class EsqlTestUtils {
         results.add(input.substring(lastSplit).trim());
 
         return results;
+    }
+
+    static String assertPlanError(
+        boolean stripErrorPrefix,
+        String query,
+        Class<? extends Exception> exception,
+        Matcher<String> messageMatcher,
+        LuceneTestCase.ThrowingRunnable runanable
+    ) {
+        Throwable e = expectThrows(exception, "Expected error for query [" + query + "] but no error was raised", runanable);
+        assertThat(e, instanceOf(exception));
+
+        String message = e.getMessage();
+        if (stripErrorPrefix) {
+            if (e instanceof VerificationException) {
+                assertThat(message, startsWith("Found "));
+            }
+            String pattern = "\nline ";
+            int index = message.indexOf(pattern);
+            message = message.substring(index + pattern.length());
+        }
+        assertThat(message, messageMatcher);
+        return message;
     }
 }

@@ -55,7 +55,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             assertThat(references.build(), not(empty()));
         }
         logger.trace("analyzed plan:\n{}", analyzed);
-        var optimized = logicalOptimizer.optimize(analyzed);
+        var optimized = buildLogicalOptimizer().optimize(analyzed);
         logger.trace("optimized plan:\n{}", optimized);
         return optimized;
     }

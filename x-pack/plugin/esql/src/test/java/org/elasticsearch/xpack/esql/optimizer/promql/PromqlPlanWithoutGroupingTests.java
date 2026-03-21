@@ -54,6 +54,7 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,9 +70,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     public void testWithoutGroupingProducesTimeSeriesOutput() {
-        var plan = logicalOptimizerWithLatestVersion.optimize(
-            planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))")
-        );
+        var plan = planPromql("PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))");
 
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step", MetadataAttribute.TIMESERIES)));
 
@@ -94,7 +93,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
-        var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query));
+        var logical = planPromql(query);
         var physical = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, TransportVersion.current())).optimize(
             new Mapper().map(new Versioned<>(logical, TransportVersion.current()))
         );
@@ -198,7 +197,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         );
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
 
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(
             innerAggregate.toString(),
@@ -211,7 +210,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         LogicalPlan analyzed = planPromql("PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (network.cost)))");
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
 
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertTrue(innerAggregate.groupings().stream().anyMatch(grouping -> Alias.unwrap(grouping) instanceof TimeSeriesWithout));
         assertThat(innerAggregate.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
@@ -267,7 +266,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (does_not_exist) (network.cost)))"
         );
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
     }
@@ -290,7 +289,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             "PROMQL index=k8s step=1h result=(sum by (cluster) (sum without () (avg_over_time(network.cost[1h]))))"
         );
         PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, unboundLogicalOptimizerContext());
         TimeSeriesAggregate innerTsa = translated.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(innerTsa.aggregates().stream().map(NamedExpression::name).toList(), hasItem("cluster"));
     }

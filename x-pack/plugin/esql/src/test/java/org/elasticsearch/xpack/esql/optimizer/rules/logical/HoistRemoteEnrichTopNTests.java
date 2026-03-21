@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -100,11 +101,10 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
     }
 
     private LogicalPlan planWithPolicyOverride(String query) {
-        return logicalOptimizer.optimize(
-            analyzer().addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "hosts", "host", "hosts", "mapping-hosts.json")
-                .addIndex("host_inventory", "mapping-host_inventory.json")
-                .query(query)
-        );
+        return analyzer().addEnrichPolicy(Enrich.Mode.REMOTE, MATCH_TYPE, "hosts", "host", "hosts", "mapping-hosts.json")
+            .addIndex("host_inventory", "mapping-host_inventory.json")
+            .plans(query)
+            .coordinatorLogicalOptimized();
     }
 
     /**
@@ -224,29 +224,29 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
 
     public void testFilterLimitThenEnrich() {
         // Hoisting does not happen, so the verifier fails since TopN is before remote ENRICH
-        failPlan("""
+        defaultAnalyzer().plans("""
             from test
             | EVAL id = emp_no
             | SORT emp_no
             | LIMIT 10
             | WHERE first_name != "john"
             | ENRICH _remote:languages_remote
-            """, "ENRICH with remote policy can't be executed after [SORT emp_no]");
+            """).coordinateLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [SORT emp_no]"));
     }
 
     public void testMvExpandLimitThenEnrich() {
-        failPlan("""
+        defaultAnalyzer().stripErrorPrefix(true).error("""
             from test
             | EVAL id = emp_no
             | SORT emp_no
             | LIMIT 10
             | MV_EXPAND languages
             | ENRICH _remote:languages_remote
-            """, "MV_EXPAND after LIMIT is incompatible with remote ENRICH");
+            """, containsString("MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
     }
 
     public void testTwoSortsWithinRemoteEnrich() {
-        failPlan("""
+        defaultAnalyzer().plans("""
             from test
             | EVAL id = emp_no
             | SORT emp_no
@@ -254,6 +254,6 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             | SORT id
             | LIMIT 5
             | ENRICH _remote:languages_remote
-            """, "ENRICH with remote policy can't be executed after [SORT emp_no]");
+            """).coordinateLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [SORT emp_no]"));
     }
 }

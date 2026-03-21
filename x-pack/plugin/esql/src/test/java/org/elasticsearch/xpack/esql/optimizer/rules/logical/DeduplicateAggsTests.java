@@ -128,7 +128,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
      * }</pre>
      */
     public void testStatsExpOverAggsWithScalarAndDuplicateAggs() {
-        var plan = optimizedPlan("""
+        var plan = plan("""
             from test
             | stats a = avg(salary) + max(salary),
                     b = max(salary) + 3 + PI() + count(salary),

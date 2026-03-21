@@ -328,7 +328,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "emp_no")));
@@ -361,7 +361,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no", "count")));
@@ -404,7 +404,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "emp_no")));
@@ -433,7 +433,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
@@ -462,7 +462,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
@@ -515,7 +515,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var employeesFields = List.of(
             "_meta_field",
@@ -583,7 +583,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
@@ -623,7 +623,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
@@ -664,7 +664,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades")));
@@ -707,7 +707,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "decades", "avgavg")));
@@ -796,7 +796,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("avg", "emp_no", "first_name")));
@@ -831,7 +831,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(Expressions.names(project.projections()), is(List.of("emp_no")));
@@ -873,7 +873,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                 | WHERE _fork == "fork1"
                 | DROP _fork
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("first_name"));
@@ -929,7 +929,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
              | KEEP _fork, emp_no, x, y, z
              | SORT _fork, emp_no
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(5));
         assertThat(Expressions.names(project.projections()), containsInAnyOrder("_fork", "emp_no", "x", "y", "z"));
@@ -1004,7 +1004,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                    ( EVAL x = "abc" | EVAL y = "aaa" )
             | STATS count(*), d = count(emp_no), m = max(_fork), ls = count(s)
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var aggregate = as(limit.child(), Aggregate.class);
         assertThat(aggregate.aggregates().size(), equalTo(4));
@@ -1096,7 +1096,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | where _fork == "fork1"
             | drop _fork
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
@@ -1147,7 +1147,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | drop _fork
             | keep languages
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("languages"));
@@ -1220,7 +1220,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | drop _fork
             | drop languages
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(10));
         var limit = as(project.child(), Limit.class);
@@ -1278,7 +1278,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
                     (stats a = max(salary), b = min(salary))
              | KEEP a
             """;
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var project = as(plan, Project.class);
         assertThat(project.projections().size(), equalTo(1));
         assertThat(Expressions.names(project.projections()), contains("a"));
@@ -1324,7 +1324,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | INLINE STATS languages2 = SUM(languages1), avg = AVG(salary)
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         var limit = as(plan, Limit.class);
         var topJoin = as(limit.child(), InlineJoin.class);
         // Left
@@ -1368,7 +1368,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = as(optimizedPlan(query), Project.class);
+        var plan = as(plan(query), Project.class);
         var limit = as(plan.child(), Limit.class);
         var join = as(limit.child(), InlineJoin.class);
         // Left
@@ -1405,7 +1405,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         Project project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var join = as(limit.child(), InlineJoin.class);
@@ -1451,7 +1451,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         Project project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var join = as(topN.child(), InlineJoin.class);
@@ -1503,7 +1503,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             | LIMIT 10
             """;
 
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
         Project project = as(plan, Project.class);
         var topN = as(project.child(), TopN.class);
         var join = as(topN.child(), InlineJoin.class);
@@ -2148,7 +2148,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
@@ -2189,7 +2189,7 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        var plan = optimizedPlan(query);
+        var plan = plan(query);
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(2));
