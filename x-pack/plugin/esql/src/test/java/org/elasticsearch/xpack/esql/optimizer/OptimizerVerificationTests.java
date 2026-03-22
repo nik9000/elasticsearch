@@ -131,7 +131,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | ENRICH _remote:languages ON language_code
             """)
             .coordinatorLogicalPlanOptimizationError(
-                containsString("4:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3")
+                containsString(
+                    "4:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3"
+                )
             );
 
         testAnalyzer.plans("""
@@ -144,7 +146,9 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | ENRICH _remote:languages ON language_code
             """)
             .coordinatorLogicalPlanOptimizationError(
-                containsString("7:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3")
+                containsString(
+                    "7:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3"
+                )
             );
 
         testAnalyzer.plans("""
@@ -413,11 +417,10 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | SORT languages
             | MV_EXPAND languages
             | WHERE languages == 1
-            """)
-            .coordinatorLogicalPlanOptimizationError(is("""
-                2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
-                line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the SORT \
-                after it, or add a LIMIT after the SORT"""));
+            """).coordinatorLogicalPlanOptimizationError(is("""
+            2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
+            line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the SORT \
+            after it, or add a LIMIT after the SORT"""));
     }
 
     public void testDanglingOrderByInInlineStats() {
@@ -430,14 +433,13 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             | MV_EXPAND languages
             | INLINE STATS count(*) BY languages
             | INLINE STATS s = sum(salary) BY first_name
-            """)
-            .coordinatorLogicalPlanOptimizationError(is("""
-                2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
-                line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the \
-                SORT after it, or add a LIMIT after the SORT
-                line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before it: \
-                either move the SORT after it, or add a LIMIT after the SORT
-                line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages] before \
-                it: either move the SORT after it, or add a LIMIT after the SORT"""));
+            """).coordinatorLogicalPlanOptimizationError(is("""
+            2:3: Unbounded SORT not supported yet [SORT languages] please add a LIMIT
+            line 3:3: MV_EXPAND [MV_EXPAND languages] cannot yet have an unbounded SORT [SORT languages] before it: either move the \
+            SORT after it, or add a LIMIT after the SORT
+            line 4:3: INLINE STATS [INLINE STATS count(*) BY languages] cannot yet have an unbounded SORT [SORT languages] before it: \
+            either move the SORT after it, or add a LIMIT after the SORT
+            line 5:3: INLINE STATS [INLINE STATS s = sum(salary) BY first_name] cannot yet have an unbounded SORT [SORT languages] before \
+            it: either move the SORT after it, or add a LIMIT after the SORT"""));
     }
 }

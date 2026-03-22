@@ -46,8 +46,8 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.hamcrest.Matchers.containsString;
@@ -62,11 +62,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private TestAnalyzer buildTestAnalyzer() {
-        return analyzer()
-            .configuration(TEST_CFG)
-            .addEmployees("test")
-            .addTestLookup()
-            .addLanguagesLookup();
+        return analyzer().configuration(TEST_CFG).addEmployees("test").addTestLookup().addLanguagesLookup();
     }
 
     @Override

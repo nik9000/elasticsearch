@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import org.apache.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.inference.TaskType;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -47,15 +49,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assertPlanError;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 
 /**
  * Helper for testing all things related to {@link Analyzer#analyze}.
@@ -68,6 +70,8 @@ import static org.hamcrest.Matchers.instanceOf;
  * </ul>
  */
 public class TestAnalyzer {
+    private static final Logger log = Logger.getLogger(TestAnalyzer.class);
+    private final List<Rule<LogicalPlan, LogicalPlan>> preanalyzers = new ArrayList<>();
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
@@ -81,6 +85,14 @@ public class TestAnalyzer {
     private boolean stripErrorPrefix;
 
     TestAnalyzer() {}
+
+    /**
+     * Add a rule to run before the analyzer.
+     */
+    public TestAnalyzer addPreanalyzer(Rule<LogicalPlan, LogicalPlan> preanalyzer) {
+        this.preanalyzers.add(preanalyzer);
+        return this;
+    }
 
     /**
      * Set the {@link Configuration} used for the query.
@@ -469,7 +481,7 @@ public class TestAnalyzer {
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, QueryParams params) {
-        return buildAnalyzer().analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, params));
+        return analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, params));
     }
 
     /**
@@ -488,10 +500,12 @@ public class TestAnalyzer {
 
     /**
      * Helper for building optimized coordinating node and local plans.
+     * <p>
+     *     Freezes all randomized configuration into place.
+     * </p>
      */
     public TestPlans plans(String query) {
-        Analyzer analyzer = buildAnalyzer();
-        return new TestPlans(analyzer, query, analyzer.analyze(EsqlTestUtils.TEST_PARSER.parseQuery(query, new QueryParams())));
+        return new TestPlans(List.copyOf(preanalyzers), new Analyzer(buildContext(), TEST_VERIFIER), query);
     }
 
     /**
@@ -502,7 +516,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
-        var analyzed = buildAnalyzer().analyze(statement.plan());
+        var analyzed = analyze(statement.plan());
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
         if (failures.hasFailures()) {
@@ -656,7 +670,18 @@ public class TestAnalyzer {
      * Prefer {@link #query} or {@link #error} if possible.
      */
     public Analyzer buildAnalyzer(Verifier verifier) {
+        assertThat(preanalyzers, empty());
         return new Analyzer(buildContext(), verifier);
+    }
+
+    /**
+     * Analyze a logical plan.
+     */
+    private LogicalPlan analyze(LogicalPlan logicalPlan) {
+        for (Rule<LogicalPlan, LogicalPlan> preanalyzer : this.preanalyzers) {
+            logicalPlan = preanalyzer.apply(logicalPlan);
+        }
+        return new Analyzer(buildContext(), TEST_VERIFIER).analyze(logicalPlan);
     }
 
     /**

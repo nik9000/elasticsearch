@@ -44,12 +44,11 @@ public class QueryTranslatorTests extends ESTestCase {
         assertThat(translatedQuery, translationMatcher);
     }
 
-    private void assertQueryTranslationDateDateNanosUnionTypes(
-        String query,
-        SearchStats stats,
-        Matcher<String> translationMatcher
-    ) {
-        PhysicalPlan optimized = analyzer().addIndex(indexWithDateDateNanosUnionType()).plans(query).searchStats(stats).dataNodePlanOptimized();
+    private void assertQueryTranslationDateDateNanosUnionTypes(String query, SearchStats stats, Matcher<String> translationMatcher) {
+        PhysicalPlan optimized = analyzer().addIndex(indexWithDateDateNanosUnionType())
+            .plans(query)
+            .searchStats(stats)
+            .dataNodePlanOptimized();
         EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
         final String translatedQuery = eqe.query().toString().replaceAll("\\s+", "");
         assertThat(translatedQuery, translationMatcher);

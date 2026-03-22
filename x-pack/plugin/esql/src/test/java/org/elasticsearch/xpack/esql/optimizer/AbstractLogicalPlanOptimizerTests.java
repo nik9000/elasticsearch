@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
@@ -43,7 +42,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
      * possible to express the test as a parsed query.
      */
     protected static LogicalPlanOptimizer buildLogicalOptimizer() {
-        // NOCOMMIT double check all callers are still needed.
         return new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
     }
 
@@ -183,54 +181,6 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             .addLanguagesLookup()
             .addTestLookup()
             .addSpatialLookup();
-    }
-
-    protected LogicalPlan optimize(LogicalPlan plan) {
-        return buildLogicalOptimizer().optimize(plan);
-    }
-
-    protected LogicalPlan plan(String query) {
-        return defaultAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        return defaultAnalyzer().plans(query).localPlanOptimizerBuilder(ctx -> optimizer).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planAirports(String query) {
-        return airportsAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planExtra(String query) {
-        return extraAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planTypes(String query) {
-        return typesAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planMetrics(String query) {
-        return metricsAnalyzer().minimumTransportVersion(TransportVersion.current()).plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planMultiIndex(String query) {
-        return multiIndexAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planUnionIndex(String query) {
-        return unionIndexAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planSample(String query) {
-        return sampleDataAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planSubquery(String query) {
-        return subqueryAnalyzer().plans(query).coordinatorLogicalOptimized();
-    }
-
-    protected LogicalPlan planWithoutForkImplicitLimit(String query) {
-        return analyzerWithoutForkImplicitLimit().plans(query).coordinatorLogicalOptimized();
     }
 
     @Override

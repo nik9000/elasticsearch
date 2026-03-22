@@ -629,7 +629,8 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                     query
                 );
                 ExchangeExec exchange = validatePlanBeforeExchange(
-                    allTypes().configuration(pragmasConfig).plans(query)
+                    allTypes().configuration(pragmasConfig)
+                        .plans(query)
                         .searchStats(searchStats)
                         .roundToPushdownThreshold(clusterLevelThreshold)
                         .dataNodePlanOptimized(),

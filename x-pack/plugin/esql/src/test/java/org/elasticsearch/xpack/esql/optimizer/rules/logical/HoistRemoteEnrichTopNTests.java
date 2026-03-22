@@ -39,13 +39,13 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
      * </pre>
      */
     public void testLimitWithinRemoteEnrich() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | EVAL id = emp_no
             | SORT emp_no
             | LIMIT 10
             | ENRICH _remote:languages_remote
-            """);
+            """).coordinatorLogicalOptimized();
 
         var topn = as(plan, TopN.class);
         assertFalse(topn.local());
@@ -70,14 +70,14 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
      * </pre>
      */
     public void testLimitWithinRemoteEnrichShadow() {
-        var plan = plan("""
+        var plan = defaultAnalyzer().plans("""
             from test
             | EVAL id = emp_no
             | SORT emp_no
             | LIMIT 10
             | EVAL emp_no = emp_no + 1
             | ENRICH _remote:languages_remote
-            """);
+            """).coordinatorLogicalOptimized();
 
         var proj = as(plan, Project.class);
         var topn = as(proj.child(), TopN.class);
@@ -126,14 +126,14 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
      * TODO: probably makes sense to remove double project, but this can be done later
      */
     public void testTopNWithinRemoteEnrichAliasing() {
-        var query = ("""
+        var query = """
             from host_inventory
             | SORT description
             | LIMIT 10
             | EVAL host = host.name
             | KEEP host*, description
             | ENRICH _remote:hosts
-            """);
+            """;
         LogicalPlan plan = planWithPolicyOverride(query);
 
         var proj1 = as(plan, Project.class);
@@ -155,14 +155,14 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
 
     public void testTopNSortFieldsWithinRemoteEnrichAliasing() {
         // Now let's try sort which has more than one field
-        var query = ("""
+        var query = """
             from host_inventory
             | SORT host.name, description
             | LIMIT 10
             | EVAL host = host.name
             | KEEP host*, description
             | ENRICH _remote:hosts
-            """);
+            """;
         LogicalPlan plan = planWithPolicyOverride(query);
 
         var proj1 = as(plan, Project.class);
@@ -200,14 +200,14 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
      */
     public void testTopNSortExpressionWithinRemoteEnrichAliasing() {
         // Now let's try sort which has more than one field
-        var query = ("""
+        var query = """
             from host_inventory
             | SORT host.version, LENGTH(description), to_lower(description), host.os
             | LIMIT 10
             | EVAL host = host.name
             | KEEP host*, description
             | ENRICH _remote:hosts
-            """);
+            """;
         LogicalPlan plan = planWithPolicyOverride(query);
 
         var proj1 = as(plan, Project.class);
