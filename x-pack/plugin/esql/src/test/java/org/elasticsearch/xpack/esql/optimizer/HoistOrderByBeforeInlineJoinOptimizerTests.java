@@ -1096,7 +1096,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
                     | WHERE emp_no > 10000 // prevents the default LIMIT being pushed past INLINE STATS
                     """
             )
-                .coordinateLogicalPlanOptimizationError(
+                .coordinatorLogicalPlanOptimizationError(
                     containsString(
                         "5:3: INLINE STATS [INLINE STATS max_lang = MAX(languages) BY gender] cannot yet have an unbounded SORT"
                             + " [SORT emp_no] before it"

@@ -43,6 +43,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
      * possible to express the test as a parsed query.
      */
     protected static LogicalPlanOptimizer buildLogicalOptimizer() {
+        // NOCOMMIT double check all callers are still needed.
         return new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
     }
 

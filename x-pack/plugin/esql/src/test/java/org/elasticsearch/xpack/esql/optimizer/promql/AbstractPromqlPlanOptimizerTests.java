@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.TestPlans;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -46,18 +47,15 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");
-        var analyzed = tsAnalyzer().query(query);
+        TestPlans plans = tsAnalyzer().plans(query);
         AttributeSet.Builder references = AttributeSet.builder();
-        analyzed.forEachDown(lp -> references.addAll(lp.references()));
+        plans.coordinatorLogicalUnoptimized().forEachDown(lp -> references.addAll(lp.references()));
         if (allowEmptyReferences) {
             assertThat(references.build(), empty());
         } else {
             assertThat(references.build(), not(empty()));
         }
-        logger.trace("analyzed plan:\n{}", analyzed);
-        var optimized = buildLogicalOptimizer().optimize(analyzed);
-        logger.trace("optimized plan:\n{}", optimized);
-        return optimized;
+        return plans.coordinatorLogicalOptimized();
     }
 
     protected void assertConstantResult(String query, Matcher<Double> matcher) {

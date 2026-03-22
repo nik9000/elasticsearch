@@ -212,7 +212,7 @@ public class HoistRemoteEnrichLimitTests extends AbstractLogicalPlanOptimizerTes
             | LIMIT 10
             | WHERE first_name != "john"
             | ENRICH _remote:languages_remote
-            """).coordinateLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [LIMIT 10]"));
+            """).coordinatorLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [LIMIT 10]"));
     }
 
     public void testMvExpandLimitThenEnrich() {

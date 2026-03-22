@@ -231,7 +231,7 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             | LIMIT 10
             | WHERE first_name != "john"
             | ENRICH _remote:languages_remote
-            """).coordinateLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [SORT emp_no]"));
+            """).coordinatorLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [SORT emp_no]"));
     }
 
     public void testMvExpandLimitThenEnrich() {
@@ -254,6 +254,6 @@ public class HoistRemoteEnrichTopNTests extends AbstractLogicalPlanOptimizerTest
             | SORT id
             | LIMIT 5
             | ENRICH _remote:languages_remote
-            """).coordinateLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [SORT emp_no]"));
+            """).coordinatorLogicalPlanOptimizationError(containsString("ENRICH with remote policy can't be executed after [SORT emp_no]"));
     }
 }

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -40,6 +42,8 @@ import static org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize.estima
  * Helper for building optimized coordinating node and local plans.
  */
 public class TestPlans {
+    private static final Logger log = LogManager.getLogger(TestPlans.class);
+
     private final Analyzer analyzer;
     private final String query;
     private final LogicalPlan coordinatorLogicalUnoptimized;
@@ -59,6 +63,7 @@ public class TestPlans {
         this.analyzer = analyzer;
         this.query = query;
         this.coordinatorLogicalUnoptimized = coordinatorLogicalUnoptimized;
+        log.trace("coordinator logical unoptimized:\n{}", coordinatorLogicalUnoptimized);
     }
 
     public TestPlans searchStats(SearchStats searchStats) {
@@ -94,15 +99,20 @@ public class TestPlans {
         return this;
     }
 
+    public LogicalPlan coordinatorLogicalUnoptimized() {
+        return coordinatorLogicalUnoptimized;
+    }
+
     public LogicalPlan coordinatorLogicalOptimized() {
         if (coordinatorLogicalOptimized == null) {
             LogicalPlanOptimizer optimizer = localPlanOptimizerBuilder.apply(logicalOptimizerContext());
             coordinatorLogicalOptimized = optimizer.optimize(coordinatorLogicalUnoptimized);
+            log.trace("coordinator logical optimized:\n{}", coordinatorLogicalOptimized);
         }
         return coordinatorLogicalOptimized;
     }
 
-    public String coordinateLogicalPlanOptimizationError(Matcher<String> messageMatcher) {
+    public String coordinatorLogicalPlanOptimizationError(Matcher<String> messageMatcher) {
         LogicalPlanOptimizer optimizer = localPlanOptimizerBuilder.apply(logicalOptimizerContext());
         return assertPlanError(
             true,
@@ -122,6 +132,7 @@ public class TestPlans {
             coordinatorPhysicalPlanUnoptimized = new Mapper().map(
                 new Versioned<>(coordinatorLogicalOptimized(), analyzer.context().minimumVersion())
             );
+            log.trace("coordinator physical unoptimized:\n{}", coordinatorPhysicalPlanUnoptimized);
         }
         return coordinatorPhysicalPlanUnoptimized;
     }
@@ -133,6 +144,7 @@ public class TestPlans {
                 new PhysicalOptimizerContext(analyzer.context().configuration(), analyzer.context().minimumVersion())
             );
             coordinatorPhysicalPlanOptimized = estimateRowSize(0, optimizer.optimize(plan));
+            log.trace("coordinator physical optimized:\n{}", coordinatorPhysicalPlanUnoptimized);
         }
         return coordinatorPhysicalPlanOptimized;
     }
@@ -159,6 +171,7 @@ public class TestPlans {
                 null
             );
             dataNodePlanOptimized = localRelationshipAlignment(plan);
+            log.trace("data node physical optimized:\n{}", coordinatorPhysicalPlanUnoptimized);
         }
         return dataNodePlanOptimized;
     }
