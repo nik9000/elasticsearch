@@ -574,9 +574,12 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var blocks = new Block[blocksArraySize];
         try (
             IntVector groups = driverContext().blockFactory().newIntRangeVector(0, groupCount);
-            GroupingAggregatorFunction.PreparedForEvaluation prepared = aggregator.prepareForEvaluate(groups);
+            GroupingAggregatorFunction.PreparedForEvaluation prepared = aggregator.prepareForEvaluate(
+                groups,
+                new GroupingAggregatorEvaluationContext(driverContext())
+            );
         ) {
-            prepared.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
+            prepared.evaluate(blocks, resultBlockIndex, groups);
 
             var block = blocks[resultBlockIndex];
 

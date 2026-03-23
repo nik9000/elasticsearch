@@ -167,8 +167,11 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
         return this::evaluateIntermediate;
     }
 
-    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selectedInPage.getPositionCount())) {
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (
+            BooleanVector.FixedBuilder builder = driverContext.blockFactory()
+                .newBooleanVectorFixedBuilder(selectedInPage.getPositionCount())
+        ) {
             for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
                 int group = selectedInPage.getInt(i);
                 builder.appendBoolean(state.get(group));
@@ -178,12 +181,15 @@ public class PresentGroupingAggregatorFunction implements GroupingAggregatorFunc
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return this::evaluateFinal;
     }
 
-    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (BooleanVector.Builder builder = evaluationContext.blockFactory().newBooleanVectorFixedBuilder(selectedInPage.getPositionCount())) {
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (BooleanVector.Builder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selectedInPage.getPositionCount())) {
             for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
                 int si = selectedInPage.getInt(i);
                 builder.appendBoolean(state.get(si));

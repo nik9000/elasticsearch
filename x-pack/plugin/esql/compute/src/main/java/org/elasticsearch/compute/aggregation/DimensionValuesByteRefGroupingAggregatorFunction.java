@@ -239,7 +239,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         return this::evaluate;
     }
 
-    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
         int positionCount = selectedInPage.getPositionCount();
         boolean allSelected = positionCount > maxGroupId;
         if (allSelected) {
@@ -275,7 +275,10 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return this::evaluate;
     }
 

@@ -271,7 +271,7 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
         return this::evaluateIntermediate;
     }
 
-    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         try (var values = driverContext.blockFactory().newDoubleVectorFixedBuilder(selectedInPage.getPositionCount())) {
             for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
                 int si = selectedInPage.getInt(i);
@@ -285,12 +285,15 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return this::evaluateFinal;
     }
 
-    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (DoubleVector.Builder builder = evaluationContext.blockFactory().newDoubleVectorFixedBuilder(selectedInPage.getPositionCount())) {
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (DoubleVector.Builder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selectedInPage.getPositionCount())) {
             for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
                 int si = selectedInPage.getInt(i);
                 builder.appendDouble(state.getOrDefault(si));

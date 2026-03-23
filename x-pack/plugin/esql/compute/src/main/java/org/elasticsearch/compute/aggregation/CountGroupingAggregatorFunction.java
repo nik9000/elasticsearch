@@ -263,7 +263,7 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
         return this::evaluateIntermediate;
     }
 
-    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
             for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
                 int si = selectedInPage.getInt(i);
@@ -277,12 +277,15 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return this::evaluateFinal;
     }
 
-    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (LongVector.Builder builder = evaluationContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage) {
+        try (LongVector.Builder builder = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
             for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
                 int si = selectedInPage.getInt(i);
                 builder.appendLong(state.getOrDefault(si));

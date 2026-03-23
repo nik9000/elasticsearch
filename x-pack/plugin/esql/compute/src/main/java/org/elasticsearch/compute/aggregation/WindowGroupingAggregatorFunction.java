@@ -57,20 +57,17 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
-        // TODO rework passing `evaluationContext` down.
-        return (blocks, offset, selectedInPage, evaluationContext) -> {
-            if (evaluationContext instanceof TimeSeriesGroupingAggregatorEvaluationContext timeSeriesContext) {
-                evaluateFinalWithWindow(blocks, offset, selectedInPage, timeSeriesContext);
-            } else {
-                next.prepareEvaluateFinal(selected).evaluate(blocks, offset, selectedInPage, evaluationContext);
-            }
-        };
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext timeSeriesContext) {
+            return prepareEvaluateFinalWithWindow(selected, timeSeriesContext);
+        }
+        return next.prepareEvaluateFinal(selected, ctx);
     }
 
-    private void evaluateFinalWithWindow(
-        Block[] blocks,
-        int offset,
+    private GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinalWithWindow(
         IntVector selected,
         TimeSeriesGroupingAggregatorEvaluationContext evaluationContext
     ) {
@@ -80,14 +77,14 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             long startTime = evaluationContext.rangeStartInMillis(groupId);
             long endTime = evaluationContext.rangeEndInMillis(groupId);
             if (endTime - startTime == window.toMillis()) {
-                next.prepareEvaluateFinal(selected).evaluate(blocks, offset, selected, evaluationContext);
-                return;
+                return next.prepareEvaluateFinal(selected, evaluationContext);
             }
         }
         int blockCount = next.intermediateBlockCount();
         List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
         GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
-        try (GroupingAggregator finalAgg = aggregatorFactory.apply(evaluationContext.driverContext())) {
+        GroupingAggregator finalAgg = aggregatorFactory.apply(evaluationContext.driverContext());
+        try {
             Block[] intermediateBlocks = new Block[blockCount];
             int[] backwards = new int[selected.getPositionCount()];
             for (int i = 0; i < selected.getPositionCount(); i++) {
@@ -96,7 +93,8 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 backwards[groupId] = i;
             }
             try {
-                next.prepareEvaluateIntermediate(selected).evaluate(intermediateBlocks, 0, selected, evaluationContext);
+                // TODO slice into pages
+                next.prepareEvaluateIntermediate(selected).evaluate(intermediateBlocks, 0, selected);
                 Page page = new Page(intermediateBlocks);
                 finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
                 for (int i = 0; i < selected.getPositionCount(); i++) {
@@ -106,45 +104,57 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             } finally {
                 Releasables.close(intermediateBlocks);
             }
-            try (PreparedForEvaluation delegate = finalAgg.prepareForEvaluate(selected)) {
-                delegate.evaluate(
-                    blocks,
-                    offset,
-                    selected,
+            PreparedForEvaluation delegate = finalAgg.prepareForEvaluate(
+                selected,
+                new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
                     // expand the window to cover the new range
-                    new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
-                        @Override
-                        public long rangeStartInMillis(int groupId) {
-                            return evaluationContext.rangeStartInMillis(groupId);
-                        }
-
-                        @Override
-                        public long rangeEndInMillis(int groupId) {
-                            return rangeStartInMillis(groupId) + window.toMillis();
-                        }
-
-                        @Override
-                        public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                            throw new UnsupportedOperationException();
-                        }
-
-                        @Override
-                        public int previousGroupId(int currentGroupId) {
-                            return -1;
-                        }
-
-                        @Override
-                        public int nextGroupId(int currentGroupId) {
-                            return -1;
-                        }
-
-                        @Override
-                        public void computeAdjacentGroupIds() {
-                            // not used by #nextGroupId and #previousGroupId
-                        }
+                    @Override
+                    public long rangeStartInMillis(int groupId) {
+                        return evaluationContext.rangeStartInMillis(groupId);
                     }
-                );
-            }
+
+                    @Override
+                    public long rangeEndInMillis(int groupId) {
+                        return rangeStartInMillis(groupId) + window.toMillis();
+                    }
+
+                    @Override
+                    public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int previousGroupId(int currentGroupId) {
+                        return -1;
+                    }
+
+                    @Override
+                    public int nextGroupId(int currentGroupId) {
+                        return -1;
+                    }
+
+                    @Override
+                    public void computeAdjacentGroupIds() {
+                        // not used by #nextGroupId and #previousGroupId
+                    }
+                }
+            );
+            GroupingAggregator takeFinalAgg = finalAgg;
+            finalAgg = null;
+            // Leave the final agg open until the prepared results are closed.
+            return new PreparedForEvaluation() {
+                @Override
+                public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
+                    delegate.evaluate(blocks, offset, selectedInPage);
+                }
+
+                @Override
+                public void close() {
+                    Releasables.close(delegate, takeFinalAgg);
+                }
+            };
+        } finally {
+            Releasables.close(finalAgg);
         }
     }
 

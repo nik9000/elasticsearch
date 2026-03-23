@@ -718,8 +718,7 @@ public class GroupingAggregatorImplementer {
         builder.addModifiers(Modifier.PRIVATE)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
-            .addParameter(INT_VECTOR, "selectedInPage")
-            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluationContext");
+            .addParameter(INT_VECTOR, "selectedInPage");
         builder.addStatement("state.toIntermediate(blocks, offset, selectedInPage, driverContext)");
         return builder.build();
     }
@@ -727,8 +726,9 @@ public class GroupingAggregatorImplementer {
     private MethodSpec prepareEvaluateFinal() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareEvaluateFinal");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(INT_VECTOR, "selected");
+        builder.addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
         builder.returns(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION);
-        builder.addStatement("return this::evaluateFinal");
+        builder.addStatement("return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx)");
         return builder.build();
     }
 
@@ -738,10 +738,10 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selectedInPage")
-            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluationContext");
+            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
 
         if (aggState.declaredType().isPrimitive()) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selectedInPage, evaluationContext.driverContext())");
+            builder.addStatement("blocks[offset] = state.toValuesBlock(selectedInPage, driverContext)");
         } else {
             requireStaticMethod(
                 declarationType,
@@ -753,7 +753,7 @@ public class GroupingAggregatorImplementer {
                     requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
                 )
             );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selectedInPage, evaluationContext)", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selectedInPage, ctx)", declarationType);
         }
         return builder.build();
     }

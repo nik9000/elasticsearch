@@ -151,7 +151,7 @@ public interface GroupingAggregatorFunction extends Releasable {
          * @param selected The results to include in this page. This is a subset of the
          *                 {@code selected} set to the method that built this.
          */
-        void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
+        void evaluate(Block[] blocks, int offset, IntVector selected);
 
         @Override
         default void close() {}
@@ -173,7 +173,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      *    results have been gathered from the worker nodes, and aggregated into
      *    intermediate blocks.</p>
      */
-    PreparedForEvaluation prepareEvaluateFinal(IntVector selected);
+    PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx);
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();

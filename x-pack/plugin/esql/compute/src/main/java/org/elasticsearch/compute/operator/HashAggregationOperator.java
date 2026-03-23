@@ -377,10 +377,9 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        PreparedForEvaluation prepared = null;
         long startInNanos = System.nanoTime();
+        PreparedForEvaluation prepared = new PreparedForEvaluation();
         try {
-            prepared = prepare();
             if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
                 output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
             } else {
@@ -414,7 +413,7 @@ public class HashAggregationOperator implements Operator {
         return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
     }
 
-    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
+    protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash) {
         return new GroupingAggregatorEvaluationContext(driverContext);
     }
 
@@ -710,31 +709,30 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    PreparedForEvaluation prepare() {
-        PreparedForEvaluation result = new PreparedForEvaluation(
-            new Selected(blockHash.nonEmpty(), new IntVector[aggregators.size()]),
-            new ArrayList<>(aggregators.size())
-        );
-        try {
-            for (int a = 0; a < aggregators.size(); a++) {
-                result.selected.aggs[a] = customizeSelected(aggregators.get(a), result.selected.keys);
-            }
-            for (int a = 0; a < aggregators.size(); a++) {
-                result.aggregators.add(aggregators.get(a).prepareForEvaluate(result.selected.aggs[a]));
-            }
-            PreparedForEvaluation r = result;
-            result = null;
-            return r;
-        } finally {
-            Releasables.close(result);
-        }
-    }
-
     private class PreparedForEvaluation implements Releasable {
+        private final GroupingAggregatorEvaluationContext ctx;
         private final Selected selected;
         private final List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators;
 
-        private PreparedForEvaluation(Selected selected, List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators) {
+        private PreparedForEvaluation() {
+            int count = HashAggregationOperator.this.aggregators.size();
+            GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
+            Selected selected = null;
+            List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators = new ArrayList<>(count);
+            boolean success = false;
+            try {
+                selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
+                for (int a = 0; a < count; a++) {
+                    selected.aggs[a] = customizeSelected(HashAggregationOperator.this.aggregators.get(a), selected.keys);
+                    aggregators.add(HashAggregationOperator.this.aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(ctx, selected);
+                }
+            }
+            this.ctx = ctx;
             this.selected = selected;
             this.aggregators = aggregators;
         }
@@ -750,12 +748,10 @@ public class HashAggregationOperator implements Operator {
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             try {
                 int blockOffset = keys.length;
-                try (GroupingAggregatorEvaluationContext evaluationContext = evaluationContext(blockHash, keys)) {
-                    for (int i = 0; i < aggregators.size(); i++) {
-                        var aggregator = aggregators.get(i);
-                        aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i], evaluationContext);
-                        blockOffset += aggBlockCounts[i];
-                    }
+                for (int i = 0; i < aggregators.size(); i++) {
+                    var aggregator = aggregators.get(i);
+                    aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
+                    blockOffset += aggBlockCounts[i];
                 }
                 Page result = new Page(blocks);
                 blocks = null;
@@ -769,7 +765,7 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public void close() {
-            Releasables.close(selected, Releasables.wrap(aggregators));
+            Releasables.close(ctx, selected, Releasables.wrap(aggregators));
         }
     }
 

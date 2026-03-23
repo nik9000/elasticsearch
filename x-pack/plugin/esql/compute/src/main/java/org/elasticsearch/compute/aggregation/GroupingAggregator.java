@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -60,11 +59,14 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
         }
     }
 
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         if (mode.isOutputPartial()) {
             return aggregatorFunction.prepareEvaluateIntermediate(selected);
         } else {
-            return aggregatorFunction.prepareEvaluateFinal(selected);
+            return aggregatorFunction.prepareEvaluateFinal(selected, ctx);
         }
     }
 

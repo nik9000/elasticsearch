@@ -870,8 +870,8 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                     }
 
                     @Override
-                    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
-                        return delegate.prepareEvaluateFinal(selected);
+                    public PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+                        return delegate.prepareEvaluateFinal(selected, ctx);
                     }
 
                     @Override

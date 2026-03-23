@@ -199,7 +199,7 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         return this::evaluate;
     }
 
-    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
         final BlockFactory blockFactory = driverContext.blockFactory();
         final int positionCount = selectedInPage.getPositionCount();
         try (
@@ -279,7 +279,10 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return this::evaluate;
     }
 

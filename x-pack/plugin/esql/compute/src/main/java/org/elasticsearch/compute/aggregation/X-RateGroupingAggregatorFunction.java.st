@@ -363,7 +363,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         return this::evaluateIntermediate;
     }
 
-    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
         try (
@@ -565,11 +565,11 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
-        return this::evaluateFinal;
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
-    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
         try (var flushQueues = rawBuffer.prepareForFlush(); var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
@@ -598,7 +598,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                     }
                 }
             }
-            if (evaluationContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+            if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                 tsContext.computeAdjacentGroupIds();
             }
             for (int p = 0; p < positionCount; p++) {
@@ -608,7 +608,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                 final double rate;
                 if (state == null || state.samples == 0) {
                     rate = Double.NaN;
-                } else if (evaluationContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                } else if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
                     rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
                 } else {
                     rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
