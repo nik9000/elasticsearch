@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -376,22 +377,27 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-        IntVector selected = null;
+        PreparedForEvaluation prepared = null;
         long startInNanos = System.nanoTime();
         try {
-            selected = blockHash.nonEmpty();
-            if (selected.getPositionCount() <= maxPageSize) {
-                output = ReleasableIterator.single(addAggResults(selected, aggBlockCounts));
+            prepared = prepare();
+            if (prepared.selected.keys.getPositionCount() <= maxPageSize) {
+                output = ReleasableIterator.single(prepared.buildPage(prepared.selected, aggBlockCounts));
             } else {
-                output = new MultiPageResult(selected, aggBlockCounts);
-                selected = null; // Selected has moved into the output
+                output = new MultiPageResult(prepared, aggBlockCounts);
+                prepared = null; // Prepared has moved into the output
             }
         } finally {
             rowsAddedInCurrentBatch = 0;
-            Releasables.close(selected);
+            Releasables.close(prepared);
             emitNanos += System.nanoTime() - startInNanos;
             emitCount++;
         }
+    }
+
+    protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
+        selected.incRef();
+        return selected;
     }
 
     protected boolean shouldEmitPartialResultsPeriodically() {
@@ -406,16 +412,6 @@ public class HashAggregationOperator implements Operator {
             return false;
         }
         return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;
-    }
-
-    protected void evaluateAggregator(
-        GroupingAggregator aggregator,
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext evaluationContext
-    ) {
-        aggregator.evaluate(blocks, offset, selected, evaluationContext);
     }
 
     protected GroupingAggregatorEvaluationContext evaluationContext(BlockHash blockHash, Block[] keys) {
@@ -680,27 +676,27 @@ public class HashAggregationOperator implements Operator {
      * </p>
      */
     class MultiPageResult implements ReleasableIterator<Page> {
-        private final IntVector selected;
+        private final PreparedForEvaluation prepared;
         private final int[] aggBlockCounts;
 
         private int rowOffset = 0;
 
-        MultiPageResult(IntVector selected, int[] aggBlockCounts) {
-            this.selected = selected;
+        MultiPageResult(PreparedForEvaluation prepared, int[] aggBlockCounts) {
+            this.prepared = prepared;
             this.aggBlockCounts = aggBlockCounts;
         }
 
         @Override
         public boolean hasNext() {
-            return rowOffset < selected.getPositionCount();
+            return rowOffset < prepared.selected.keys.getPositionCount();
         }
 
         @Override
         public Page next() {
             long startInNanos = System.nanoTime();
-            int endOffset = Math.min(maxPageSize + rowOffset, selected.getPositionCount());
-            try (IntVector selectedInThisPage = selected.slice(rowOffset, endOffset)) {
-                Page output = addAggResults(selectedInThisPage, aggBlockCounts);
+            int endOffset = Math.min(maxPageSize + rowOffset, prepared.selected.keys.getPositionCount());
+            try (Selected selectedInThisPage = prepared.selected.slice(rowOffset, endOffset)) {
+                Page output = prepared.buildPage(selectedInThisPage, aggBlockCounts);
                 rowOffset = endOffset;
                 return output;
             } finally {
@@ -710,30 +706,92 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public void close() {
-            Releasables.close(selected);
+            prepared.close();
         }
     }
 
-    private Page addAggResults(IntVector selected, int[] aggBlockCounts) {
-        Block[] keys = blockHash.getKeys(selected);
-        Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-        System.arraycopy(keys, 0, blocks, 0, keys.length);
+    PreparedForEvaluation prepare() {
+        PreparedForEvaluation result = new PreparedForEvaluation(
+            new Selected(blockHash.nonEmpty(), new IntVector[aggregators.size()]),
+            new ArrayList<>(aggregators.size())
+        );
         try {
-            int blockOffset = keys.length;
-            try (GroupingAggregatorEvaluationContext evaluationContext = evaluationContext(blockHash, keys)) {
-                for (int i = 0; i < aggregators.size(); i++) {
-                    var aggregator = aggregators.get(i);
-                    evaluateAggregator(aggregator, blocks, blockOffset, selected, evaluationContext);
-                    blockOffset += aggBlockCounts[i];
+            for (int a = 0; a < aggregators.size(); a++) {
+                result.selected.aggs[a] = customizeSelected(aggregators.get(a), result.selected.keys);
+            }
+            for (int a = 0; a < aggregators.size(); a++) {
+                result.aggregators.add(aggregators.get(a).prepareForEvaluate(result.selected.aggs[a]));
+            }
+            PreparedForEvaluation r = result;
+            result = null;
+            return r;
+        } finally {
+            Releasables.close(result);
+        }
+    }
+
+    private class PreparedForEvaluation implements Releasable {
+        private final Selected selected;
+        private final List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators;
+
+        private PreparedForEvaluation(Selected selected, List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators) {
+            this.selected = selected;
+            this.aggregators = aggregators;
+        }
+
+        /**
+         * Build a page or results.
+         * @param selectedInPage The subset of {@link #selected} for this page. If we're
+         *                       emitting a single page then this is {@code ==} to {@link #selected}.
+         */
+        Page buildPage(Selected selectedInPage, int[] aggBlockCounts) {
+            Block[] keys = blockHash.getKeys(selectedInPage.keys);
+            Block[] blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
+            System.arraycopy(keys, 0, blocks, 0, keys.length);
+            try {
+                int blockOffset = keys.length;
+                try (GroupingAggregatorEvaluationContext evaluationContext = evaluationContext(blockHash, keys)) {
+                    for (int i = 0; i < aggregators.size(); i++) {
+                        var aggregator = aggregators.get(i);
+                        aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i], evaluationContext);
+                        blockOffset += aggBlockCounts[i];
+                    }
+                }
+                Page result = new Page(blocks);
+                blocks = null;
+                return result;
+            } finally {
+                if (blocks != null) {
+                    Releasables.close(blocks);
                 }
             }
-            Page result = new Page(blocks);
-            blocks = null;
-            return result;
-        } finally {
-            if (blocks != null) {
-                Releasables.close(blocks);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(selected, Releasables.wrap(aggregators));
+        }
+    }
+
+    private record Selected(IntVector keys, IntVector[] aggs) implements Releasable {
+        public Selected slice(int beginInclude, int endExclusive) {
+            Selected result = new Selected(keys.slice(beginInclude, endExclusive), new IntVector[aggs.length]);
+            try {
+                for (int a = 0; a < aggs.length; a++) {
+                    result.aggs[a] = aggs[a].slice(beginInclude, endExclusive);
+                }
+                Selected r = result;
+                result = null;
+                return r;
+            } finally {
+                Releasables.close(result);
             }
+
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(keys, Releasables.wrap(aggs));
         }
     }
 }

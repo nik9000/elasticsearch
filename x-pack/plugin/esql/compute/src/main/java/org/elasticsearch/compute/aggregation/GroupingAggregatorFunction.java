@@ -141,6 +141,23 @@ public interface GroupingAggregatorFunction extends Releasable {
     void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
     /**
+     * View into the agg that's prepared to emit results. Built with a {@code selected} range.
+     */
+    interface PreparedForEvaluation extends Releasable {
+        /**
+         * Build a page of results.
+         * @param blocks array to write the target blocks
+         * @param offset offset into {@code blocks} to write the first block
+         * @param selected The results to include in this page. This is a subset of the
+         *                 {@code selected} set to the method that built this.
+         */
+        void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
+
+        @Override
+        default void close() {}
+    }
+
+    /**
      * Build the intermediate results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.

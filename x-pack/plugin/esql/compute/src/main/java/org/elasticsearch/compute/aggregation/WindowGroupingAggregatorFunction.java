@@ -103,43 +103,45 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             } finally {
                 Releasables.close(intermediateBlocks);
             }
-            finalAgg.evaluate(
-                blocks,
-                offset,
-                selected,
-                // expand the window to cover the new range
-                new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
-                    @Override
-                    public long rangeStartInMillis(int groupId) {
-                        return evaluationContext.rangeStartInMillis(groupId);
-                    }
+            try (PreparedForEvaluation delegate = finalAgg.prepareForEvaluate(selected)) {
+                delegate.evaluate(
+                    blocks,
+                    offset,
+                    selected,
+                    // expand the window to cover the new range
+                    new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
+                        @Override
+                        public long rangeStartInMillis(int groupId) {
+                            return evaluationContext.rangeStartInMillis(groupId);
+                        }
 
-                    @Override
-                    public long rangeEndInMillis(int groupId) {
-                        return rangeStartInMillis(groupId) + window.toMillis();
-                    }
+                        @Override
+                        public long rangeEndInMillis(int groupId) {
+                            return rangeStartInMillis(groupId) + window.toMillis();
+                        }
 
-                    @Override
-                    public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
-                        throw new UnsupportedOperationException();
-                    }
+                        @Override
+                        public List<Integer> groupIdsFromWindow(int startingGroupId, Duration window) {
+                            throw new UnsupportedOperationException();
+                        }
 
-                    @Override
-                    public int previousGroupId(int currentGroupId) {
-                        return -1;
-                    }
+                        @Override
+                        public int previousGroupId(int currentGroupId) {
+                            return -1;
+                        }
 
-                    @Override
-                    public int nextGroupId(int currentGroupId) {
-                        return -1;
-                    }
+                        @Override
+                        public int nextGroupId(int currentGroupId) {
+                            return -1;
+                        }
 
-                    @Override
-                    public void computeAdjacentGroupIds() {
-                        // not used by #nextGroupId and #previousGroupId
+                        @Override
+                        public void computeAdjacentGroupIds() {
+                            // not used by #nextGroupId and #previousGroupId
+                        }
                     }
-                }
-            );
+                );
+            }
         }
     }
 

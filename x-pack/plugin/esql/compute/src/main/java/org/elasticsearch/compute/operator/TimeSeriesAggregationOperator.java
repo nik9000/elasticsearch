@@ -221,26 +221,14 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected void evaluateAggregator(
-        GroupingAggregator aggregator,
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        GroupingAggregatorEvaluationContext evaluationContext
-    ) {
+    protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
         if (expandingGroups != null && expandingGroups.count > 0 && isValuesAggregator(aggregator.aggregatorFunction())) {
-            try (var valuesSelected = selectedForValuesAggregator(driverContext.blockFactory(), selected, expandingGroups)) {
-                super.evaluateAggregator(aggregator, blocks, offset, valuesSelected, evaluationContext);
-            }
-        } else {
-            if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
-                try (IntVector dedup = selectedForDocIdsAggregator(evaluationContext.blockFactory(), selected)) {
-                    super.evaluateAggregator(aggregator, blocks, offset, dedup, evaluationContext);
-                }
-            } else {
-                super.evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
-            }
+            return selectedForValuesAggregator(driverContext.blockFactory(), selected, expandingGroups);
         }
+        if (aggregator.aggregatorFunction() instanceof FirstDocIdGroupingAggregatorFunction) {
+            return selectedForDocIdsAggregator(driverContext.blockFactory(), selected);
+        }
+        return super.customizeSelected(aggregator, selected);
     }
 
     /*

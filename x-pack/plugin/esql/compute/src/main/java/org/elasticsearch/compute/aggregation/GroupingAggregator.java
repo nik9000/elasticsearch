@@ -60,17 +60,17 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
         }
     }
 
-    /**
-     * Build the results for this aggregation.
-     * @param selected the groupIds that have been selected to be included in
-     *                 the results. Always ascending.
-     */
-    public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
-        } else {
-            aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
-        }
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(IntVector selected) {
+        return new GroupingAggregatorFunction.PreparedForEvaluation() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
+                if (mode.isOutputPartial()) {
+                    aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
+                } else {
+                    aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
+                }
+            }
+        };
     }
 
     @Override
