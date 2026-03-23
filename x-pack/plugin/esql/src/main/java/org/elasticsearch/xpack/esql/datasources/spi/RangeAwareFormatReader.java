@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
+import org.elasticsearch.compute.operator.CloseableIterator;
 
 import java.io.IOException;
 import java.util.List;
