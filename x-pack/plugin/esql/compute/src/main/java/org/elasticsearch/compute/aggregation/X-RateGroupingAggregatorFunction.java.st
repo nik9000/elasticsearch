@@ -359,7 +359,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return this::evaluateIntermediate;
     }
 

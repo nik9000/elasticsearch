@@ -52,8 +52,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected) {
-        return next.prepareEvaluateIntermediate(selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateIntermediate(selected, ctx);
     }
 
     @Override
@@ -69,21 +72,21 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
 
     private GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinalWithWindow(
         IntVector selected,
-        TimeSeriesGroupingAggregatorEvaluationContext evaluationContext
+        TimeSeriesGroupingAggregatorEvaluationContext ctx
     ) {
         if (selected.getPositionCount() > 0) {
             // TODO: rewrite to NO_WINDOW in the planner if the bucket and the window are the same
             int groupId = selected.getInt(0);
-            long startTime = evaluationContext.rangeStartInMillis(groupId);
-            long endTime = evaluationContext.rangeEndInMillis(groupId);
+            long startTime = ctx.rangeStartInMillis(groupId);
+            long endTime = ctx.rangeEndInMillis(groupId);
             if (endTime - startTime == window.toMillis()) {
-                return next.prepareEvaluateFinal(selected, evaluationContext);
+                return next.prepareEvaluateFinal(selected, ctx);
             }
         }
         int blockCount = next.intermediateBlockCount();
         List<Integer> channels = IntStream.range(0, blockCount).boxed().toList();
         GroupingAggregator.Factory aggregatorFactory = supplier.groupingAggregatorFactory(AggregatorMode.FINAL, channels);
-        GroupingAggregator finalAgg = aggregatorFactory.apply(evaluationContext.driverContext());
+        GroupingAggregator finalAgg = aggregatorFactory.apply(ctx.driverContext());
         try {
             Block[] intermediateBlocks = new Block[blockCount];
             int[] backwards = new int[selected.getPositionCount()];
@@ -94,23 +97,23 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             }
             try {
                 // TODO slice into pages
-                next.prepareEvaluateIntermediate(selected).evaluate(intermediateBlocks, 0, selected);
+                next.prepareEvaluateIntermediate(selected, ctx).evaluate(intermediateBlocks, 0, selected);
                 Page page = new Page(intermediateBlocks);
                 finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
-                    mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), evaluationContext);
+                    mergeBucketsFromWindow(groupId, backwards, page, finalAgg.aggregatorFunction(), ctx);
                 }
             } finally {
                 Releasables.close(intermediateBlocks);
             }
             PreparedForEvaluation delegate = finalAgg.prepareForEvaluate(
                 selected,
-                new TimeSeriesGroupingAggregatorEvaluationContext(evaluationContext.driverContext()) {
+                new TimeSeriesGroupingAggregatorEvaluationContext(ctx.driverContext()) {
                     // expand the window to cover the new range
                     @Override
                     public long rangeStartInMillis(int groupId) {
-                        return evaluationContext.rangeStartInMillis(groupId);
+                        return ctx.rangeStartInMillis(groupId);
                     }
 
                     @Override

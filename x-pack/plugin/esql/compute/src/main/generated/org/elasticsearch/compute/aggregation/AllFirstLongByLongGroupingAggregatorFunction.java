@@ -212,7 +212,7 @@ public final class AllFirstLongByLongGroupingAggregatorFunction implements Group
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

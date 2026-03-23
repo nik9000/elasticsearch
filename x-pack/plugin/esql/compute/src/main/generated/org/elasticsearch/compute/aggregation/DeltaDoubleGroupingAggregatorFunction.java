@@ -375,7 +375,7 @@ public final class DeltaDoubleGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

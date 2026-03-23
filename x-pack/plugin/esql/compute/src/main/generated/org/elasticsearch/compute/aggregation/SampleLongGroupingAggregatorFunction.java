@@ -285,7 +285,7 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

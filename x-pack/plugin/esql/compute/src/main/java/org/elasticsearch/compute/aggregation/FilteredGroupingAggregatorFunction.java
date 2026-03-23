@@ -116,8 +116,11 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected) {
-        return next.prepareEvaluateIntermediate(selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateIntermediate(selected, ctx);
     }
 
     @Override

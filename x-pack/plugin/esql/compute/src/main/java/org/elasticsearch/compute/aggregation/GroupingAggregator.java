@@ -64,7 +64,7 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
         GroupingAggregatorEvaluationContext ctx
     ) {
         if (mode.isOutputPartial()) {
-            return aggregatorFunction.prepareEvaluateIntermediate(selected);
+            return aggregatorFunction.prepareEvaluateIntermediate(selected, ctx);
         } else {
             return aggregatorFunction.prepareEvaluateFinal(selected, ctx);
         }

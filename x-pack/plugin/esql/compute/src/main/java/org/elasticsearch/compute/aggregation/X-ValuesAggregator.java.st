@@ -122,8 +122,23 @@ $else$
     }
 $endif$
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-        return state.toBlock(ctx.blockFactory(), selected);
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        ValuesNextPreparedForEmitting prepared = state.nextValues.prepareForEmitting(ctx.blockFactory(), selected);
+        return new GroupingAggregatorFunction.PreparedForEvaluation() {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
+                blocks[offset] = state.toBlock(ctx.blockFactory(), selectedInPage);
+            }
+
+            @Override
+            public void close() {
+                prepared.close();
+            }
+        };
     }
 
     public static class SingleState implements AggregatorState {

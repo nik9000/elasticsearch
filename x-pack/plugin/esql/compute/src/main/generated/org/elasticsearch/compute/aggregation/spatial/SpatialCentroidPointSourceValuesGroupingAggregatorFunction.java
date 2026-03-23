@@ -363,7 +363,7 @@ public final class SpatialCentroidPointSourceValuesGroupingAggregatorFunction im
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

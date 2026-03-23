@@ -365,7 +365,7 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

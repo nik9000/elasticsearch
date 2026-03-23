@@ -276,7 +276,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 
@@ -287,12 +287,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
-  }
-
-  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
-      GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = ValuesLongAggregator.evaluateFinal(state, selectedInPage, ctx);
+    return ValuesLongAggregator.prepareEvaluateFinal(state, selected, ctx);
   }
 
   @Override

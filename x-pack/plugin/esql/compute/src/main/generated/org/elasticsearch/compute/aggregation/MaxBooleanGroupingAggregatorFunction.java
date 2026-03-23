@@ -301,7 +301,7 @@ public final class MaxBooleanGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

@@ -217,7 +217,7 @@ public final class AllFirstBytesRefByIntGroupingAggregatorFunction implements Gr
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

@@ -293,7 +293,7 @@ public final class TopBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

@@ -12,6 +12,7 @@ import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -86,6 +87,8 @@ public class GroupingAggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
+    private final ExecutableElement prepareEvaluateIntermediate;
+    private final ExecutableElement prepareEvaluateFinal;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
@@ -118,6 +121,18 @@ public class GroupingAggregatorImplementer {
             aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
             requireName("combine"),
             combineArgs(aggState)
+        );
+        this.prepareEvaluateIntermediate = optionalStaticMethod(
+            declarationType,
+            requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
+            requireName("prepareEvaluateIntermediate"),
+            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
+        );
+        this.prepareEvaluateFinal = optionalStaticMethod(
+            declarationType,
+            requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
+            requireName("prepareEvaluateFinal"),
+            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
 
         this.aggParams = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
@@ -213,9 +228,13 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(maybeEnableGroupIdTracking());
         builder.addMethod(selectedMayContainUnseenGroups());
         builder.addMethod(prepareEvaluateIntermediate());
-        builder.addMethod(evaluateIntermediate());
+        if (prepareEvaluateIntermediate == null) {
+            builder.addMethod(evaluateIntermediate());
+        }
         builder.addMethod(prepareEvaluateFinal());
-        builder.addMethod(evaluateFinal());
+        if (prepareEvaluateFinal == null) {
+            builder.addMethod(evaluateFinal());
+        }
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         return builder.build();
@@ -708,7 +727,12 @@ public class GroupingAggregatorImplementer {
     private MethodSpec prepareEvaluateIntermediate() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("prepareEvaluateIntermediate");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(INT_VECTOR, "selected");
+        builder.addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
         builder.returns(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION);
+        if (prepareEvaluateIntermediate != null) {
+            builder.addStatement("return $T.prepareEvaluateIntermediate(state, selected, ctx)", declarationType);
+            return builder.build();
+        }
         builder.addStatement("return this::evaluateIntermediate");
         return builder.build();
     }
@@ -728,6 +752,10 @@ public class GroupingAggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(INT_VECTOR, "selected");
         builder.addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
         builder.returns(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION);
+        if (prepareEvaluateFinal != null) {
+            builder.addStatement("return $T.prepareEvaluateFinal(state, selected, ctx)", declarationType);
+            return builder.build();
+        }
         builder.addStatement("return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx)");
         return builder.build();
     }

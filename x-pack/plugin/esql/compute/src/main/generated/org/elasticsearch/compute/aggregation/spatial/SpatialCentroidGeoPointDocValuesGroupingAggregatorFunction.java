@@ -354,7 +354,7 @@ public final class SpatialCentroidGeoPointDocValuesGroupingAggregatorFunction im
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 

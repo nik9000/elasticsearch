@@ -148,10 +148,10 @@ public interface GroupingAggregatorFunction extends Releasable {
          * Build a page of results.
          * @param blocks array to write the target blocks
          * @param offset offset into {@code blocks} to write the first block
-         * @param selected The results to include in this page. This is a subset of the
+         * @param selectedInPage The results to include in this page. This is a subset of the
          *                 {@code selected} set to the method that built this.
          */
-        void evaluate(Block[] blocks, int offset, IntVector selected);
+        void evaluate(Block[] blocks, int offset, IntVector selectedInPage);
 
         @Override
         default void close() {}
@@ -162,7 +162,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected);
+    PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected, GroupingAggregatorEvaluationContext ctx);
 
     /**
      * Prepare to build the final results for this aggregation.

@@ -259,7 +259,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
-      IntVector selected) {
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;
   }
 
@@ -270,12 +270,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
-  }
-
-  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
-      GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = ValuesBytesRefAggregator.evaluateFinal(state, selectedInPage, ctx);
+    return ValuesBytesRefAggregator.prepareEvaluateFinal(state, selected, ctx);
   }
 
   @Override
