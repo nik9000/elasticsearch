@@ -117,13 +117,13 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected) {
+        return next.prepareEvaluateIntermediate(selected);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        next.evaluateFinal(blocks, offset, selected, evaluationContext);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+        return next.prepareEvaluateFinal(selected);
     }
 
     @Override

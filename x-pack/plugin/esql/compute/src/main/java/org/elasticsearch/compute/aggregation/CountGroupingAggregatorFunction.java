@@ -259,24 +259,32 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected) {
+        return this::evaluateIntermediate;
+    }
+
+    private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+        try (var values = driverContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                int si = selectedInPage.getInt(i);
                 values.appendLong(state.getOrDefault(si));
             }
             blocks[offset] = values.build().asBlock();
             // Unlike other aggregations, we return 0 for groups without values instead of null.
             // Therefore, we can always return true for seen, and do not need to track seen groups.
-            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selectedInPage.getPositionCount());
         }
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        try (LongVector.Builder builder = evaluationContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+        return this::evaluateFinal;
+    }
+
+    private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext evaluationContext) {
+        try (LongVector.Builder builder = evaluationContext.blockFactory().newLongVectorFixedBuilder(selectedInPage.getPositionCount())) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                int si = selectedInPage.getInt(i);
                 builder.appendLong(state.getOrDefault(si));
             }
             blocks[offset] = builder.build().asBlock();

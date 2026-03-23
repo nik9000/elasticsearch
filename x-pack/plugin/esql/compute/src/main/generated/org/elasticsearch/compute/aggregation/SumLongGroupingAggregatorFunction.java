@@ -302,14 +302,24 @@ public final class SumLongGroupingAggregatorFunction implements GroupingAggregat
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext evaluationContext) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = state.toValuesBlock(selected, ctx.driverContext());
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    return this::evaluateFinal;
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext evaluationContext) {
+    blocks[offset] = state.toValuesBlock(selectedInPage, evaluationContext.driverContext());
   }
 
   @Override

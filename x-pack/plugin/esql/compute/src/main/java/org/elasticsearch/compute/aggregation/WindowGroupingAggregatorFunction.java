@@ -52,17 +52,20 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected) {
+        return next.prepareEvaluateIntermediate(selected);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-        if (evaluationContext instanceof TimeSeriesGroupingAggregatorEvaluationContext timeSeriesContext) {
-            evaluateFinalWithWindow(blocks, offset, selected, timeSeriesContext);
-        } else {
-            next.evaluateFinal(blocks, offset, selected, evaluationContext);
-        }
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+        // TODO rework passing `evaluationContext` down.
+        return (blocks, offset, selectedInPage, evaluationContext) -> {
+            if (evaluationContext instanceof TimeSeriesGroupingAggregatorEvaluationContext timeSeriesContext) {
+                evaluateFinalWithWindow(blocks, offset, selectedInPage, timeSeriesContext);
+            } else {
+                next.prepareEvaluateFinal(selected).evaluate(blocks, offset, selectedInPage, evaluationContext);
+            }
+        };
     }
 
     private void evaluateFinalWithWindow(
@@ -77,7 +80,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             long startTime = evaluationContext.rangeStartInMillis(groupId);
             long endTime = evaluationContext.rangeEndInMillis(groupId);
             if (endTime - startTime == window.toMillis()) {
-                next.evaluateFinal(blocks, offset, selected, evaluationContext);
+                next.prepareEvaluateFinal(selected).evaluate(blocks, offset, selected, evaluationContext);
                 return;
             }
         }
@@ -93,7 +96,7 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
                 backwards[groupId] = i;
             }
             try {
-                next.evaluateIntermediate(intermediateBlocks, 0, selected);
+                next.prepareEvaluateIntermediate(selected).evaluate(intermediateBlocks, 0, selected, evaluationContext);
                 Page page = new Page(intermediateBlocks);
                 finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
                 for (int i = 0; i < selected.getPositionCount(); i++) {

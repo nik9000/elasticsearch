@@ -117,8 +117,8 @@ public interface GroupingAggregatorFunction extends Releasable {
 
     /**
      * Call this to signal to the aggregation that the {@code selected}
-     * parameter that's passed to {@link #evaluateIntermediate} or
-     * {@link #evaluateFinal} may reference groups that haven't been
+     * parameter that's passed to {@link #prepareEvaluateIntermediate} or
+     * {@link #prepareEvaluateFinal} may reference groups that haven't been
      * seen. This puts the underlying storage into a mode where it'll
      * track which group ids have been seen, even if that increases the
      * overhead.
@@ -126,17 +126,17 @@ public interface GroupingAggregatorFunction extends Releasable {
     void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds);
 
     /**
-     * Add data produced by {@link #evaluateIntermediate}.
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
      */
     void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page);
 
     /**
-     * Add data produced by {@link #evaluateIntermediate}.
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
      */
     void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page);
 
     /**
-     * Add data produced by {@link #evaluateIntermediate}.
+     * Add data produced by {@link #prepareEvaluateIntermediate}.
      */
     void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page);
 
@@ -158,14 +158,14 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Build the intermediate results for this aggregation.
+     * Prepare to build the intermediate results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      */
-    void evaluateIntermediate(Block[] blocks, int offset, IntVector selected);
+    PreparedForEvaluation prepareEvaluateIntermediate(IntVector selected);
 
     /**
-     * Build the final results for this aggregation.
+     * Prepare to build the final results for this aggregation.
      * @param selected the groupIds that have been selected to be included in
      *                 the results. Always ascending.
      *
@@ -173,7 +173,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      *    results have been gathered from the worker nodes, and aggregated into
      *    intermediate blocks.</p>
      */
-    void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext);
+    PreparedForEvaluation prepareEvaluateFinal(IntVector selected);
 
     /** The number of blocks used by intermediate state. */
     int intermediateBlockCount();

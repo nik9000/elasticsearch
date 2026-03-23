@@ -369,14 +369,24 @@ public final class LastBytesRefByTimestampGroupingAggregatorFunction implements 
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext evaluationContext) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = LastBytesRefByTimestampAggregator.evaluateFinal(state, selected, ctx);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected) {
+    return this::evaluateFinal;
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext evaluationContext) {
+    blocks[offset] = LastBytesRefByTimestampAggregator.evaluateFinal(state, selectedInPage, evaluationContext);
   }
 
   @Override

@@ -61,16 +61,11 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
     }
 
     public GroupingAggregatorFunction.PreparedForEvaluation prepareForEvaluate(IntVector selected) {
-        return new GroupingAggregatorFunction.PreparedForEvaluation() {
-            @Override
-            public void evaluate(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evaluationContext) {
-                if (mode.isOutputPartial()) {
-                    aggregatorFunction.evaluateIntermediate(blocks, offset, selected);
-                } else {
-                    aggregatorFunction.evaluateFinal(blocks, offset, selected, evaluationContext);
-                }
-            }
-        };
+        if (mode.isOutputPartial()) {
+            return aggregatorFunction.prepareEvaluateIntermediate(selected);
+        } else {
+            return aggregatorFunction.prepareEvaluateFinal(selected);
+        }
     }
 
     @Override
