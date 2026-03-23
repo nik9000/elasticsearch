@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
-import org.elasticsearch.compute.operator.PageRowLimitingIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.Closeable;
