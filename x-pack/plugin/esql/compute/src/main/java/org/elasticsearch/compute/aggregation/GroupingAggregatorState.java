@@ -13,8 +13,5 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
 public interface GroupingAggregatorState extends Releasable {
-
-    void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext);
-
     void enableGroupIdTracking(SeenGroupIds seenGroupIds);
 }

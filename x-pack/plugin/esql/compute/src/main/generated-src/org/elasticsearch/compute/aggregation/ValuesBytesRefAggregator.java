@@ -97,6 +97,14 @@ class ValuesBytesRefAggregator {
         ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return prepareEvaluateFinal(state, selected, ctx);
+    }
+
     public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
         GroupingState state,
         IntVector selected,
@@ -177,11 +185,6 @@ class ValuesBytesRefAggregator {
                     this.close();
                 }
             }
-        }
-
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
         void addValueOrdinal(int groupId, int valueOrdinal) {

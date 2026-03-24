@@ -80,6 +80,14 @@ class ValuesLongAggregator {
         }
     }
 
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return prepareEvaluateFinal(state, selected, ctx);
+    }
+
     public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
         GroupingState state,
         IntVector selected,
@@ -159,11 +167,6 @@ class ValuesLongAggregator {
                     this.close();
                 }
             }
-        }
-
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
         void addValue(int groupId, long v) {

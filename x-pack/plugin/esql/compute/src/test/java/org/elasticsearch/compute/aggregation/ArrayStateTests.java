@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -210,7 +211,7 @@ public class ArrayStateTests extends ESTestCase {
     }
 
     /**
-     * Calls {@link GroupingAggregatorState#toIntermediate} with a range that's greater than
+     * Calls {@code toIntermediate} with a range that's greater than
      * any collected values. This is acceptable if {@link AbstractArrayState#enableGroupIdTracking}
      * is called, so we do that.
      */

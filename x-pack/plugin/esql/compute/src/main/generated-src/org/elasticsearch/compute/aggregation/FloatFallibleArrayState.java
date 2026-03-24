@@ -88,7 +88,6 @@ final class FloatFallibleArrayState extends AbstractFallibleArrayState implement
     }
 
     /** Extracts an intermediate view of the contents of this state.  */
-    @Override
     public void toIntermediate(
         Block[] blocks,
         int offset,

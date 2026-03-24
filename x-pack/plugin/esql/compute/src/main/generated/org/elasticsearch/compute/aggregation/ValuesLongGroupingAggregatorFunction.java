@@ -277,11 +277,7 @@ public final class ValuesLongGroupingAggregatorFunction implements GroupingAggre
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-    return this::evaluateIntermediate;
-  }
-
-  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
-    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
+    return ValuesLongAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override

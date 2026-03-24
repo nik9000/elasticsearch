@@ -260,11 +260,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-    return this::evaluateIntermediate;
-  }
-
-  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
-    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
+    return ValuesBytesRefAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override

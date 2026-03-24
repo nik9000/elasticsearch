@@ -277,11 +277,7 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
   @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-    return this::evaluateIntermediate;
-  }
-
-  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
-    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
+    return ValuesFloatAggregator.prepareEvaluateIntermediate(state, selected, ctx);
   }
 
   @Override
