@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -20,7 +22,7 @@ public interface AggregatorFunctionSupplier extends Describable {
 
     List<IntermediateStateDesc> groupingIntermediateStateDesc();
 
-    AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels);
+    AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs);
 
     GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels);
 
@@ -28,7 +30,10 @@ public interface AggregatorFunctionSupplier extends Describable {
         return new Aggregator.Factory() {
             @Override
             public Aggregator apply(DriverContext driverContext) {
-                return new Aggregator(aggregator(driverContext, channels), mode);
+                return new Aggregator(
+                    aggregator(driverContext, channels.stream().map(c -> (ExpressionEvaluator) new LoadFromPageEvaluator(c)).toList()),
+                    mode
+                );
             }
 
             @Override

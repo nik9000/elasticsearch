@@ -14,7 +14,9 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
@@ -28,32 +30,35 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
         return INTERMEDIATE_STATE_DESC;
     }
 
+    private final DriverContext driverContext;
     private final DoubleState state;
-    private final List<Integer> channels;
+    private final List<ExpressionEvaluator> inputs;
     private final boolean countAll;
 
-    public static CountApproximateAggregatorFunction create(List<Integer> inputChannels) {
-        return new CountApproximateAggregatorFunction(inputChannels, new DoubleState(0));
+    public static CountApproximateAggregatorFunction create(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+        return new CountApproximateAggregatorFunction(driverContext, inputs, new DoubleState(0));
     }
 
-    protected CountApproximateAggregatorFunction(List<Integer> channels, DoubleState state) {
-        this.channels = channels;
+    protected CountApproximateAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs, DoubleState state) {
+        this.driverContext = driverContext;
+        this.inputs = inputs;
         this.state = state;
-        // no channels specified means count-all/count(*)
-        this.countAll = channels.isEmpty();
+        // no inputs specified means count-all/count(*)
+        this.countAll = inputs.isEmpty();
+        boolean success = false;
+        try {
+            driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+            success = true;
+        } finally {
+            if (success == false) {
+                this.state.close();
+            }
+        }
     }
 
     @Override
     public int intermediateBlockCount() {
         return intermediateStateDesc().size();
-    }
-
-    private int blockIndex() {
-        // In case of countAll, block index is irrelevant.
-        // Page.positionCount should be used instead,
-        // because the page could have zero blocks
-        // (drop all columns scenario)
-        return countAll ? -1 : channels.get(0);
     }
 
     @Override
@@ -72,18 +77,19 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
                 state.doubleValue(state.doubleValue() + count);
             }
         } else {
-            Block block = page.getBlock(blockIndex());
-            DoubleState state = this.state;
-            int count;
-            if (mask.isConstant()) {
-                if (mask.getBoolean(0) == false) {
-                    return;
+            try (Block block = inputs.getFirst().eval(page)) {
+                DoubleState state = this.state;
+                int count;
+                if (mask.isConstant()) {
+                    if (mask.getBoolean(0) == false) {
+                        return;
+                    }
+                    count = getBlockTotalValueCount(block);
+                } else {
+                    count = countMasked(block, mask);
                 }
-                count = getBlockTotalValueCount(block);
-            } else {
-                count = countMasked(block, mask);
+                state.doubleValue(state.doubleValue() + count);
             }
-            state.doubleValue(state.doubleValue() + count);
         }
     }
 
@@ -126,18 +132,16 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void addIntermediateInput(Page page) {
-        assert channels.size() == intermediateBlockCount();
-        var blockIndex = blockIndex();
-        assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
-        Block uncastBlock = page.getBlock(channels.get(0));
-        if (uncastBlock.areAllValuesNull()) {
-            return;
+        assert inputs.size() == intermediateBlockCount();
+        try (DoubleBlock count = (DoubleBlock) inputs.get(0).eval(page);
+             BooleanBlock seen = (BooleanBlock) inputs.get(1).eval(page)) {
+            if (count.areAllValuesNull()) {
+                return;
+            }
+            assert count.getPositionCount() == 1;
+            assert count.getPositionCount() == seen.getPositionCount();
+            state.doubleValue(state.doubleValue() + count.getDouble(0));
         }
-        DoubleVector count = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
-        BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
-        assert count.getPositionCount() == 1;
-        assert count.getPositionCount() == seen.getPositionCount();
-        state.doubleValue(state.doubleValue() + count.getDouble(0));
     }
 
     @Override
@@ -154,14 +158,17 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("channels=").append(channels);
+        sb.append("inputs=").append(inputs);
         sb.append("]");
         return sb.toString();
     }
 
     @Override
     public void close() {
-        state.close();
+        Releasables.closeExpectNoException(
+            state,
+            () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
     }
 
     public static AggregatorFunctionSupplier supplier() {
@@ -180,8 +187,8 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
         }
 
         @Override
-        public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-            return CountApproximateAggregatorFunction.create(channels);
+        public AggregatorFunction aggregator(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+            return CountApproximateAggregatorFunction.create(driverContext, inputs);
         }
 
         @Override

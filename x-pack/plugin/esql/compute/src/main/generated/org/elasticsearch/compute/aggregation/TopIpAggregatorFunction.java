@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -16,7 +15,9 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link TopIpAggregator}.
@@ -30,19 +31,28 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
 
   private final TopIpAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
   private final int limit;
 
   private final boolean ascending;
 
-  TopIpAggregatorFunction(DriverContext driverContext, List<Integer> channels, int limit,
+  TopIpAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs, int limit,
       boolean ascending) {
     this.limit = limit;
     this.ascending = ascending;
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = TopIpAggregator.initSingle(driverContext.bigArrays(), limit, ascending);
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -66,23 +76,27 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    BytesRefBlock vBlock = page.getBlock(channels.get(0));
-    BytesRefVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, mask);
-      return;
+    try (Block vUncast = inputs.get(0).eval(page)) {
+      BytesRefBlock vBlock = (BytesRefBlock) vUncast;
+      BytesRefVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, mask);
+        return;
+      }
+      addRawVector(vVector, mask);
     }
-    addRawVector(vVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    BytesRefBlock vBlock = page.getBlock(channels.get(0));
-    BytesRefVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock);
-      return;
+    try (Block vUncast = inputs.get(0).eval(page)) {
+      BytesRefBlock vBlock = (BytesRefBlock) vUncast;
+      BytesRefVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock);
+        return;
+      }
+      addRawVector(vVector);
     }
-    addRawVector(vVector);
   }
 
   private void addRawVector(BytesRefVector vVector) {
@@ -141,16 +155,16 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block topUncast = page.getBlock(channels.get(0));
-    if (topUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block topUncast = inputs.get(0).eval(page)) {
+      if (topUncast.areAllValuesNull()) {
+        return;
+      }
+      BytesRefBlock top = (BytesRefBlock) topUncast;
+      assert top.getPositionCount() == 1;
+      BytesRef topScratch = new BytesRef();
+      TopIpAggregator.combineIntermediate(state, top);
     }
-    BytesRefBlock top = (BytesRefBlock) topUncast;
-    assert top.getPositionCount() == 1;
-    BytesRef topScratch = new BytesRef();
-    TopIpAggregator.combineIntermediate(state, top);
   }
 
   @Override
@@ -167,13 +181,13 @@ public final class TopIpAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(state, () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs)));
   }
 }

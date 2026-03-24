@@ -39,11 +39,32 @@ import static java.util.stream.Collectors.joining;
  * been added, that is, when the {@link #finish} method has been called.
  */
 public class AggregationOperator implements Operator {
+    public record AggregationOperatorFactory(List<Aggregator.Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new AggregationOperator(aggregators.stream().map(x -> x.apply(driverContext)).toList(), driverContext);
+        }
+
+        @Override
+        public String toString() {
+            return describe();
+        }
+
+        @Override
+        public String describe() {
+            return "AggregationOperator[mode = "
+                + mode
+                + ", aggs = "
+                + aggregators.stream().map(Factory::describe).collect(joining(", "))
+                + "]";
+        }
+    }
+
+    private final List<Aggregator> aggregators;
+    private final DriverContext driverContext;
 
     private boolean finished;
     private Page output;
-    private final List<Aggregator> aggregators;
-    private final DriverContext driverContext;
 
     /**
      * Nanoseconds this operator has spent running the aggregations.
@@ -65,28 +86,6 @@ public class AggregationOperator implements Operator {
      * Count of rows this operator has emitted.
      */
     private long rowsEmitted;
-
-    public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
-
-        @Override
-        public Operator get(DriverContext driverContext) {
-            return new AggregationOperator(aggregators.stream().map(x -> x.apply(driverContext)).toList(), driverContext);
-        }
-
-        @Override
-        public String toString() {
-            return describe();
-        }
-
-        @Override
-        public String describe() {
-            return "AggregationOperator[mode = "
-                + mode
-                + ", aggs = "
-                + aggregators.stream().map(Factory::describe).collect(joining(", "))
-                + "]";
-        }
-    }
 
     public AggregationOperator(List<Aggregator> aggregators, DriverContext driverContext) {
         Objects.requireNonNull(aggregators);

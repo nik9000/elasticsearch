@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
-import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -15,7 +14,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link AggregatorFunction} implementation for {@link ValuesFloatAggregator}.
@@ -29,12 +30,21 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
 
   private final ValuesFloatAggregator.SingleState state;
 
-  private final List<Integer> channels;
+  private final List<ExpressionEvaluator> inputs;
 
-  ValuesFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels) {
+  ValuesFloatAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
     this.driverContext = driverContext;
-    this.channels = channels;
+    this.inputs = inputs;
     this.state = ValuesFloatAggregator.initSingle(driverContext.bigArrays());
+    boolean success = false;
+    try {
+      driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
+      success = true;
+    } finally {
+      if (success == false) {
+        this.state.close();
+      }
+    }
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -58,23 +68,27 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    FloatBlock vBlock = page.getBlock(channels.get(0));
-    FloatVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock, mask);
-      return;
+    try (Block vUncast = inputs.get(0).eval(page)) {
+      FloatBlock vBlock = (FloatBlock) vUncast;
+      FloatVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock, mask);
+        return;
+      }
+      addRawVector(vVector, mask);
     }
-    addRawVector(vVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    FloatBlock vBlock = page.getBlock(channels.get(0));
-    FloatVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      addRawBlock(vBlock);
-      return;
+    try (Block vUncast = inputs.get(0).eval(page)) {
+      FloatBlock vBlock = (FloatBlock) vUncast;
+      FloatVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        addRawBlock(vBlock);
+        return;
+      }
+      addRawVector(vVector);
     }
-    addRawVector(vVector);
   }
 
   private void addRawVector(FloatVector vVector) {
@@ -129,15 +143,15 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addIntermediateInput(Page page) {
-    assert channels.size() == intermediateBlockCount();
-    assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block valuesUncast = page.getBlock(channels.get(0));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
+    assert inputs.size() == intermediateBlockCount();
+    try (Block valuesUncast = inputs.get(0).eval(page)) {
+      if (valuesUncast.areAllValuesNull()) {
+        return;
+      }
+      FloatBlock values = (FloatBlock) valuesUncast;
+      assert values.getPositionCount() == 1;
+      ValuesFloatAggregator.combineIntermediate(state, values);
     }
-    FloatBlock values = (FloatBlock) valuesUncast;
-    assert values.getPositionCount() == 1;
-    ValuesFloatAggregator.combineIntermediate(state, values);
   }
 
   @Override
@@ -154,13 +168,13 @@ public final class ValuesFloatAggregatorFunction implements AggregatorFunction {
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");
-    sb.append("channels=").append(channels);
+    sb.append("inputs=").append(inputs);
     sb.append("]");
     return sb.toString();
   }
 
   @Override
   public void close() {
-    state.close();
+    Releasables.closeExpectNoException(state, () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs)));
   }
 }
