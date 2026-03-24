@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
@@ -26,14 +25,11 @@ public interface AggregatorFunctionSupplier extends Describable {
 
     GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels);
 
-    default Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<Integer> channels) {
+    default Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<ExpressionEvaluator.Factory> inputs) {
         return new Aggregator.Factory() {
             @Override
             public Aggregator apply(DriverContext driverContext) {
-                return new Aggregator(
-                    aggregator(driverContext, channels.stream().map(c -> (ExpressionEvaluator) new LoadFromPageEvaluator(c)).toList()),
-                    mode
-                );
+                return new Aggregator(aggregator(driverContext, inputs.stream().map(f -> f.get(driverContext)).toList()), mode);
             }
 
             @Override

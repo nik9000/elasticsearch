@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
@@ -115,7 +116,7 @@ public class ValuesAggregatorBenchmark {
     private static Operator operator(DriverContext driverContext, int groups, String dataType, AggregatorMode mode) {
         if (groups == 1) {
             return new AggregationOperator(
-                List.of(supplier(dataType).aggregatorFactory(mode, List.of(0)).apply(driverContext)),
+                List.of(supplier(dataType).aggregatorFactory(mode, List.of(new LoadFromPageEvaluator.Factory(0))).apply(driverContext)),
                 driverContext
             );
         }

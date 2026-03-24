@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.AllocatingEvaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -78,11 +79,13 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial()
-            ? range(0, aggregatorIntermediateBlockCount()).boxed().toList()
-            : IntStream.range(0, inputCount()).boxed().toList();
+        List<ExpressionEvaluator.Factory> inputs = (mode.isInputPartial()
+            ? range(0, aggregatorIntermediateBlockCount())
+            : IntStream.range(0, inputCount()))
+            .mapToObj(LoadFromPageEvaluator.Factory::new)
+            .toList();
         AggregatorFunctionSupplier supplier = aggregatorFunction();
-        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, channels);
+        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, inputs);
         return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
     }
 

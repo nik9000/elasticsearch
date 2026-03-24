@@ -14,6 +14,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -64,7 +66,10 @@ public class SampleBytesRefAggregatorFunctionTests extends AggregatorFunctionTes
     public void testDistribution() {
         // Sample from the numbers 0...99.
         int N = 100;
-        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(AggregatorMode.SINGLE, List.of(0));
+        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(
+            AggregatorMode.SINGLE,
+            List.of(new LoadFromPageEvaluator.Factory(0))
+        );
         AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
             List.of(aggregatorFactory),
             AggregatorMode.SINGLE

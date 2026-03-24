@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
@@ -52,7 +54,10 @@ public class PresentAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     public void testWithNonNullAndConstantNullPages() {
-        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(AggregatorMode.SINGLE, List.of(0));
+        Aggregator.Factory aggregatorFactory = aggregatorFunction().aggregatorFactory(
+            AggregatorMode.SINGLE,
+            List.of(new LoadFromPageEvaluator.Factory(0))
+        );
 
         AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
             List.of(aggregatorFactory),
