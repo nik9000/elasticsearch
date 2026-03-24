@@ -200,6 +200,6 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(state, () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs)));
+    Releasables.closeExpectNoException(state, Releasables.wrap(inputs), () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs)));
   }
 }

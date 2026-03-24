@@ -128,6 +128,9 @@ public class PresentAggregatorFunction implements AggregatorFunction {
 
     @Override
     public void close() {
-        driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs));
+        Releasables.closeExpectNoException(
+            Releasables.wrap(inputs),
+            () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
     }
 }

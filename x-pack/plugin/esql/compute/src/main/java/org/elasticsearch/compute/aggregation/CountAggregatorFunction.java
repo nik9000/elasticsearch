@@ -158,6 +158,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
     public void close() {
         Releasables.closeExpectNoException(
             state,
+            Releasables.wrap(inputs),
             () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
         );
     }

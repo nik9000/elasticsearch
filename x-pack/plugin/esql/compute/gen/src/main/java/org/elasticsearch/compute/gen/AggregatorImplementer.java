@@ -693,7 +693,8 @@ public class AggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("close");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement(
-            "$T.closeExpectNoException(state, () -> driverContext.breaker().addWithoutBreaking(-$T.totalRamBytesUsed(inputs)))",
+            "$T.closeExpectNoException(state, $T.wrap(inputs), () -> driverContext.breaker().addWithoutBreaking(-$T.totalRamBytesUsed(inputs)))",
+            RELEASABLES,
             RELEASABLES,
             EXPRESSION_EVALUATOR
         );
