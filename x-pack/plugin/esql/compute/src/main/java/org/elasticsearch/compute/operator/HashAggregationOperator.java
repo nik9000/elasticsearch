@@ -394,6 +394,12 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
+    /**
+     * Customize the {@code selected} groupIds that are sent to the agg's
+     * {@link GroupingAggregatorFunction#prepareEvaluateIntermediate} and
+     * {@link GroupingAggregatorFunction#prepareEvaluateFinal}. TSDB uses
+     * this to do less work later on.
+     */
     protected IntVector customizeSelected(GroupingAggregator aggregator, IntVector selected) {
         selected.incRef();
         return selected;
