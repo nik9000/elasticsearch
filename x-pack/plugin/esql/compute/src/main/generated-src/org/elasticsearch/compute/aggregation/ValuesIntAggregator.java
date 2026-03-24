@@ -85,7 +85,7 @@ class ValuesIntAggregator {
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
-        return prepareEvaluateFinal(state, selected, ctx);
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
     public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
@@ -93,18 +93,7 @@ class ValuesIntAggregator {
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
-        ValuesNextPreparedForEmitting prepared = state.nextValues.prepareForEmitting(ctx.blockFactory(), selected);
-        return new GroupingAggregatorFunction.PreparedForEvaluation() {
-            @Override
-            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
-                blocks[offset] = state.toBlock(ctx.blockFactory(), selectedInPage);
-            }
-
-            @Override
-            public void close() {
-                prepared.close();
-            }
-        };
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
     public static class SingleState implements AggregatorState {
@@ -213,18 +202,38 @@ class ValuesIntAggregator {
          * Builds a {@link Block} with the unique values collected for the {@code #selected}
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
-        Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            try (ValuesNextPreparedForEmitting prepared = nextValues.prepareForEmitting(blockFactory, selected)) {
-                return buildOutputBlock(blockFactory, selected, prepared);
+        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(
+            BlockFactory blockFactory,
+            IntVector selected
+        ) {
+            return new PreparedForEmitting(selected, blockFactory);
+        }
+
+        private class PreparedForEmitting implements GroupingAggregatorFunction.PreparedForEvaluation {
+            private final BlockFactory blockFactory;
+            private final ValuesNextPreparedForEmitting next;
+
+            PreparedForEmitting(IntVector selected, BlockFactory blockFactory) {
+                this.blockFactory = blockFactory;
+                this.next = nextValues.prepareForEmitting(blockFactory, selected);
+            }
+
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
+                blocks[offset] = buildOutputBlock(blockFactory, selectedInPage, next);
+            }
+
+            @Override
+            public void close() {
+                next.close();
             }
         }
 
-        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting prepared) {
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
             /*
              * Insert the ids in order.
              */
             try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
-                int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
                     if (group > maxGroupId || hasValue(group) == false) {
@@ -232,7 +241,8 @@ class ValuesIntAggregator {
                         continue;
                     }
                     int firstValue = firstValues.get(group);
-                    final int nextValuesEnd = prepared.nextValuesEnd(group, nextValuesStart);
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
                     if (nextValuesEnd == nextValuesStart) {
                         builder.appendInt(firstValue);
                     } else {
@@ -240,10 +250,9 @@ class ValuesIntAggregator {
                         builder.appendInt(firstValue);
                         // append values from the nextValues
                         for (int i = nextValuesStart; i < nextValuesEnd; i++) {
-                            builder.appendInt(nextValues.getInt(prepared, i));
+                            builder.appendInt(nextValues.getInt(next, i));
                         }
                         builder.endPositionEntry();
-                        nextValuesStart = nextValuesEnd;
                     }
                 }
                 return builder.build();
