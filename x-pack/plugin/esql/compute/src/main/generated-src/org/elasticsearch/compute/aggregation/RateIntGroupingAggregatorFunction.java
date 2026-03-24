@@ -568,7 +568,10 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
     }
 
     @Override
-    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 

@@ -315,10 +315,7 @@ $endif$
          * Builds a {@link Block} with the unique values collected for the {@code #selected}
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
-        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(
-            BlockFactory blockFactory,
-            IntVector selected
-        ) {
+        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(BlockFactory blockFactory, IntVector selected) {
             return new PreparedForEmitting(selected, blockFactory);
         }
 
@@ -340,10 +337,7 @@ $endif$
             @Override
             public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
 $if(BytesRef)$
-                if (
-                    selected == selectedInPage &&
-                    OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())
-                ) {
+                if (selected == selectedInPage && OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
                     blocks[offset] = buildOrdinalOutputBlock(blockFactory, selectedInPage, next);
                 } else {
                     blocks[offset] = buildOutputBlock(blockFactory, selectedInPage, next);
