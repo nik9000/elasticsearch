@@ -10,15 +10,20 @@
 package org.elasticsearch.gradle.internal.esql;
 
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+import org.elasticsearch.gradle.util.PlatformUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.plugins.ide.idea.IdeaPlugin;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -34,10 +39,10 @@ import javax.inject.Inject;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
- * Configures the {@code test} task for the ESQL plugin, setting up doc generation for
- * ESQL/PromQL reference pages, golden test system properties, and security policy paths.
+ * Configures a project to create ESQL scalar and aggregate functions.
+ * Also configures standard function testing.
  */
-public class EsqlTestPlugin implements Plugin<Project> {
+public class EsqlFunctionPlugin implements Plugin<Project> {
 
     private static final List<String> DOC_FOLDERS = List.of("esql", "promql");
     private static final String REPLACEMENT_FONT_FAMILY =
@@ -54,6 +59,25 @@ public class EsqlTestPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         boolean isCi = loadBuildParams(project).get().getCi();
+
+        if (project.getPath().equals(":x-pack:plugin:esql") == false) {
+            project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql"));
+            project.getDependencies().add("testImplementation", project.project(":x-pack:plugin:esql:qa:testFixtures"));
+        }
+        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute"));
+        project.getDependencies().add("implementation", project.project(":x-pack:plugin:esql:compute:ann"));
+        project.getDependencies().add("annotationProcessor", project.project(":x-pack:plugin:esql:compute:gen"));
+
+        String generatedPath = "src/main/generated";
+        Directory generatedSourceDir = project.getLayout().getProjectDirectory().dir(generatedPath);
+        project.getTasks().named("compileJava", JavaCompile.class).configure(compileJava -> {
+            compileJava.getOptions().getCompilerArgumentProviders().add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir));
+            // IntelliJ sticks generated files here, and we can't stop it....
+            compileJava.exclude(element -> PlatformUtils.normalize(element.getFile().toString()).contains("src/main/generated-src/generated"));
+        });
+        project.getPlugins().withType(IdeaPlugin.class, ideaPlugin -> {
+            ideaPlugin.getModel().getModule().getSourceDirs().add(project.file(generatedPath));
+        });
 
         project.getTasks().named("test", Test.class).configure(test -> {
             // https://bugs.openjdk.org/browse/JDK-8367990

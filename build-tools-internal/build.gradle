@@ -156,9 +156,9 @@ gradlePlugin {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
     }
-    esqlTest {
-      id = 'elasticsearch.esql-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlTestPlugin'
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
