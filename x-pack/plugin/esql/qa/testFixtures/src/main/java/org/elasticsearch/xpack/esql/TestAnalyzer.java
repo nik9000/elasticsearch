@@ -704,7 +704,7 @@ public class TestAnalyzer {
             // VerificationException style
             return message.substring(firstLine + "\nline ".length());
         }
-        if(message.startsWith("line ")) {
+        if (message.startsWith("line ")) {
             // ParsingException style
             return message.substring("line ".length());
         }
