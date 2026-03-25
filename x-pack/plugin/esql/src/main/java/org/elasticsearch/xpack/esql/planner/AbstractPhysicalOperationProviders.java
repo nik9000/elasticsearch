@@ -91,14 +91,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 s -> aggregatorFactories.add(
                     s.supplier.aggregatorFactory(
                         s.mode,
-                        s.channels.stream().map(c -> new LoadFromPageEvaluator.Factory(c)).toList()
+                        s.channels.stream().<ExpressionEvaluator.Factory>map(LoadFromPageEvaluator.Factory::new).toList()
                     )
                 ),
                 context
             );
 
             if (aggregatorFactories.isEmpty() == false) {
-                operatorFactory = new AggregationOperator.AggregationOperatorFactory(aggregatorFactories, aggregatorMode);
+                operatorFactory = new AggregationOperator.Factory(aggregatorFactories, aggregatorMode);
             }
         } else {
             // grouping

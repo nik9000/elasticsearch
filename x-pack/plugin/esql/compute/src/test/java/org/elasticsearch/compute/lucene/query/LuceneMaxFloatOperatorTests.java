@@ -71,7 +71,10 @@ public class LuceneMaxFloatOperatorTests extends LuceneMaxOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MaxFloatAggregatorFunctionSupplier().aggregator(context, List.of(new LoadFromPageEvaluator(0), new LoadFromPageEvaluator(1)));
+                return new MaxFloatAggregatorFunctionSupplier().aggregator(
+                    context,
+                    List.of(new LoadFromPageEvaluator(0), new LoadFromPageEvaluator(1))
+                );
             }
 
             @Override

@@ -70,7 +70,10 @@ public class LuceneMinLongOperatorTests extends LuceneMinOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MinLongAggregatorFunctionSupplier().aggregator(context, List.of(new LoadFromPageEvaluator(0), new LoadFromPageEvaluator(1)));
+                return new MinLongAggregatorFunctionSupplier().aggregator(
+                    context,
+                    List.of(new LoadFromPageEvaluator(0), new LoadFromPageEvaluator(1))
+                );
             }
 
             @Override

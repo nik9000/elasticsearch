@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -59,10 +58,7 @@ public class PresentAggregatorFunctionTests extends AggregatorFunctionTestCase {
             List.of(new LoadFromPageEvaluator.Factory(0))
         );
 
-        AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
-            List.of(aggregatorFactory),
-            AggregatorMode.SINGLE
-        );
+        AggregationOperator.Factory operatorFactory = new AggregationOperator.Factory(List.of(aggregatorFactory), AggregatorMode.SINGLE);
 
         List<Page> input = CannedSourceOperator.collectPages(
             new SequenceLongBlockSourceOperator(driverContext().blockFactory(), LongStream.range(0, 100).map(l -> randomLong()))

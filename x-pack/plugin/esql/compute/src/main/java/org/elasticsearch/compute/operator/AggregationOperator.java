@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.Aggregator;
-import org.elasticsearch.compute.aggregation.Aggregator.Factory;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -23,6 +22,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -39,10 +39,10 @@ import static java.util.stream.Collectors.joining;
  * been added, that is, when the {@link #finish} method has been called.
  */
 public class AggregationOperator implements Operator {
-    public record AggregationOperatorFactory(List<Aggregator.Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
+    public record Factory(List<Aggregator.Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new AggregationOperator(aggregators.stream().map(x -> x.apply(driverContext)).toList(), driverContext);
+            return new AggregationOperator(aggregators, driverContext);
         }
 
         @Override
@@ -55,7 +55,7 @@ public class AggregationOperator implements Operator {
             return "AggregationOperator[mode = "
                 + mode
                 + ", aggs = "
-                + aggregators.stream().map(Factory::describe).collect(joining(", "))
+                + aggregators.stream().map(Aggregator.Factory::describe).collect(joining(", "))
                 + "]";
         }
     }
@@ -87,10 +87,22 @@ public class AggregationOperator implements Operator {
      */
     private long rowsEmitted;
 
-    public AggregationOperator(List<Aggregator> aggregators, DriverContext driverContext) {
-        Objects.requireNonNull(aggregators);
-        checkNonEmpty(aggregators);
-        this.aggregators = aggregators;
+    private AggregationOperator(List<Aggregator.Factory> factories, DriverContext driverContext) {
+        Objects.requireNonNull(factories);
+        checkNonEmpty(factories);
+        List<Aggregator> built = new ArrayList<>(factories.size());
+        boolean success = false;
+        try {
+            for (Aggregator.Factory factory : factories) {
+                built.add(factory.apply(driverContext));
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(built);
+            }
+        }
+        this.aggregators = built;
         this.driverContext = driverContext;
     }
 

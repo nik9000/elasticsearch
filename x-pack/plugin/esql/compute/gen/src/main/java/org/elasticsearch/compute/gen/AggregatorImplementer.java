@@ -692,12 +692,12 @@ public class AggregatorImplementer {
     private MethodSpec close() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("close");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addStatement(
-            "$T.closeExpectNoException(state, $T.wrap(inputs), () -> driverContext.breaker().addWithoutBreaking(-$T.totalRamBytesUsed(inputs)))",
-            RELEASABLES,
-            RELEASABLES,
-            EXPRESSION_EVALUATOR
-        );
+        builder.addStatement("""
+            $T.closeExpectNoException(
+              state,
+              $T.wrap(inputs),
+              () -> driverContext.breaker().addWithoutBreaking(-$T.totalRamBytesUsed(inputs))
+            )""", RELEASABLES, RELEASABLES, EXPRESSION_EVALUATOR);
         return builder.build();
     }
 

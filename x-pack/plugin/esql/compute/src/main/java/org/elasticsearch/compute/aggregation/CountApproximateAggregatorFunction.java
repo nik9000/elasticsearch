@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
@@ -133,8 +132,7 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
     @Override
     public void addIntermediateInput(Page page) {
         assert inputs.size() == intermediateBlockCount();
-        try (DoubleBlock count = (DoubleBlock) inputs.get(0).eval(page);
-             BooleanBlock seen = (BooleanBlock) inputs.get(1).eval(page)) {
+        try (DoubleBlock count = (DoubleBlock) inputs.get(0).eval(page); BooleanBlock seen = (BooleanBlock) inputs.get(1).eval(page)) {
             if (count.areAllValuesNull()) {
                 return;
             }

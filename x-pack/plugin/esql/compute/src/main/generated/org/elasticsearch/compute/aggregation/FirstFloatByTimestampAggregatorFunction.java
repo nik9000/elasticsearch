@@ -277,6 +277,10 @@ public final class FirstFloatByTimestampAggregatorFunction implements Aggregator
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(state, Releasables.wrap(inputs), () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs)));
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

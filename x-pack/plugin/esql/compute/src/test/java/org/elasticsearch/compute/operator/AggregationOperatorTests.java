@@ -48,15 +48,15 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
             sumChannels = maxChannels = List.of(0);
         }
 
-        List<ExpressionEvaluator.Factory> sumInputs = sumChannels.stream()
-            .map(c -> new LoadFromPageEvaluator.Factory(c))
-            .toList();
-        List<ExpressionEvaluator.Factory> maxInputs = maxChannels.stream()
-            .map(c -> new LoadFromPageEvaluator.Factory(c))
-            .toList();
+        List<ExpressionEvaluator.Factory> sumInputs = sumChannels.stream().<ExpressionEvaluator.Factory>map(
+            LoadFromPageEvaluator.Factory::new
+        ).toList();
+        List<ExpressionEvaluator.Factory> maxInputs = maxChannels.stream().<ExpressionEvaluator.Factory>map(
+            LoadFromPageEvaluator.Factory::new
+        ).toList();
         var sumSupplier = new SumLongAggregatorFunctionSupplier();
         var maxSupplier = new MaxLongAggregatorFunctionSupplier();
-        return new AggregationOperator.AggregationOperatorFactory(
+        return new AggregationOperator.Factory(
             List.of(sumSupplier.aggregatorFactory(mode, sumInputs), maxSupplier.aggregatorFactory(mode, maxInputs)),
             mode
         );
@@ -71,8 +71,8 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "AggregationOperator[aggregators=["
-                + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[channels=[0]], mode=SINGLE], "
-                + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[channels=[0]], mode=SINGLE]]]"
+                + "Aggregator[aggregatorFunction=SumLongAggregatorFunction[inputs=[Attribute[channel=0]]], mode=SINGLE], "
+                + "Aggregator[aggregatorFunction=MaxLongAggregatorFunction[inputs=[Attribute[channel=0]]], mode=SINGLE]]]"
         );
     }
 

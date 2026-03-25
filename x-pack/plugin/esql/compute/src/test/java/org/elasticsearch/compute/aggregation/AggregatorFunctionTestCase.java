@@ -81,12 +81,10 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     ) {
         List<ExpressionEvaluator.Factory> inputs = (mode.isInputPartial()
             ? range(0, aggregatorIntermediateBlockCount())
-            : IntStream.range(0, inputCount()))
-            .mapToObj(LoadFromPageEvaluator.Factory::new)
-            .toList();
+            : IntStream.range(0, inputCount())).<ExpressionEvaluator.Factory>mapToObj(LoadFromPageEvaluator.Factory::new).toList();
         AggregatorFunctionSupplier supplier = aggregatorFunction();
         Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, inputs);
-        return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
+        return new AggregationOperator.Factory(List.of(factory), mode);
     }
 
     protected int inputCount() {

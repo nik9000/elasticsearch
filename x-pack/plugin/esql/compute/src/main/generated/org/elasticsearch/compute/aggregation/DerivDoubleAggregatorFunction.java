@@ -250,6 +250,10 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(state, Releasables.wrap(inputs), () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs)));
+    Releasables.closeExpectNoException(
+          state,
+          Releasables.wrap(inputs),
+          () -> driverContext.breaker().addWithoutBreaking(-ExpressionEvaluator.totalRamBytesUsed(inputs))
+        );
   }
 }

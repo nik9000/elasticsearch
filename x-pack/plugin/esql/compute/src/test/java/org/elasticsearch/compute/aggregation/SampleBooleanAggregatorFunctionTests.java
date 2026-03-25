@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -63,10 +62,7 @@ public class SampleBooleanAggregatorFunctionTests extends AggregatorFunctionTest
             AggregatorMode.SINGLE,
             List.of(new LoadFromPageEvaluator.Factory(0))
         );
-        AggregationOperator.AggregationOperatorFactory operatorFactory = new AggregationOperator.AggregationOperatorFactory(
-            List.of(aggregatorFactory),
-            AggregatorMode.SINGLE
-        );
+        AggregationOperator.Factory operatorFactory = new AggregationOperator.Factory(List.of(aggregatorFactory), AggregatorMode.SINGLE);
 
         // Repeat 1000x, count how often each value is sampled.
         int trueCount = 0;

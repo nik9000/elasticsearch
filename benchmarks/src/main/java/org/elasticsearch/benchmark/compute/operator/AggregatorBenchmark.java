@@ -39,6 +39,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -167,10 +168,12 @@ public class AggregatorBenchmark {
 
     private static Operator operator(DriverContext driverContext, String grouping, String op, String dataType, String filter) {
         if (grouping.equals(NONE)) {
-            return new AggregationOperator(
-                List.of(supplier(op, dataType, filter).aggregatorFactory(AggregatorMode.SINGLE, List.of(new LoadFromPageEvaluator.Factory(0))).apply(driverContext)),
-                driverContext
-            );
+            return new AggregationOperator.Factory(
+                List.of(
+                    supplier(op, dataType, filter).aggregatorFactory(AggregatorMode.SINGLE, List.of(new LoadFromPageEvaluator.Factory(0)))
+                ),
+                AggregatorMode.SINGLE
+            ).get(driverContext);
         }
         List<BlockHash.GroupSpec> groups = switch (grouping) {
             case LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
