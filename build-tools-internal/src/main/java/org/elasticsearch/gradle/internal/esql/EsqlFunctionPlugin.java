@@ -72,7 +72,9 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
         project.getTasks().named("compileJava", JavaCompile.class).configure(compileJava -> {
             compileJava.getOptions().getCompilerArgumentProviders().add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir));
             // IntelliJ sticks generated files here, and we can't stop it....
-            compileJava.exclude(element -> PlatformUtils.normalize(element.getFile().toString()).contains("src/main/generated-src/generated"));
+            compileJava.exclude(
+                element -> PlatformUtils.normalize(element.getFile().toString()).contains("src/main/generated-src/generated")
+            );
         });
         project.getPlugins().withType(IdeaPlugin.class, ideaPlugin -> {
             ideaPlugin.getModel().getModule().getSourceDirs().add(project.file(generatedPath));
