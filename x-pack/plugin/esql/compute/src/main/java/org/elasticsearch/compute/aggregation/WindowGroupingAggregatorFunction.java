@@ -97,7 +97,9 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
             }
             try {
                 // TODO slice into pages
-                next.prepareEvaluateIntermediate(selected, ctx).evaluate(intermediateBlocks, 0, selected);
+                try (PreparedForEvaluation prepared = next.prepareEvaluateIntermediate(selected, ctx)) {
+                    prepared.evaluate(intermediateBlocks, 0, selected);
+                }
                 Page page = new Page(intermediateBlocks);
                 finalAgg.aggregatorFunction().addIntermediateInput(0, selected, page);
                 for (int i = 0; i < selected.getPositionCount(); i++) {

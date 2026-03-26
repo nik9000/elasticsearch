@@ -337,6 +337,11 @@ $endif$
             @Override
             public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
 $if(BytesRef)$
+                /*
+                 * When selected == selectedInPage we're building one block across the entire
+                 * selected region. So it's safe to run the ordinals optimization which *takes*
+                 * the ordinals.
+                 */
                 if (selected == selectedInPage && OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
                     blocks[offset] = buildOrdinalOutputBlock(blockFactory, selectedInPage, next);
                 } else {

@@ -718,29 +718,29 @@ public class HashAggregationOperator implements Operator {
     private class PreparedForEvaluation implements Releasable {
         private final GroupingAggregatorEvaluationContext ctx;
         private final Selected selected;
-        private final List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators;
+        private final List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators;
 
         private PreparedForEvaluation() {
-            int count = HashAggregationOperator.this.aggregators.size();
+            int count = aggregators.size();
             GroupingAggregatorEvaluationContext ctx = evaluationContext(blockHash);
             Selected selected = null;
-            List<GroupingAggregatorFunction.PreparedForEvaluation> aggregators = new ArrayList<>(count);
+            List<GroupingAggregatorFunction.PreparedForEvaluation> preparedAggregators = new ArrayList<>(count);
             boolean success = false;
             try {
                 selected = new Selected(blockHash.nonEmpty(), new IntVector[count]);
                 for (int a = 0; a < count; a++) {
-                    selected.aggs[a] = customizeSelected(HashAggregationOperator.this.aggregators.get(a), selected.keys);
-                    aggregators.add(HashAggregationOperator.this.aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
+                    selected.aggs[a] = customizeSelected(aggregators.get(a), selected.keys);
+                    preparedAggregators.add(aggregators.get(a).prepareForEvaluate(selected.aggs[a], ctx));
                 }
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(ctx, selected);
+                    Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
                 }
             }
             this.ctx = ctx;
             this.selected = selected;
-            this.aggregators = aggregators;
+            this.preparedAggregators = preparedAggregators;
         }
 
         /**
@@ -754,8 +754,8 @@ public class HashAggregationOperator implements Operator {
             System.arraycopy(keys, 0, blocks, 0, keys.length);
             try {
                 int blockOffset = keys.length;
-                for (int i = 0; i < aggregators.size(); i++) {
-                    var aggregator = aggregators.get(i);
+                for (int i = 0; i < preparedAggregators.size(); i++) {
+                    var aggregator = preparedAggregators.get(i);
                     aggregator.evaluate(blocks, blockOffset, selectedInPage.aggs[i]);
                     blockOffset += aggBlockCounts[i];
                 }
@@ -771,7 +771,7 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public void close() {
-            Releasables.close(ctx, selected, Releasables.wrap(aggregators));
+            Releasables.close(ctx, selected, Releasables.wrap(preparedAggregators));
         }
     }
 
