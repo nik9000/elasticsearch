@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -58,6 +59,9 @@ public class StSimplify extends SpatialDocValuesFunction {
         "StSimplify",
         StSimplify::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StSimplify.class)
+        .binary(StSimplify::new)
+        .name("st_simplify");
     private static final BlockProcessor processor = new BlockProcessor(UNSPECIFIED);
     private static final BlockProcessor geoProcessor = new BlockProcessor(GEO);
     private static final BlockProcessor cartesianProcessor = new BlockProcessor(CARTESIAN);
