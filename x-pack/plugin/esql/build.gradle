@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
+
 plugins {
   id 'idea'
 }
