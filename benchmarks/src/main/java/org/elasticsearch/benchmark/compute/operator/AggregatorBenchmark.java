@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
@@ -36,6 +37,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBigArrayBlock;
+import org.elasticsearch.compute.data.LongBigArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
@@ -56,6 +59,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.util.BitSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
@@ -102,6 +106,8 @@ public class AggregatorBenchmark {
     private static final String HALF_NULL_DOUBLES = "half_null_doubles";
     private static final String VECTOR_LONGS = "vector_" + LONGS;
     private static final String HALF_NULL_LONGS = "half_null_" + LONGS;
+    private static final String BIG_ARRAY_HALF_NULL_LONGS = "big_array_half_null_" + LONGS;
+    private static final String BIG_ARRAY_VECTOR_LONGS = "big_array_vector_" + LONGS;
     private static final String MULTIVALUED_LONGS = "multivalued";
 
     private static final String AVG = "avg";
@@ -163,7 +169,16 @@ public class AggregatorBenchmark {
     @Param({ COUNT, COUNT_DISTINCT, MIN, MAX, SUM })
     public String op;
 
-    @Param({ VECTOR_LONGS, HALF_NULL_LONGS, VECTOR_DOUBLES, HALF_NULL_DOUBLES, NULLS_AS_LONGS })
+    @Param(
+        {
+            VECTOR_LONGS,
+            HALF_NULL_LONGS,
+            BIG_ARRAY_VECTOR_LONGS,
+            BIG_ARRAY_HALF_NULL_LONGS,
+            VECTOR_DOUBLES,
+            HALF_NULL_DOUBLES,
+            NULLS_AS_LONGS }
+    )
     public String blockType;
 
     @Param({ NONE, CONSTANT_TRUE, ALL_TRUE, HALF_TRUE, CONSTANT_FALSE })
@@ -625,6 +640,24 @@ public class AggregatorBenchmark {
                 }
                 yield builder.build();
             }
+            case BIG_ARRAY_VECTOR_LONGS -> {
+                LongArray values = blockFactory.bigArrays().newLongArray(BLOCK_LENGTH, false);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    values.set(i, i);
+                }
+                yield new LongBigArrayVector(values, BLOCK_LENGTH, blockFactory).asBlock();
+            }
+            case BIG_ARRAY_HALF_NULL_LONGS -> {
+                LongArray values = blockFactory.bigArrays().newLongArray(2 * BLOCK_LENGTH, false);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    values.set(2 * i, i);
+                }
+                BitSet nulls = new BitSet(2 * BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    nulls.set(2 * i + 1);
+                }
+                yield new LongBigArrayBlock(values, 2 * BLOCK_LENGTH, null, nulls, Block.MvOrdering.UNORDERED, blockFactory);
+            }
             case NULLS_AS_LONGS -> blockFactory.newConstantNullBlock(BLOCK_LENGTH);
             default -> throw new IllegalArgumentException("bad blockType: " + blockType);
         };
@@ -647,8 +680,8 @@ public class AggregatorBenchmark {
 
     private static Block groupingBlock(String grouping, String blockType) {
         int valuesPerGroup = switch (blockType) {
-            case VECTOR_LONGS, VECTOR_DOUBLES, NULLS_AS_LONGS -> 1;
-            case HALF_NULL_LONGS, HALF_NULL_DOUBLES -> 2;
+            case VECTOR_LONGS, BIG_ARRAY_VECTOR_LONGS, VECTOR_DOUBLES, NULLS_AS_LONGS -> 1;
+            case HALF_NULL_LONGS, HALF_NULL_DOUBLES, BIG_ARRAY_HALF_NULL_LONGS -> 2;
             default -> throw new UnsupportedOperationException("bad grouping [" + grouping + "]");
         };
         return switch (grouping) {
@@ -785,7 +818,7 @@ public class AggregatorBenchmark {
     private static void run(String grouping, String op, String blockType, String filter, int opCount) {
         // System.err.printf("[%s][%s][%s][%s][%s]\n", grouping, op, blockType, filter, opCount);
         String dataType = switch (blockType) {
-            case VECTOR_LONGS, HALF_NULL_LONGS, NULLS_AS_LONGS -> LONGS;
+            case VECTOR_LONGS, HALF_NULL_LONGS, BIG_ARRAY_VECTOR_LONGS, BIG_ARRAY_HALF_NULL_LONGS, NULLS_AS_LONGS -> LONGS;
             case VECTOR_DOUBLES, HALF_NULL_DOUBLES -> DOUBLES;
             default -> throw new IllegalArgumentException();
         };
