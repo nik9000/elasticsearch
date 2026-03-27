@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,35 +26,121 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.tree.SourceTests.randomSource;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class NodeTests extends ESTestCase {
-    public void testToString() {
-        assertEquals("NoChildren[thing]", new NoChildren(randomSource(), "thing").toString());
-        {
-            ChildrenAreAProperty empty = new ChildrenAreAProperty(randomSource(), emptyList(), "thing");
-            assertEquals("ChildrenAreAProperty[thing]", empty.toString());
-            assertEquals(
-                "ChildrenAreAProperty[single]\n\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString()
-            );
-            assertEquals(
-                """
-                    ChildrenAreAProperty[many]
-                    |_ChildrenAreAProperty[thing]
-                    \\_ChildrenAreAProperty[thing]""",
-                new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString()
-            );
+    public void testToStringNoChildren() {
+        assertThat(new NoChildren(randomSource(), "thing"), hasToString("NoChildren[thing]"));
+    }
+
+    public void testToStringDepth() {
+        ChildrenAreAProperty empty = new ChildrenAreAProperty(randomSource(), emptyList(), "thing");
+        assertThat(empty, hasToString("ChildrenAreAProperty[thing]"));
+        assertThat(new ChildrenAreAProperty(randomSource(), singletonList(empty), "single"), hasToString("""
+            ChildrenAreAProperty[single]
+            \\_ChildrenAreAProperty[thing]"""));
+        assertThat(new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many"), hasToString("""
+            ChildrenAreAProperty[many]
+            |_ChildrenAreAProperty[thing]
+            \\_ChildrenAreAProperty[thing]"""));
+    }
+
+    public void testToStringAChildIsAProperty() {
+        NoChildren empty = new NoChildren(randomSource(), "thing");
+        assertThat(new AChildIsAProperty(randomSource(), empty, "single"), hasToString("""
+            AChildIsAProperty[single]
+            \\_NoChildren[thing]"""));
+    }
+
+    public void testToStringMaxLineWidth() {
+        assertThat(new NoChildren(randomSource(), "a".repeat(110)), hasToString("NoChildren[" + "a".repeat(110) + "]"));
+    }
+
+    public void testToStringLongProperty() {
+        assertThat(
+            new NoChildren(randomSource(), "a".repeat(200)),
+            hasToString("NoChildren[" + "a".repeat(110) + "\n" + "a".repeat(90) + "]")
+        );
+    }
+
+    public void testToStringVeryLongProperty() {
+        assertThat(
+            new NoChildren(randomSource(), "a".repeat(1000)),
+            hasToString("NoChildren[" + ("a".repeat(110) + "\n").repeat(9) + "a".repeat(10) + "]")
+        );
+    }
+
+    public void testToStringTruncatesAtMaxLines() {
+        assertThat(
+            new NoChildren(randomSource(), "a".repeat(2000)),
+            hasToString("NoChildren[" + ("a".repeat(110) + "\n").repeat(9) + "a".repeat(110) + "..." + "]")
+        );
+    }
+
+    public void testToStringNameId() {
+        NameId nameId = new NameId();
+        assertThat(new NoChildren(randomSource(), nameId), hasToString("NoChildren[#" + nameId + "]"));
+    }
+
+    public void testToStringList() {
+        assertThat(
+            new NoChildren(randomSource(), List.of("aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh", "iii", "jjj")),
+            hasToString("NoChildren[[aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj]]")
+        );
+    }
+
+    public void testToStringListWrapping() {
+        assertThat(
+            new NoChildren(
+                randomSource(),
+                List.of(
+                    "aaaaaaaaaa",
+                    "bbbbbbbbbb",
+                    "cccccccccc",
+                    "dddddddddd",
+                    "eeeeeeeeee",
+                    "ffffffffff",
+                    "gggggggggg",
+                    "hhhhhhhhhh",
+                    "iiiiiiiiii",
+                    "jjjjjjjjjj"
+                )
+            ),
+            hasToString("""
+                NoChildren[[aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee, ffffffffff, gggggggggg, hhhhhhhhhh, iiiiiiiiii, j
+                jjjjjjjjj]]""")
+        );
+    }
+
+    public void testToStringListPathologicalWrapping() {
+        List<String> strings = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            strings.add(String.valueOf((char) ('a' + (i % 26))));
         }
-        {
-            NoChildren empty = new NoChildren(randomSource(), "thing");
-            assertEquals(
-                "AChildIsAProperty[single]\n" + "\\_NoChildren[thing]",
-                new AChildIsAProperty(randomSource(), empty, "single").toString()
-            );
+        assertThat(new NoChildren(randomSource(), strings), hasToString("""
+            NoChildren[[a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k
+            , l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u,\s
+            v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v]]"""));
+    }
+
+    public void testRandomToString() {
+        NoChildren node = new NoChildren(randomSource(), randomNestedList(3));
+        String[] lines = node.toString().split("\n", -1);
+        assertThat(lines.length, lessThanOrEqualTo(Node.TO_STRING_MAX_LINES));
+        if (lines.length == 1) {
+            assertThat(lines[0].length(), lessThanOrEqualTo(Node.TO_STRING_MAX_WIDTH + "NoChildren[]".length()));
+            return;
         }
+        assertThat(lines[0].length(), lessThanOrEqualTo(Node.TO_STRING_MAX_WIDTH + "NoChildren[".length()));
+        for (int i = 1; i < lines.length - 1; i++) {
+            assertThat(lines[i].length(), lessThanOrEqualTo(Node.TO_STRING_MAX_WIDTH));
+        }
+        assertThat(lines[lines.length - 1].length(), lessThanOrEqualTo(Node.TO_STRING_MAX_WIDTH + "...]".length()));
     }
 
     public void testWithNullChild() {
@@ -202,19 +289,29 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class NoChildren extends Dummy {
-        public NoChildren(Source source, String thing) {
-            super(source, emptyList(), thing);
+        private final Object thing;
+
+        public NoChildren(Source source, Object thing) {
+            super(source, emptyList(), thing.toString());
+            this.thing = thing;
         }
 
         @Override
         protected NodeInfo<NoChildren> info() {
-            return NodeInfo.create(this, NoChildren::new, thing());
+            return NodeInfo.create(this, NoChildren::new, thing);
         }
 
         @Override
         public Dummy replaceChildren(List<Dummy> newChildren) {
             throw new UnsupportedOperationException("no children to replace");
         }
+    }
+
+    private static List<Object> randomNestedList(int allowedDepth) {
+        Supplier<Object> element = allowedDepth > 0
+            ? () -> randomBoolean() ? randomNestedList(allowedDepth - 1) : randomAlphaOfLengthBetween(0, 10)
+            : () -> randomAlphaOfLengthBetween(0, 10);
+        return randomList(10, element);
     }
 
     // Returns an empty list. The returned list may be backed various implementations, some
