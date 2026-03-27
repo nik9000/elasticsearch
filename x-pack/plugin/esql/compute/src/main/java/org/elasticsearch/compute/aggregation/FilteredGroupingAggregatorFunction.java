@@ -45,6 +45,9 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
             AddInput nextAdd = null;
             try {
                 nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
+                if (nextAdd == null) {
+                    return null;
+                }
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;

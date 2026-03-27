@@ -64,6 +64,9 @@ public final class SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction i
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
+    if (bytesBlock.areAllValuesNull()) {
+      return null;
+    }
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, bytesBlock);

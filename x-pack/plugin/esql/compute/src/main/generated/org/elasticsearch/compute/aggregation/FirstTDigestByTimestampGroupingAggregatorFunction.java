@@ -60,6 +60,12 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
       Page page) {
     TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (tdigestBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      return null;
+    }
     maybeEnableGroupIdTracking(seenGroupIds, tdigestBlock, timestampBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

@@ -96,13 +96,15 @@ public class GroupingAggregatorImplementer {
     private final List<Argument> aggParams;
     private final boolean hasOnlyBlockArguments;
     private final boolean allArgumentsSupportVectors;
+    private final boolean skipNullInputs;
 
     public GroupingAggregatorImplementer(
         Elements elements,
         javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions
+        List<TypeMirror> warnExceptions,
+        boolean skipNullInputs
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
@@ -144,6 +146,7 @@ public class GroupingAggregatorImplementer {
 
         this.hasOnlyBlockArguments = this.aggParams.stream().allMatch(a -> a instanceof BlockArgument);
         this.allArgumentsSupportVectors = aggParams.stream().noneMatch(a -> a.supportsVectorReadAccess() == false);
+        this.skipNullInputs = skipNullInputs;
 
         this.createParameters = init.getParameters()
             .stream()
@@ -319,6 +322,13 @@ public class GroupingAggregatorImplementer {
         for (int i = 0; i < aggParams.size(); i++) {
             Argument a = aggParams.get(i);
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
+        }
+        if (skipNullInputs) {
+            for (Argument a : aggParams) {
+                builder.beginControlFlow("if ($L.areAllValuesNull())", a.blockName());
+                builder.addStatement("return null");
+                builder.endControlFlow();
+            }
         }
 
         String groupIdTrackingStatement = "maybeEnableGroupIdTracking(seenGroupIds, "

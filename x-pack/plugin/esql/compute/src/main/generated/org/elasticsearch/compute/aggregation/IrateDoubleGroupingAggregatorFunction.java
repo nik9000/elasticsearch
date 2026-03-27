@@ -63,6 +63,12 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
       Page page) {
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (valueBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      return null;
+    }
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);

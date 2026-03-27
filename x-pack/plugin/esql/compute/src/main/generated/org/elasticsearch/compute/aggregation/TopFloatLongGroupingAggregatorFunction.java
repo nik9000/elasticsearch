@@ -63,6 +63,12 @@ public final class TopFloatLongGroupingAggregatorFunction implements GroupingAgg
       Page page) {
     FloatBlock vBlock = page.getBlock(channels.get(0));
     LongBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      return null;
+    }
     FloatVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock, outputValueBlock);

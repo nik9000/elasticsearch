@@ -56,6 +56,9 @@ public final class HistogramMergeTDigestGroupingAggregatorFunction implements Gr
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     TDigestBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      return null;
+    }
     maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

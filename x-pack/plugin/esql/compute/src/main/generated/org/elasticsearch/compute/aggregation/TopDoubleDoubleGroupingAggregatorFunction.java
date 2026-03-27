@@ -61,6 +61,12 @@ public final class TopDoubleDoubleGroupingAggregatorFunction implements Grouping
       Page page) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     DoubleBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      return null;
+    }
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock, outputValueBlock);

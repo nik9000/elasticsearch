@@ -62,6 +62,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       Page page) {
     IntBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (valueBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      return null;
+    }
     IntVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);

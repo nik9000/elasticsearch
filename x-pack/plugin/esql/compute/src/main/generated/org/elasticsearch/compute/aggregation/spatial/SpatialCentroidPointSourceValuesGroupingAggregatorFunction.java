@@ -70,6 +70,9 @@ public final class SpatialCentroidPointSourceValuesGroupingAggregatorFunction im
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
+    if (wkbBlock.areAllValuesNull()) {
+      return null;
+    }
     BytesRefVector wkbVector = wkbBlock.asVector();
     if (wkbVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, wkbBlock);

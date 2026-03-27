@@ -57,6 +57,9 @@ public final class HistogramMergeExponentialHistogramGroupingAggregatorFunction 
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      return null;
+    }
     maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

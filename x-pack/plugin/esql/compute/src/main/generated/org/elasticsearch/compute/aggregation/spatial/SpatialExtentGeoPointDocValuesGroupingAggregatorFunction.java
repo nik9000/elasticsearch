@@ -63,6 +63,9 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     LongBlock encodedBlock = page.getBlock(channels.get(0));
+    if (encodedBlock.areAllValuesNull()) {
+      return null;
+    }
     LongVector encodedVector = encodedBlock.asVector();
     if (encodedVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, encodedBlock);

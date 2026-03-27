@@ -60,6 +60,9 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    if (vectorBlock.areAllValuesNull()) {
+      return null;
+    }
     maybeEnableGroupIdTracking(seenGroupIds, vectorBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

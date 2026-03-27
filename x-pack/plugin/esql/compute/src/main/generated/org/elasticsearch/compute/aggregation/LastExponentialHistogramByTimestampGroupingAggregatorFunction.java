@@ -61,6 +61,12 @@ public final class LastExponentialHistogramByTimestampGroupingAggregatorFunction
       Page page) {
     ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (valueBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      return null;
+    }
     maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

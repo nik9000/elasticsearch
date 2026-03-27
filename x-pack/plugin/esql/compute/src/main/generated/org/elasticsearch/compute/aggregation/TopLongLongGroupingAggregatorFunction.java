@@ -61,6 +61,12 @@ public final class TopLongLongGroupingAggregatorFunction implements GroupingAggr
       Page page) {
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      return null;
+    }
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, vBlock, outputValueBlock);

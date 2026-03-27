@@ -57,6 +57,12 @@ public final class DeltaFloatGroupingAggregatorFunction implements GroupingAggre
       Page page) {
     FloatBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (valueBlock.areAllValuesNull()) {
+      return null;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      return null;
+    }
     FloatVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
