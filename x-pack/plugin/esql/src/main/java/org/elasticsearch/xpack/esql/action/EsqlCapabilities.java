@@ -1975,7 +1975,7 @@ public class EsqlCapabilities {
         /**
          * Support for PromQL {@code without} grouping.
          */
-        PROMQL_WITHOUT_GROUPING(false),
+        PROMQL_WITHOUT_GROUPING,
 
         /**
          * Support for {@code TIME_SERIES_WITHOUT_GROUPING} capability for the
@@ -2351,6 +2351,11 @@ public class EsqlCapabilities {
         ESQL_TOPN_BY(Build.current().isSnapshot()),
 
         /**
+         * Corrects a bug with ENRICH when a shard does not contain an index field and we use LIMIT BY on top
+         */
+        LIMIT_BY_ENRICH_FIX(ESQL_LIMIT_BY.isEnabled()),
+
+        /**
          * Fix window validation in time-series aggregations when TBUCKET uses a numeric target bucket count.
          */
         FIX_TBUCKET_TARGET_COUNT_WINDOW_VALIDATION,
@@ -2390,6 +2395,8 @@ public class EsqlCapabilities {
          * See https://github.com/elastic/elasticsearch/issues/144914
          */
         FIX_SUM_OF_NULL_OPTIMIZATION,
+
+        PROPAGATE_EMPTY_RELATION_PAST_JOINS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
