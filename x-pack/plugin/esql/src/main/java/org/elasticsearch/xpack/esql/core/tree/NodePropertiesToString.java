@@ -103,6 +103,7 @@ class NodePropertiesToString {
 
     private String propertyToString(Object obj) {
         return switch (obj) {
+            case null -> "null";
             case Node<?> n -> n.nodeString(format);
             case NameId nameId -> "#" + obj;
             default -> String.valueOf(obj);
