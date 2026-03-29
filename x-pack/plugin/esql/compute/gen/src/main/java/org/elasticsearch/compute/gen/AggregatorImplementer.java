@@ -303,6 +303,26 @@ public class AggregatorImplementer {
         return hasMask ? "addRawInputMasked" : "addRawInputNotMasked";
     }
 
+    /**
+     * Adds code to skip processing a block when all values are null.
+     */
+    static void skipIfAllNull(MethodSpec.Builder builder, String blockName) {
+        builder.beginControlFlow("if ($L.areAllValuesNull())", blockName);
+        builder.addCode("""
+            /*
+             * All values are null so we can skip processing this block.
+             * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+             *       being fast without this. Likely the branch predictor is kicking
+             *       in there. But we do this anyway, just so we don't have to trust
+             *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+             *       always have long sequences of ConstantNullBlock. And this code
+             *       shows readers we've thought about this.
+             */
+            """);
+        builder.addStatement("return");
+        builder.endControlFlow();
+    }
+
     private MethodSpec addRawInputExploded(boolean hasMask) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawInputExplodedName(hasMask));
         builder.addModifiers(Modifier.PRIVATE).addParameter(PAGE, "page");
@@ -317,14 +337,7 @@ public class AggregatorImplementer {
 
         if (processNulls == false) {
             for (Argument a : aggParams) {
-                builder.beginControlFlow("if ($L.areAllValuesNull())", a.blockName());
-                builder.addCode("""
-                    /*
-                     * All values are null so we can skip processing this block.
-                     */
-                    """);
-                builder.addStatement("return");
-                builder.endControlFlow();
+                skipIfAllNull(builder, a.blockName());
             }
         }
 
@@ -720,11 +733,7 @@ public class AggregatorImplementer {
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", BLOCK, name + "Uncast", offset);
             ClassName blockType = blockType(elementType());
             if (forcePassDown == false) {
-                builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
-                {
-                    builder.addStatement("return");
-                    builder.endControlFlow();
-                }
+                skipIfAllNull(builder, name + "Uncast");
             }
 
             if (block || vectorType(elementType) == null || forcePassDown) {
