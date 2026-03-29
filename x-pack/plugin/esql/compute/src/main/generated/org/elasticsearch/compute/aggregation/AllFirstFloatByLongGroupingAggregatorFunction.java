@@ -58,12 +58,6 @@ public final class AllFirstFloatByLongGroupingAggregatorFunction implements Grou
       Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
     LongBlock timestampsBlock = page.getBlock(channels.get(1));
-    if (valuesBlock.areAllValuesNull()) {
-      return null;
-    }
-    if (timestampsBlock.areAllValuesNull()) {
-      return null;
-    }
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock, timestampsBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

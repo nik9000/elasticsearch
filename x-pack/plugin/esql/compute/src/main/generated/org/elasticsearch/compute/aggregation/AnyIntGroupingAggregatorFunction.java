@@ -55,6 +55,8 @@ public final class AnyIntGroupingAggregatorFunction implements GroupingAggregato
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     if (valuesBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);

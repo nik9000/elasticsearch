@@ -52,6 +52,8 @@ public final class ValuesIntGroupingAggregatorFunction implements GroupingAggreg
       Page page) {
     IntBlock vBlock = page.getBlock(channels.get(0));
     if (vBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     IntVector vVector = vBlock.asVector();

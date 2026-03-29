@@ -61,6 +61,8 @@ public final class StdDevDoubleGroupingAggregatorFunction implements GroupingAgg
       Page page) {
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     if (valueBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     DoubleVector valueVector = valueBlock.asVector();

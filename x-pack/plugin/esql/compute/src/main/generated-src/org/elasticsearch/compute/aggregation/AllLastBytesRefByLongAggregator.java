@@ -42,7 +42,8 @@ import java.util.BitSet;
         @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
 )
 @GroupingAggregator(
-    {
+    skipNullInputs = false,
+    value = {
         @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),

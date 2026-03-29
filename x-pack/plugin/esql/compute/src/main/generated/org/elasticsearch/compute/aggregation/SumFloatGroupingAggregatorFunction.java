@@ -59,6 +59,8 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
       Page page) {
     FloatBlock vBlock = page.getBlock(channels.get(0));
     if (vBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     FloatVector vVector = vBlock.asVector();

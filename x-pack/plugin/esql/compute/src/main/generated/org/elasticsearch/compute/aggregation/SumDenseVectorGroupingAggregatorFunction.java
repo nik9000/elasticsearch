@@ -61,6 +61,8 @@ public final class SumDenseVectorGroupingAggregatorFunction implements GroupingA
       Page page) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
     if (vectorBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     maybeEnableGroupIdTracking(seenGroupIds, vectorBlock);

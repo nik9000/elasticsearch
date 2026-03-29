@@ -71,6 +71,8 @@ public final class SpatialCentroidPointSourceValuesGroupingAggregatorFunction im
       Page page) {
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
     if (wkbBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     BytesRefVector wkbVector = wkbBlock.asVector();

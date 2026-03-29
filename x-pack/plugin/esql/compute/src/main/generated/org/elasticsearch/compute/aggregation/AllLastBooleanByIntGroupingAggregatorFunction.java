@@ -57,12 +57,6 @@ public final class AllLastBooleanByIntGroupingAggregatorFunction implements Grou
       Page page) {
     BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     IntBlock timestampsBlock = page.getBlock(channels.get(1));
-    if (valuesBlock.areAllValuesNull()) {
-      return null;
-    }
-    if (timestampsBlock.areAllValuesNull()) {
-      return null;
-    }
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock, timestampsBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

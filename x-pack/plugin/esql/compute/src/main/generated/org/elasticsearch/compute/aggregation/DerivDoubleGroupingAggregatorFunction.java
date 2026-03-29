@@ -64,9 +64,13 @@ public final class DerivDoubleGroupingAggregatorFunction implements GroupingAggr
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
     if (valueBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     if (timestampBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     DoubleVector valueVector = valueBlock.asVector();

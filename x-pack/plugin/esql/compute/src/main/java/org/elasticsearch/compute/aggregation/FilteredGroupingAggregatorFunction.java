@@ -34,6 +34,8 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
         GroupingAggregatorFunction {
 
     FilteredGroupingAggregatorFunction {
+        // Filtered aggregators may filter out entire pages, so the underlying aggregator
+        // may not see all groups. It needs to know this so it can initialize unseen groups to null.
         next.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 

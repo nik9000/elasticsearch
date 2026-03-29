@@ -56,12 +56,6 @@ public final class AllLastIntByIntGroupingAggregatorFunction implements Grouping
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntBlock timestampsBlock = page.getBlock(channels.get(1));
-    if (valuesBlock.areAllValuesNull()) {
-      return null;
-    }
-    if (timestampsBlock.areAllValuesNull()) {
-      return null;
-    }
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock, timestampsBlock);
     return new GroupingAggregatorFunction.AddInput() {
       @Override

@@ -63,6 +63,8 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
       Page page) {
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
     if (bytesBlock.areAllValuesNull()) {
+      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
+      selectedMayContainUnseenGroups(seenGroupIds);
       return null;
     }
     BytesRefVector bytesVector = bytesBlock.asVector();

@@ -326,6 +326,7 @@ public class HashAggregationOperator implements Operator {
                     }
                 }
 
+                // TODO we can skip the page *entirely* if we know we don't need "empty" results.
                 blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }
