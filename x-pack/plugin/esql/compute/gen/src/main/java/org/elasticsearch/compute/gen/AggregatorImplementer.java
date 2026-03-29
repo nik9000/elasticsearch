@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -308,6 +309,14 @@ public class AggregatorImplementer {
      */
     static void skipIfAllNull(MethodSpec.Builder builder, String blockName) {
         builder.beginControlFlow("if ($L.areAllValuesNull())", blockName);
+        emitAllNullSkipBody(builder);
+        builder.endControlFlow();
+    }
+
+    /**
+     * Emits the body of an all-null skip block: the explanatory comment plus {@code return}.
+     */
+    static void emitAllNullSkipBody(MethodSpec.Builder builder) {
         builder.addCode("""
             /*
              * All values are null so we can skip processing this block.
@@ -320,7 +329,6 @@ public class AggregatorImplementer {
              */
             """);
         builder.addStatement("return");
-        builder.endControlFlow();
     }
 
     private MethodSpec addRawInputExploded(boolean hasMask) {
@@ -335,7 +343,7 @@ public class AggregatorImplementer {
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
         }
 
-        if (processNulls == false) {
+        if (processNulls == false && tryToUseVectors == false) {
             for (Argument a : aggParams) {
                 skipIfAllNull(builder, a.blockName());
             }
@@ -348,7 +356,10 @@ public class AggregatorImplementer {
                     + (hasMask ? ", mask" : "")
                     + ")";
 
-                a.resolveVectors(builder, rawBlock, "return");
+                Consumer<MethodSpec.Builder> onAllNull = processNulls == false
+                    ? AggregatorImplementer::emitAllNullSkipBody
+                    : null;
+                a.resolveVectors(builder, b -> { b.addStatement(rawBlock); b.addStatement("return"); }, onAllNull);
             }
         }
 
