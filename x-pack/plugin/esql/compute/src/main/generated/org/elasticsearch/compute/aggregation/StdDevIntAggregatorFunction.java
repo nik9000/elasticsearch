@@ -68,6 +68,12 @@ public final class StdDevIntAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     IntVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       addRawBlock(valueBlock, mask);
@@ -78,6 +84,12 @@ public final class StdDevIntAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputNotMasked(Page page) {
     IntBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     IntVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       addRawBlock(valueBlock);

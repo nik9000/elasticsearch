@@ -63,11 +63,23 @@ public final class HistogramMergeExponentialHistogramAggregatorFunction implemen
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valueBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     ExponentialHistogramBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valueBlock);
   }
 

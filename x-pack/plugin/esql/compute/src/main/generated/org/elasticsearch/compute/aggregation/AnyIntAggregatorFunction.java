@@ -60,11 +60,23 @@ public final class AnyIntAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valuesBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valuesBlock);
   }
 

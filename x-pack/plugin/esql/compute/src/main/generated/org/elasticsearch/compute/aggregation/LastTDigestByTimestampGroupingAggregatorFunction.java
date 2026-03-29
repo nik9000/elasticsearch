@@ -61,13 +61,21 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
     TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
     if (tdigestBlock.areAllValuesNull()) {
-      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
-      selectedMayContainUnseenGroups(seenGroupIds);
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
     if (timestampBlock.areAllValuesNull()) {
-      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
-      selectedMayContainUnseenGroups(seenGroupIds);
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
     maybeEnableGroupIdTracking(seenGroupIds, tdigestBlock, timestampBlock);
@@ -286,9 +294,19 @@ public final class LastTDigestByTimestampGroupingAggregatorFunction implements G
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, TDigestBlock tdigestBlock,
       LongBlock timestampBlock) {
     if (tdigestBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
     if (timestampBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

@@ -54,8 +54,12 @@ public final class AnyBooleanGroupingAggregatorFunction implements GroupingAggre
       Page page) {
     BooleanBlock valuesBlock = page.getBlock(channels.get(0));
     if (valuesBlock.areAllValuesNull()) {
-      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
-      selectedMayContainUnseenGroups(seenGroupIds);
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
     maybeEnableGroupIdTracking(seenGroupIds, valuesBlock);
@@ -201,6 +205,11 @@ public final class AnyBooleanGroupingAggregatorFunction implements GroupingAggre
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock valuesBlock) {
     if (valuesBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

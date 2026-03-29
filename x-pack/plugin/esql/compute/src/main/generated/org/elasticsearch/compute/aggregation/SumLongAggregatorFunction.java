@@ -61,6 +61,12 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, mask);
@@ -71,6 +77,12 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputNotMasked(Page page) {
     LongBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock);

@@ -69,6 +69,12 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock encodedBlock = page.getBlock(channels.get(0));
+    if (encodedBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector encodedVector = encodedBlock.asVector();
     if (encodedVector == null) {
       addRawBlock(encodedBlock, mask);
@@ -79,6 +85,12 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
 
   private void addRawInputNotMasked(Page page) {
     LongBlock encodedBlock = page.getBlock(channels.get(0));
+    if (encodedBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector encodedVector = encodedBlock.asVector();
     if (encodedVector == null) {
       addRawBlock(encodedBlock);

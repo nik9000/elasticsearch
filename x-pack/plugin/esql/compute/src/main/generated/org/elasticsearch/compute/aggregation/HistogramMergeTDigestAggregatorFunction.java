@@ -61,11 +61,23 @@ public final class HistogramMergeTDigestAggregatorFunction implements Aggregator
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     TDigestBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valueBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     TDigestBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valueBlock);
   }
 

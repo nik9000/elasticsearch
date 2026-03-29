@@ -67,6 +67,12 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       addRawBlock(valueBlock, mask);
@@ -77,6 +83,12 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputNotMasked(Page page) {
     LongBlock valueBlock = page.getBlock(channels.get(0));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       addRawBlock(valueBlock);

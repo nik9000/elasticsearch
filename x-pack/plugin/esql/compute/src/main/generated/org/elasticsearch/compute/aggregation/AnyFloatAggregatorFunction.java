@@ -60,11 +60,23 @@ public final class AnyFloatAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valuesBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(valuesBlock);
   }
 

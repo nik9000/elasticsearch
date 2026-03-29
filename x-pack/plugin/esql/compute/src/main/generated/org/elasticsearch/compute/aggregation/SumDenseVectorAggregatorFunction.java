@@ -66,11 +66,23 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    if (vectorBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(vectorBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     FloatBlock vectorBlock = page.getBlock(channels.get(0));
+    if (vectorBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     addRawBlock(vectorBlock);
   }
 

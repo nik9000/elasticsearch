@@ -62,6 +62,12 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, mask);
@@ -72,6 +78,12 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
 
   private void addRawInputNotMasked(Page page) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock);

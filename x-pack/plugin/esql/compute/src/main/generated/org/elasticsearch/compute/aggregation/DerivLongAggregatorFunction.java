@@ -70,6 +70,18 @@ public final class DerivLongAggregatorFunction implements AggregatorFunction {
   private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       addRawBlock(valueBlock, timestampBlock, mask);
@@ -86,6 +98,18 @@ public final class DerivLongAggregatorFunction implements AggregatorFunction {
   private void addRawInputNotMasked(Page page) {
     LongBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
+    if (valueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       addRawBlock(valueBlock, timestampBlock);

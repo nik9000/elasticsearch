@@ -70,6 +70,18 @@ public final class TopDoubleLongAggregatorFunction implements AggregatorFunction
   private void addRawInputMasked(Page page, BooleanVector mask) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     LongBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, outputValueBlock, mask);
@@ -86,6 +98,18 @@ public final class TopDoubleLongAggregatorFunction implements AggregatorFunction
   private void addRawInputNotMasked(Page page) {
     DoubleBlock vBlock = page.getBlock(channels.get(0));
     LongBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     DoubleVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, outputValueBlock);

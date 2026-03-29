@@ -68,6 +68,18 @@ public final class TopIntIntAggregatorFunction implements AggregatorFunction {
   private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock vBlock = page.getBlock(channels.get(0));
     IntBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, outputValueBlock, mask);
@@ -84,6 +96,18 @@ public final class TopIntIntAggregatorFunction implements AggregatorFunction {
   private void addRawInputNotMasked(Page page) {
     IntBlock vBlock = page.getBlock(channels.get(0));
     IntBlock outputValueBlock = page.getBlock(channels.get(1));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
+    if (outputValueBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, outputValueBlock);

@@ -89,14 +89,17 @@ public class AggregatorImplementer {
     private final List<Argument> aggParams;
     private final boolean hasOnlyBlockArguments;
     private final boolean tryToUseVectors;
+    private final boolean processNulls;
 
     public AggregatorImplementer(
         Elements elements,
         javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions
+        List<TypeMirror> warnExceptions,
+        boolean processNulls
     ) {
+        this.processNulls = processNulls;
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
 
@@ -310,6 +313,19 @@ public class AggregatorImplementer {
         for (int i = 0; i < aggParams.size(); i++) {
             Argument a = aggParams.get(i);
             builder.addStatement("$T $L = page.getBlock(channels.get($L))", a.dataType(true), a.blockName(), i);
+        }
+
+        if (processNulls == false) {
+            for (Argument a : aggParams) {
+                builder.beginControlFlow("if ($L.areAllValuesNull())", a.blockName());
+                builder.addCode("""
+                    /*
+                     * All values are null so we can skip processing this block.
+                     */
+                    """);
+                builder.addStatement("return");
+                builder.endControlFlow();
+            }
         }
 
         if (tryToUseVectors) {

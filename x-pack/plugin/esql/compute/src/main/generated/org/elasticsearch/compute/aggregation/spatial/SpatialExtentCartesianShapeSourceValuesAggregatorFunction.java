@@ -68,6 +68,12 @@ public final class SpatialExtentCartesianShapeSourceValuesAggregatorFunction imp
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
+    if (bytesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
       addRawBlock(bytesBlock, mask);
@@ -78,6 +84,12 @@ public final class SpatialExtentCartesianShapeSourceValuesAggregatorFunction imp
 
   private void addRawInputNotMasked(Page page) {
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
+    if (bytesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
       addRawBlock(bytesBlock);

@@ -57,8 +57,12 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
       Page page) {
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
     if (valueBlock.areAllValuesNull()) {
-      // Inform the state that some groups may not have been seen so it can initialize them to null when we try to read their values.
-      selectedMayContainUnseenGroups(seenGroupIds);
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
     BytesRefVector valueVector = valueBlock.asVector();
@@ -302,6 +306,11 @@ public final class MaxIpGroupingAggregatorFunction implements GroupingAggregator
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BytesRefBlock valueBlock) {
     if (valueBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

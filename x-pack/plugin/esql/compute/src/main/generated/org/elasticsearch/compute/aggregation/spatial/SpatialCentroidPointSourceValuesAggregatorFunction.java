@@ -75,6 +75,12 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunction implements
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
+    if (wkbBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     BytesRefVector wkbVector = wkbBlock.asVector();
     if (wkbVector == null) {
       addRawBlock(wkbBlock, mask);
@@ -85,6 +91,12 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunction implements
 
   private void addRawInputNotMasked(Page page) {
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
+    if (wkbBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     BytesRefVector wkbVector = wkbBlock.asVector();
     if (wkbVector == null) {
       addRawBlock(wkbBlock);

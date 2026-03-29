@@ -58,6 +58,12 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     BooleanBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock, mask);
@@ -68,6 +74,12 @@ public final class ValuesBooleanAggregatorFunction implements AggregatorFunction
 
   private void addRawInputNotMasked(Page page) {
     BooleanBlock vBlock = page.getBlock(channels.get(0));
+    if (vBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       */
+      return;
+    }
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
       addRawBlock(vBlock);
