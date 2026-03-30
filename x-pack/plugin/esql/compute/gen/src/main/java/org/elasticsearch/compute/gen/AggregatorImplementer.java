@@ -356,10 +356,11 @@ public class AggregatorImplementer {
                     + (hasMask ? ", mask" : "")
                     + ")";
 
-                Consumer<MethodSpec.Builder> onAllNull = processNulls == false
-                    ? AggregatorImplementer::emitAllNullSkipBody
-                    : null;
-                a.resolveVectors(builder, b -> { b.addStatement(rawBlock); b.addStatement("return"); }, onAllNull);
+                Consumer<MethodSpec.Builder> onAllNull = processNulls == false ? AggregatorImplementer::emitAllNullSkipBody : null;
+                a.resolveVectors(builder, b -> {
+                    b.addStatement(rawBlock);
+                    b.addStatement("return");
+                }, onAllNull);
             }
         }
 
