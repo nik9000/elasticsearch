@@ -48,7 +48,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     /**
      * Maximum number of lines rendered by {@link #toString}.
      */
-    public static final int TO_STRING_MAX_LINES = 10;
+    public static final int TO_STRING_MAX_LINES = 25;
 
     private final Source source;
     private final List<T> children;

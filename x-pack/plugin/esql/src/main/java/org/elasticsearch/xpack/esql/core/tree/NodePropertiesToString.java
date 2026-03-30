@@ -66,19 +66,20 @@ class NodePropertiesToString {
      * Returns {@code true} if rendering can continue, {@code false} if the line budget is exhausted.
      */
     private boolean appendString(String stringValue) {
-        while (stringValue.length() > charactersRemainingInLine) {
-            result.append(stringValue, 0, charactersRemainingInLine);
+        int start = 0;
+        while (stringValue.length() - start > charactersRemainingInLine) {
+            result.append(stringValue, start, start + charactersRemainingInLine);
             if (linesUsed >= format.maxLines - 1) {
                 result.append("...");
                 return false;
             }
             result.append("\n");
             linesUsed++;
-            stringValue = stringValue.substring(charactersRemainingInLine);
+            start += charactersRemainingInLine;
             charactersRemainingInLine = format.maxWidth;
         }
-        charactersRemainingInLine -= stringValue.length();
-        result.append(stringValue);
+        result.append(stringValue, start, stringValue.length());
+        charactersRemainingInLine -= stringValue.length() - start;
         return true;
     }
 

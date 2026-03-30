@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,81 +22,141 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.tree.SourceTests.randomSource;
-import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class NodeTests extends ESTestCase {
     public void testToStringNoChildren() {
-        assertThat(new NoChildren(randomSource(), "thing"), hasToString("NoChildren[thing]"));
+        assertToString(new NoChildren(randomSource(), "thing"), equalTo("NoChildren[thing]"));
     }
 
-    public void testToStringDepth() {
-        ChildrenAreAProperty empty = new ChildrenAreAProperty(randomSource(), emptyList(), "thing");
-        assertThat(empty, hasToString("ChildrenAreAProperty[thing]"));
-        assertThat(new ChildrenAreAProperty(randomSource(), singletonList(empty), "single"), hasToString("""
-            ChildrenAreAProperty[single]
+    public void testToStringDepth1() {
+        assertToString(dummy(), equalTo("ChildrenAreAProperty[thing]"));
+    }
+
+    public void testToStringDepth2() {
+        assertToString(dummy(dummy()), equalTo("""
+            ChildrenAreAProperty[thing]
             \\_ChildrenAreAProperty[thing]"""));
-        assertThat(new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many"), hasToString("""
-            ChildrenAreAProperty[many]
-            |_ChildrenAreAProperty[thing]
-            \\_ChildrenAreAProperty[thing]"""));
+
+        int length = between(2, 100);
+        StringBuilder expected = new StringBuilder("ChildrenAreAProperty[thing]");
+        expected.append("\n|_ChildrenAreAProperty[thing]".repeat(Math.max(0, length - 1)));
+        expected.append("\n\\_ChildrenAreAProperty[thing]");
+        assertToString(dummy(IntStream.range(0, length).mapToObj(i -> dummy()).toArray(Dummy[]::new)), equalTo(expected.toString()));
+    }
+
+    public void testToStringDepth3() {
+        assertToString(dummy(dummy(dummy())), equalTo("""
+            ChildrenAreAProperty[thing]
+            \\_ChildrenAreAProperty[thing]
+              \\_ChildrenAreAProperty[thing]"""));
+
+        int length = between(2, 10);
+        StringBuilder expected = new StringBuilder("ChildrenAreAProperty[thing]");
+        for (int i = 0; i < length - 1; i++) {
+            expected.append("\n|_ChildrenAreAProperty[thing]");
+            expected.append("\n| \\_ChildrenAreAProperty[thing]");
+        }
+        expected.append("\n\\_ChildrenAreAProperty[thing]");
+        expected.append("\n  \\_ChildrenAreAProperty[thing]");
+        assertToString(dummy(IntStream.range(0, length).mapToObj(i -> dummy(dummy())).toArray(Dummy[]::new)), equalTo(expected.toString()));
+    }
+
+    public void testToStringDeepChain() {
+        int depth = between(3, 100);
+        Dummy node = dummy();
+        for (int i = 1; i < depth; i++) {
+            node = dummy(node);
+        }
+        StringBuilder expected = new StringBuilder("ChildrenAreAProperty[thing]");
+        for (int i = 1; i < depth; i++) {
+            expected.append("\n").append("  ".repeat(i - 1)).append("\\_ChildrenAreAProperty[thing]");
+        }
+        assertToString(node, equalTo(expected.toString()));
+    }
+
+    private Dummy dummy(Dummy... children) {
+        return new ChildrenAreAProperty(randomSource(), List.of(children), "thing");
+    }
+
+    private FunctionLike fn(FunctionLike... children) {
+        return new FunctionLike(randomSource(), List.of(children));
     }
 
     public void testToStringAChildIsAProperty() {
         NoChildren empty = new NoChildren(randomSource(), "thing");
-        assertThat(new AChildIsAProperty(randomSource(), empty, "single"), hasToString("""
+        assertToString(new AChildIsAProperty(randomSource(), empty, "single"), equalTo("""
             AChildIsAProperty[single]
             \\_NoChildren[thing]"""));
     }
 
+    public void testToStringFunctionLike() {
+        assertToString(new NoChildren(randomSource(), fn()), equalTo("NoChildren[FunctionLike()]"));
+        assertToString(new NoChildren(randomSource(), fn(fn(), fn())), equalTo("NoChildren[FunctionLike(FunctionLike(),FunctionLike())]"));
+    }
+
     public void testToStringMaxLineWidth() {
-        assertThat(new NoChildren(randomSource(), "a".repeat(110)), hasToString("NoChildren[" + "a".repeat(110) + "]"));
+        assertToString(new NoChildren(randomSource(), "a".repeat(110)), equalTo("NoChildren[" + "a".repeat(110) + "]"));
     }
 
     public void testToStringLongProperty() {
-        assertThat(
+        assertToString(
             new NoChildren(randomSource(), "a".repeat(200)),
-            hasToString("NoChildren[" + "a".repeat(110) + "\n" + "a".repeat(90) + "]")
+            equalTo("NoChildren[" + "a".repeat(110) + "\n" + "a".repeat(90) + "]"),
+            equalTo("NoChildren[" + "a".repeat(200) + "]")
         );
     }
 
     public void testToStringVeryLongProperty() {
-        assertThat(
+        assertToString(
             new NoChildren(randomSource(), "a".repeat(1000)),
-            hasToString("NoChildren[" + ("a".repeat(110) + "\n").repeat(9) + "a".repeat(10) + "]")
+            equalTo("NoChildren[" + ("a".repeat(110) + "\n").repeat(9) + "a".repeat(10) + "]"),
+            equalTo("NoChildren[" + "a".repeat(1000) + "]")
         );
     }
 
     public void testToStringTruncatesAtMaxLines() {
-        assertThat(
-            new NoChildren(randomSource(), "a".repeat(2000)),
-            hasToString("NoChildren[" + ("a".repeat(110) + "\n").repeat(9) + "a".repeat(110) + "..." + "]")
+        int len = Node.TO_STRING_MAX_LINES * Node.TO_STRING_MAX_WIDTH + 1;
+        assertToString(
+            new NoChildren(randomSource(), "a".repeat(len)),
+            equalTo(
+                "NoChildren["
+                    + ("a".repeat(Node.TO_STRING_MAX_WIDTH) + "\n").repeat(Node.TO_STRING_MAX_LINES - 1)
+                    + "a".repeat(Node.TO_STRING_MAX_WIDTH)
+                    + "..."
+                    + "]"
+            ),
+            equalTo("NoChildren[" + "a".repeat(len) + "]")
         );
     }
 
     public void testToStringNameId() {
         NameId nameId = new NameId();
-        assertThat(new NoChildren(randomSource(), nameId), hasToString("NoChildren[#" + nameId + "]"));
+        assertToString(new NoChildren(randomSource(), nameId), equalTo("NoChildren[#" + nameId + "]"));
     }
 
     public void testToStringList() {
-        assertThat(
+        assertToString(
             new NoChildren(randomSource(), List.of("aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg", "hhh", "iii", "jjj")),
-            hasToString("NoChildren[[aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj]]")
+            equalTo("NoChildren[[aaa, bbb, ccc, ddd, eee, fff, ggg, hhh, iii, jjj]]")
         );
     }
 
     public void testToStringListWrapping() {
-        assertThat(
+        assertToString(
             new NoChildren(
                 randomSource(),
                 List.of(
@@ -111,9 +172,12 @@ public class NodeTests extends ESTestCase {
                     "jjjjjjjjjj"
                 )
             ),
-            hasToString("""
+            equalTo("""
                 NoChildren[[aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee, ffffffffff, gggggggggg, hhhhhhhhhh, iiiiiiiiii, j
-                jjjjjjjjj]]""")
+                jjjjjjjjj]]"""),
+            equalTo(
+                "NoChildren[[aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee, ffffffffff, gggggggggg, hhhhhhhhhh, iiiiiiiiii, jjjjjjjjjj]]"
+            )
         );
     }
 
@@ -122,10 +186,20 @@ public class NodeTests extends ESTestCase {
         for (int i = 0; i < 100; i++) {
             strings.add(String.valueOf((char) ('a' + (i % 26))));
         }
-        assertThat(new NoChildren(randomSource(), strings), hasToString("""
+        assertToString(new NoChildren(randomSource(), strings), equalTo("""
             NoChildren[[a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k
             , l, m, n, o, p, q, r, s, t, u, v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u,\s
-            v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v]]"""));
+            v, w, x, y, z, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v]]"""), equalTo("NoChildren[" + strings + "]"));
+    }
+
+    private static void assertToString(Node<?> node, Matcher<String> expected) {
+        assertToString(node, expected, expected);
+    }
+
+    private static void assertToString(Node<?> node, Matcher<String> limitedExpected, Matcher<String> fullExpected) {
+        assertThat(node.toString(), limitedExpected);
+        assertThat(node.toString(Node.NodeStringFormat.LIMITED), limitedExpected);
+        assertThat(node.toString(Node.NodeStringFormat.FULL), fullExpected);
     }
 
     public void testRandomToString() {
@@ -215,8 +289,8 @@ public class NodeTests extends ESTestCase {
     public abstract static class Dummy extends Node<Dummy> {
         private final String thing;
 
-        public Dummy(Source source, List<Dummy> children, String thing) {
-            super(source, children);
+        public Dummy(Source source, List<? extends Dummy> children, String thing) {
+            super(source, new ArrayList<>(children));
             this.thing = thing;
         }
 
@@ -265,6 +339,31 @@ public class NodeTests extends ESTestCase {
         @Override
         public ChildrenAreAProperty replaceChildren(List<Dummy> newChildren) {
             return new ChildrenAreAProperty(source(), newChildren, thing());
+        }
+    }
+
+    public static class FunctionLike extends Dummy {
+        public FunctionLike(Source source, List<? extends Dummy> children) {
+            super(source, children, "");
+        }
+
+        @Override
+        protected NodeInfo<FunctionLike> info() {
+            return NodeInfo.create(this, FunctionLike::new, children());
+        }
+
+        @Override
+        public FunctionLike replaceChildren(List<Dummy> newChildren) {
+            return new FunctionLike(source(), newChildren);
+        }
+
+        @Override
+        public String nodeString(NodeStringFormat format) {
+            StringJoiner sj = new StringJoiner(",", nodeName() + "(", ")");
+            for (Dummy child : children()) {
+                sj.add(child.nodeString(format));
+            }
+            return sj.toString();
         }
     }
 
