@@ -154,7 +154,16 @@ cat <<QUERIES
   POST /_query { "query": "FROM $INDEX | STATS max(label) BY @timestamp" }
 
 Via curl (add -w "\nTime: %{time_total}s\n" to see wall time):
-  curl $CURL_AUTH -s -w "\nTime: %{time_total}s\n" -X POST "$ES/_query" \
-    -H 'Content-Type: application/json' \
-    -d "{\"query\":\"FROM $INDEX | STATS max(label)\"}"
+
+
+
+export CURL_AUTH="-u$ES_USER:$ES_PASS --insecure"
+curl $CURL_AUTH -s -X POST "$ES/_query?pretty" \
+  -H 'Content-Type: application/json' \
+  -d "{\"query\":\"FROM $INDEX | STATS max(label) BY DATE_TRUNC(1 DAY, @timestamp)\", "profile": true}"
+
+curl $CURL_AUTH -s -X POST "$ES/_query?pretty" \
+  -H 'Content-Type: application/json' \
+  -d "{\"query\":\"FROM $INDEX | STATS max(label)\", "profile": true}"
+
 QUERIES
