@@ -6,17 +6,22 @@
 # eyeball latency before/after the null-skip change.
 #
 # Usage:
-#   ./perf-null-aggs.sh                  # uses http://localhost:9200
+#   ./perf-null-aggs.sh                          # uses http://localhost:9200
 #   ES=http://localhost:9201 ./perf-null-aggs.sh
-#   TOTAL=10000000 ./perf-null-aggs.sh   # 10M for a quick smoke-test
+#   ES_USER=elastic ES_PASS=changeme ./perf-null-aggs.sh
+#   TOTAL=10000000 ./perf-null-aggs.sh           # 10M for a quick smoke-test
 
 set -euo pipefail
 
 ES=${ES:-http://localhost:9200}
+ES_USER=${ES_USER:-elastic}
+ES_PASS=${ES_PASS:-password}
 INDEX=${INDEX:-perf_null_aggs}
 TOTAL=${TOTAL:-100000000}
 BATCH=${BATCH:-50000}
 SPARSITY=${SPARSITY:-1000}   # 1 in SPARSITY docs has `label` → ~0.1%
+
+CURL_AUTH="-u$ES_USER:$ES_PASS"
 
 echo "ES:       $ES"
 echo "Index:    $INDEX"
@@ -27,10 +32,10 @@ echo ""
 # ── create index ────────────────────────────────────────────────────────────
 
 echo "==> Deleting old index (ignore 404)…"
-curl -uelastic:password -s -o /dev/null -w "%{http_code}\n" -X DELETE "$ES/$INDEX" || true
+curl $CURL_AUTH -s -o /dev/null -w "%{http_code}\n" -X DELETE "$ES/$INDEX" || true
 
 echo "==> Creating index…"
-curl -uelastic:password -sf -X PUT "$ES/$INDEX" -H 'Content-Type: application/json' -d '{
+curl $CURL_AUTH -sf -X PUT "$ES/$INDEX" -H 'Content-Type: application/json' -d '{
   "settings": {
     "number_of_shards": 1,
     "number_of_replicas": 0,
@@ -62,7 +67,7 @@ SPARSITY = $SPARSITY
 BASE_TS = 1704067200000
 TS_STEP = 1000  # 1 second per doc
 
-AUTH = base64.b64encode(b"elastic:password").decode()
+AUTH = base64.b64encode(f"$ES_USER:$ES_PASS".encode()).decode()
 
 def post_bulk(body: bytes):
     req = urllib.request.Request(
@@ -114,11 +119,11 @@ PYEOF
 
 echo ""
 echo "==> Refreshing…"
-curl -uelastic:password -sf -X POST "$ES/$INDEX/_refresh" | python3 -m json.tool
+curl $CURL_AUTH -sf -X POST "$ES/$INDEX/_refresh" | python3 -m json.tool
 
 echo ""
 echo "==> Index stats:"
-curl -uelastic:password -sf "$ES/$INDEX/_stats/docs,store" \
+curl $CURL_AUTH -sf "$ES/$INDEX/_stats/docs,store" \
   | python3 -c "
 import json, sys
 s = json.load(sys.stdin)['indices']['$INDEX']['primaries']
@@ -128,24 +133,24 @@ print(f\"  store: {s['store']['size_in_bytes'] / 1024**3:.2f} GB\")
 
 # ── example queries ───────────────────────────────────────────────────────────
 
-cat <<'QUERIES'
+cat <<QUERIES
 
 ==> Example ES|QL queries to run in Kibana Dev Tools or via curl:
 
   # ungrouped – sparse field (should be fast with null-skip)
-  POST /_query { "query": "FROM perf_null_aggs | STATS max(label)" }
+  POST /_query { "query": "FROM $INDEX | STATS max(label)" }
 
   # ungrouped – dense field (always present, vector path)
-  POST /_query { "query": "FROM perf_null_aggs | STATS max(@timestamp)" }
+  POST /_query { "query": "FROM $INDEX | STATS max(@timestamp)" }
 
   # grouped by sparse field
-  POST /_query { "query": "FROM perf_null_aggs | STATS count(*) BY label" }
+  POST /_query { "query": "FROM $INDEX | STATS count(*) BY label" }
 
   # grouped by dense field
-  POST /_query { "query": "FROM perf_null_aggs | STATS max(label) BY @timestamp" }
+  POST /_query { "query": "FROM $INDEX | STATS max(label) BY @timestamp" }
 
 Via curl (add -w "\nTime: %{time_total}s\n" to see wall time):
-  curl -uelastic:password -s -w "\nTime: %{time_total}s\n" -X POST http://localhost:9200/_query \
+  curl $CURL_AUTH -s -w "\nTime: %{time_total}s\n" -X POST "$ES/_query" \
     -H 'Content-Type: application/json' \
-    -d '{"query":"FROM perf_null_aggs | STATS max(label)"}'
+    -d "{\"query\":\"FROM $INDEX | STATS max(label)\"}"
 QUERIES
