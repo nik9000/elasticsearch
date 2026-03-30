@@ -176,7 +176,8 @@ public class NodeTests extends ESTestCase {
                 NoChildren[[aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee, ffffffffff, gggggggggg, hhhhhhhhhh, iiiiiiiiii, j
                 jjjjjjjjj]]"""),
             equalTo(
-                "NoChildren[[aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, eeeeeeeeee, ffffffffff, gggggggggg, hhhhhhhhhh, iiiiiiiiii, jjjjjjjjjj]]"
+                "NoChildren[[aaaaaaaaaa, bbbbbbbbbb, cccccccccc, dddddddddd, "
+                    + "eeeeeeeeee, ffffffffff, gggggggggg, hhhhhhhhhh, iiiiiiiiii, jjjjjjjjjj]]"
             )
         );
     }
