@@ -27,10 +27,10 @@ echo ""
 # ── create index ────────────────────────────────────────────────────────────
 
 echo "==> Deleting old index (ignore 404)…"
-curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "$ES/$INDEX"
+curl -uelastic:password -s -o /dev/null -w "%{http_code}\n" -X DELETE "$ES/$INDEX" || true
 
 echo "==> Creating index…"
-curl -sf -X PUT "$ES/$INDEX" -H 'Content-Type: application/json' -d '{
+curl -uelastic:password -sf -X PUT "$ES/$INDEX" -H 'Content-Type: application/json' -d '{
   "settings": {
     "number_of_shards": 1,
     "number_of_replicas": 0,
@@ -50,7 +50,7 @@ echo ""
 echo "==> Indexing $TOTAL documents (batch=$BATCH, sparsity=$SPARSITY)…"
 
 python3 - <<PYEOF
-import json, sys, time, urllib.request, urllib.error
+import base64, json, sys, time, urllib.request, urllib.error
 
 ES       = "$ES"
 INDEX    = "$INDEX"
@@ -62,11 +62,13 @@ SPARSITY = $SPARSITY
 BASE_TS = 1704067200000
 TS_STEP = 1000  # 1 second per doc
 
+AUTH = base64.b64encode(b"elastic:password").decode()
+
 def post_bulk(body: bytes):
     req = urllib.request.Request(
         f"{ES}/{INDEX}/_bulk",
         data=body,
-        headers={"Content-Type": "application/x-ndjson"},
+        headers={"Content-Type": "application/x-ndjson", "Authorization": f"Basic {AUTH}"},
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=120) as resp:
@@ -112,11 +114,11 @@ PYEOF
 
 echo ""
 echo "==> Refreshing…"
-curl -sf -X POST "$ES/$INDEX/_refresh" | python3 -m json.tool
+curl -uelastic:password -sf -X POST "$ES/$INDEX/_refresh" | python3 -m json.tool
 
 echo ""
 echo "==> Index stats:"
-curl -sf "$ES/$INDEX/_stats/docs,store" \
+curl -uelastic:password -sf "$ES/$INDEX/_stats/docs,store" \
   | python3 -c "
 import json, sys
 s = json.load(sys.stdin)['indices']['$INDEX']['primaries']
@@ -143,7 +145,7 @@ cat <<'QUERIES'
   POST /_query { "query": "FROM perf_null_aggs | STATS max(label) BY @timestamp" }
 
 Via curl (add -w "\nTime: %{time_total}s\n" to see wall time):
-  curl -s -w "\nTime: %{time_total}s\n" -X POST http://localhost:9200/_query \
+  curl -uelastic:password -s -w "\nTime: %{time_total}s\n" -X POST http://localhost:9200/_query \
     -H 'Content-Type: application/json' \
     -d '{"query":"FROM perf_null_aggs | STATS max(label)"}'
 QUERIES
