@@ -21,7 +21,7 @@ TOTAL=${TOTAL:-100000000}
 BATCH=${BATCH:-50000}
 SPARSITY=${SPARSITY:-1000}   # 1 in SPARSITY docs has `label` → ~0.1%
 
-CURL_AUTH="-u$ES_USER:$ES_PASS"
+CURL_AUTH="-u$ES_USER:$ES_PASS --insecure"
 
 echo "ES:       $ES"
 echo "Index:    $INDEX"
@@ -55,7 +55,11 @@ echo ""
 echo "==> Indexing $TOTAL documents (batch=$BATCH, sparsity=$SPARSITY)…"
 
 python3 - <<PYEOF
-import base64, json, sys, time, urllib.request, urllib.error
+import base64, json, ssl, sys, time, urllib.request, urllib.error
+
+SSL_CTX = ssl.create_default_context()
+SSL_CTX.check_hostname = False
+SSL_CTX.verify_mode = ssl.CERT_NONE
 
 ES       = "$ES"
 INDEX    = "$INDEX"
@@ -76,7 +80,7 @@ def post_bulk(body: bytes):
         headers={"Content-Type": "application/x-ndjson", "Authorization": f"Basic {AUTH}"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=120, context=SSL_CTX) as resp:
         result = json.loads(resp.read())
         if result.get("errors"):
             # print first error and bail
