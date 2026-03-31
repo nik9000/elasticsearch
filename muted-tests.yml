@@ -393,6 +393,12 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundToTests
+  method: testEvaluateBlockWithNulls {TestCase=<long, 20 fixed-interval longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/145259
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testNoInfiniteRecursiveGetObjectCalls
+  issue: https://github.com/elastic/elasticsearch/issues/145269
 
 # Examples:
 #
