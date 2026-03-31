@@ -105,7 +105,11 @@ class NodePropertiesToString {
         return switch (obj) {
             case null -> "null";
             case Node<?> n -> {
-                //
+                /*
+                 * We still build a string here which we then cut up. But this is only
+                 * for things like the expression tree. Most other nodes are skipped
+                 * and rendered as proper children, properly sharing the StringBuilder.
+                 */
                 StringBuilder str = new StringBuilder();
                 n.nodeString(str, format);
                 yield str.toString();
