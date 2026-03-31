@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -21,46 +22,52 @@ import java.util.Arrays;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
- * Builder for {@link PagedBytesRef} that checks its size against a {@link CircuitBreaker}.
+ * Builder for {@link PagedBytesRef}. Runs in one of three modes:
+ * <ol>
+ *     <li>
+ *         When the bytes sequence is less than half of {@link PageCacheRecycler#BYTE_PAGE_SIZE}
+ *         it allocates an array on the heap. We call this "small tail" mode because {@code tail}
+ *         is the name of the variable that holds the heap allocated array. And because it's cute.
+ *     </li>
+ *     <li>
+ *         Otherwise run in "paged" mode and allocate pages {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
+ *     </li>
+ *     <li>
+ *         After {@link #build()} completes, the builder enters "built" mode. Ownership of all
+ *         allocated memory is transferred to the returned {@link PagedBytesRef}. The builder is
+ *         invalid after this point.
+ *     </li>
+ * </ol>
+ * <p>
+ *     "Small tail" mode grows exponentially starting at 64 bytes. Then 128, then 256, on and on
+ *     until 8kb. After that we shift to paged mode.
+ * </p>
  */
 public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable<PagedBytesRefBuilder> {
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesRefBuilder.class);
+    static final int MIN_SIZE = 64;
+    static final int MAX_SMALL_TAIL_SIZE = BYTE_PAGE_SIZE / 2;
+
+    private final CircuitBreaker breaker;
+    private final String label;
+    private final PageCacheRecycler recycler;
 
     /**
-     * Build with a small initial pages array.
-     */
-    public static PagedBytesRefBuilder smallCapacity(CircuitBreaker breaker, String label, PageCacheRecycler recycler) {
-        return new PagedBytesRefBuilder(breaker, label, 1, recycler);
-    }
-
-    /**
-     * Build, pre-sizing the pages array for {@code initialCapacity} bytes without
-     * allocating any pages.
-     */
-    public static PagedBytesRefBuilder withInitialCapacity(
-        CircuitBreaker breaker,
-        String label,
-        int initialCapacity,
-        PageCacheRecycler recycler
-    ) {
-        int pageCount = (initialCapacity + BYTE_PAGE_SIZE - 1) / BYTE_PAGE_SIZE;
-        return new PagedBytesRefBuilder(breaker, label, pageCount, recycler);
-    }
-
-    /**
-     * All pages, including the tail. Entries {@code 0..usedPages-1} are in use.
+     * Recycler pages. If this is {@code null} then we're in "small tail"
+     * mode. Otherwise, entries {@code 0..usedPages-1} are in use.
      * Set to {@code null} by {@link #build()} — the builder is invalid after that.
      */
     private Recycler.V<byte[]>[] pages;
 
     /**
-     * Number of pages in use.
+     * Number of recycler pages in use.
      */
     private int usedPages;
 
     /**
-     * The page currently being filled. Always {@code pages[usedPages - 1]} once
-     * at least one page has been allocated, {@code null} otherwise.
+     * The page currently being filled. When {@code pages == null} then we're
+     * in "small tail" mode and this is a heap allocated array. Otherwise, we're in
+     * "paged" mode and this is {@code pages[usedPages - 1].v()}.
      */
     private byte[] tail;
 
@@ -69,25 +76,33 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      */
     private int tailOffset;
 
-    private final CircuitBreaker breaker;
-    private final String label;
-    private final PageCacheRecycler recycler;
-
-    @SuppressWarnings("unchecked")
-    private PagedBytesRefBuilder(CircuitBreaker breaker, String label, int initialSizeOfPages, PageCacheRecycler recycler) {
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + bytesArrayRamBytesUsed(initialSizeOfPages), label);
-        this.pages = new Recycler.V[initialSizeOfPages];
+    public PagedBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity, PageCacheRecycler recycler) {
         this.recycler = recycler;
         this.breaker = breaker;
         this.label = label;
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, label);
+        boolean success = false;
+        initialCapacity = initialCapacity <= MIN_SIZE ? MIN_SIZE : nextPowerOfTwo(initialCapacity);
+        try {
+            if (initialCapacity < MAX_SMALL_TAIL_SIZE) {
+                allocateSmallTail(initialCapacity);
+            } else {
+                allocatePages(initialCapacity);
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                breaker.addEstimateBytesAndMaybeBreak(-SHALLOW_SIZE, label);
+            }
+        }
     }
 
     /**
      * Append a byte.
      */
     public void append(byte b) {
-        if (tail == null || tailOffset == BYTE_PAGE_SIZE) {
-            addPage();
+        if (tailOffset == tail.length) {
+            tailExhausted(1);
         }
         tail[tailOffset++] = b;
     }
@@ -97,10 +112,10 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      */
     public void append(byte[] b, int off, int len) {
         while (len > 0) {
-            if (tail == null || tailOffset == BYTE_PAGE_SIZE) {
-                addPage();
+            if (tailOffset == tail.length) {
+                tailExhausted(len);
             }
-            int toCopy = Math.min(BYTE_PAGE_SIZE - tailOffset, len);
+            int toCopy = Math.min(tail.length - tailOffset, len);
             System.arraycopy(b, off, tail, tailOffset, toCopy);
             tailOffset += toCopy;
             off += toCopy;
@@ -119,7 +134,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * Total bytes written so far.
      */
     public int length() {
-        return usedPages == 0 ? 0 : (usedPages - 1) * BYTE_PAGE_SIZE + tailOffset;
+        return (usedPages == 0 ? 0 : (usedPages - 1) * BYTE_PAGE_SIZE) + tailOffset;
     }
 
     /**
@@ -127,8 +142,21 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * of {@link #pages} to the result — this builder is invalid after this call.
      */
     public PagedBytesRef build() {
-        if (usedPages == 0) {
+        if (length() == 0) {
             return PagedBytesRef.EMPTY;
+        }
+        if (usedPages == 0) {
+            // Small case: only a small tail, no recycler pages.
+            PagedBytesRef result = new PagedBytesRef(new byte[][] { tail }, tailOffset, new Releasable() {
+                private final long charge = ramBytesUsed();
+
+                @Override
+                public void close() {
+                    breaker.addWithoutBreaking(-charge);
+                }
+            });
+            moveToBuilt();
+            return result;
         }
         byte[][] bytePages = new byte[usedPages][];
         for (int i = 0; i < usedPages; i++) {
@@ -137,38 +165,135 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         PagedBytesRef result = new PagedBytesRef(bytePages, length(), new Releasable() {
             private final Recycler.V<byte[]>[] recycledPages = pages;
             private final long charge = ramBytesUsed();
+
             @Override
             public void close() {
                 Releasables.close(Releasables.wrap(recycledPages), () -> breaker.addWithoutBreaking(-charge));
             }
         });
+        moveToBuilt();
+        return result;
+    }
+
+    private void moveToBuilt() {
         pages = null;
         usedPages = 0;
         tail = null;
         tailOffset = 0;
-        return result;
+        assert mode() == Mode.BUILT;
     }
 
-    private void addPage() {
-        if (usedPages == pages.length) {
-            int newLength = pages.length * 2;
-            int oldLength = pages.length;
-            breaker.addEstimateBytesAndMaybeBreak(bytesArrayRamBytesUsed(newLength), label);
-            pages = Arrays.copyOf(pages, newLength);
-            breaker.addWithoutBreaking(-bytesArrayRamBytesUsed(oldLength));
+    /**
+     * Called when the there is no space left in the tail to get more space.
+     * <ol>
+     *     <li>If we're in "paged" mode then grabs another page to write to</li>
+     *     <li>
+     *         If we're in "small tail" mode and the needed byes grow us into
+     *         "paged" mode then flips us to "paged" mode.
+     *     </li>
+     *     <li>Grows the {@code #tail} to the next power of two.</li>
+     * </ol>
+     */
+    private void tailExhausted(int needed) {
+        if (tail.length == BYTE_PAGE_SIZE) {
+            maybeGrowPagesArray();
+            grabNextPageFromRecycler();
+            tailOffset = 0;
+            return;
         }
-        breaker.addEstimateBytesAndMaybeBreak(pageRamBytesUsed(), label);
+        int length = nextPowerOfTwo(tail.length + needed);
+        if (length >= MAX_SMALL_TAIL_SIZE) {
+            promoteToPaged(length);
+            return;
+        }
+        growSmallTail(length);
+    }
+
+    private void maybeGrowPagesArray() {
+        if (usedPages < pages.length) {
+            return;
+        }
+        int newLength = ArrayUtil.oversize(pages.length + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+        int oldLength = pages.length;
+        breaker.addEstimateBytesAndMaybeBreak(pagesRamBytesUsed(newLength), label);
+        pages = Arrays.copyOf(pages, newLength);
+        breaker.addWithoutBreaking(-pagesRamBytesUsed(oldLength));
+        // NOCOMMIT this should fail a cranky
+    }
+
+    private void grabNextPageFromRecycler() {
+        breaker.addEstimateBytesAndMaybeBreak(PAGE_RAM_BYTES_USED, label);
         Recycler.V<byte[]> v = recycler.bytePage(false);
         pages[usedPages++] = v;
         tail = v.v();
-        tailOffset = 0;
     }
 
-    private static long pageRamBytesUsed() {
-        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + BYTE_PAGE_SIZE);
+    /**
+     * Promote from "small tail" mode to "paged" mode.
+     */
+    private void promoteToPaged(int length) {
+        assert mode() == Mode.SMALL_TAIL;
+
+        byte[] oldTail = tail;
+        allocatePages(length);
+        System.arraycopy(oldTail, 0, tail, 0, tailOffset);
+        breaker.addWithoutBreaking(-smallTailRamBytesUsed(oldTail.length));
     }
 
-    private static long bytesArrayRamBytesUsed(int capacity) {
+    @SuppressWarnings("unchecked")
+    private void allocatePages(int needed) {
+        int size = (needed + BYTE_PAGE_SIZE - 1) / BYTE_PAGE_SIZE;
+        assert size > 0;
+        breaker.addEstimateBytesAndMaybeBreak(pagesRamBytesUsed(size), label);
+        boolean success = false;
+        try {
+            pages = new Recycler.V[size];
+            grabNextPageFromRecycler();
+            success = true;
+        } finally {
+            if (success == false) {
+                pages = null;
+                breaker.addEstimateBytesAndMaybeBreak(-pagesRamBytesUsed(size), label);
+            }
+        }
+    }
+
+    private void growSmallTail(int length) {
+        assert length <= MAX_SMALL_TAIL_SIZE;
+        breaker.addEstimateBytesAndMaybeBreak(smallTailRamBytesUsed(length), label);
+        int oldLength = tail.length;
+        tail = Arrays.copyOf(tail, length);
+        breaker.addEstimateBytesAndMaybeBreak(-smallTailRamBytesUsed(oldLength), label);
+    }
+
+    private void allocateSmallTail(int length) {
+        assert length <= MAX_SMALL_TAIL_SIZE;
+        breaker.addEstimateBytesAndMaybeBreak(smallTailRamBytesUsed(length), label);
+        tail = new byte[length];
+    }
+
+    private static int nextPowerOfTwo(int n) {
+        // Next power of two.
+        return 1 << (32 - Integer.numberOfLeadingZeros(n - 1));
+    }
+
+    /**
+     * Ram bytes used by each page.
+     */
+    static final long PAGE_RAM_BYTES_USED = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + BYTE_PAGE_SIZE);
+
+    /**
+     * Ram bytes used by {@link #tail} when it is heap allocated. When {@link #tail}
+     * isn't heap allocated, we track it as another page in {@link #pages}.
+     */
+    private static long smallTailRamBytesUsed(int size) {
+        return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + size);
+    }
+
+    /**
+     * Ram bytes used by the {@link #pages}.
+     */
+    private static long pagesRamBytesUsed(int capacity) {
         return RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) capacity * RamUsageEstimator.NUM_BYTES_OBJECT_REF
         );
@@ -218,7 +343,9 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         }
 
         if (tailLen > 0) {
-            int diff = Arrays.compareUnsigned(this.pages[fullPages].v(), 0, tailLen, rhs.pages[fullPages].v(), 0, tailLen);
+            byte[] lhsTail = this.usedPages > 0 ? this.pages[fullPages].v() : this.tail;
+            byte[] rhsTail = rhs.usedPages > 0 ? rhs.pages[fullPages].v() : rhs.tail;
+            int diff = Arrays.compareUnsigned(lhsTail, 0, tailLen, rhsTail, 0, tailLen);
             if (diff != 0) {
                 return diff;
             }
@@ -228,16 +355,50 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         return this.length() - rhs.length();
     }
 
+    enum Mode {
+        /** Heap-allocated tail, no recycler pages. */
+        SMALL_TAIL,
+        /** One or more recycler pages in use. */
+        PAGED,
+        /**
+         * {@link #build()} has been called; ownership of all memory was transferred
+         * to the returned {@link PagedBytesRef}.
+         */
+        BUILT,
+    }
+
+    Mode mode() {
+        if (pages != null) {
+            return Mode.PAGED;
+        }
+        if (tail != null) {
+            return Mode.SMALL_TAIL;
+        }
+        return Mode.BUILT;
+    }
+
     @Override
     public long ramBytesUsed() {
-        return pages == null ? 0 : SHALLOW_SIZE + bytesArrayRamBytesUsed(pages.length) + (long) usedPages * pageRamBytesUsed();
+        return switch (mode()) {
+            case BUILT -> 0;
+            case SMALL_TAIL -> SHALLOW_SIZE + smallTailRamBytesUsed(tail.length);
+            case PAGED -> SHALLOW_SIZE + pagesRamBytesUsed(pages.length) + (long) usedPages * PAGE_RAM_BYTES_USED;
+        };
     }
 
     @Override
     public void close() {
+        if (mode() == Mode.BUILT) {
+            return;
+        }
+        long charge = ramBytesUsed();
         if (pages != null) {
-            breaker.addWithoutBreaking(-ramBytesUsed());
             Releasables.close(pages);
+            pages = null;
+        }
+        tail = null;
+        if (charge > 0) {
+            breaker.addWithoutBreaking(-charge);
         }
     }
 }
