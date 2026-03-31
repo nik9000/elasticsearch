@@ -167,7 +167,7 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern

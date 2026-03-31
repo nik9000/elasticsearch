@@ -386,7 +386,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
