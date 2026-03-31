@@ -25,7 +25,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * Builder for {@link PagedBytesRef}. Runs in one of three modes:
  * <ol>
  *     <li>
- *         When the bytes sequence is less than half of {@link PageCacheRecycler#BYTE_PAGE_SIZE}
+ *         When the bytes sequence is {@code <= BYTE_PAGE_SIZE / 2}
  *         it allocates an array on the heap. We call this "small tail" mode because {@code tail}
  *         is the name of the variable that holds the heap allocated array. And because it's cute.
  *     </li>
@@ -40,7 +40,8 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * </ol>
  * <p>
  *     "Small tail" mode grows exponentially starting at 64 bytes. Then 128, then 256, on and on
- *     until 8kb. After that we shift to paged mode.
+ *     until 8kb. When the next growth would exceed {@link #MAX_SMALL_TAIL_SIZE} (8kb) we shift
+ *     to paged mode instead.
  * </p>
  */
 public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable<PagedBytesRefBuilder> {
@@ -101,8 +102,12 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * Append a byte.
      */
     public void append(byte b) {
+        if (smallTailPreflight(1)) {
+            tail[tailOffset++] = b;
+            return;
+        }
         if (tailOffset == tail.length) {
-            tailExhausted(1);
+            nextPage();
         }
         tail[tailOffset++] = b;
     }
@@ -111,9 +116,14 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * Append bytes.
      */
     public void append(byte[] b, int off, int len) {
+        if (smallTailPreflight(len)) {
+            System.arraycopy(b, off, tail, tailOffset, len);
+            tailOffset += len;
+            return;
+        }
         while (len > 0) {
             if (tailOffset == tail.length) {
-                tailExhausted(len);
+                nextPage();
             }
             int toCopy = Math.min(tail.length - tailOffset, len);
             System.arraycopy(b, off, tail, tailOffset, toCopy);
@@ -139,7 +149,8 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
 
     /**
      * Build a {@link PagedBytesRef} from the bytes written so far. Transfers ownership
-     * of {@link #pages} to the result — this builder is invalid after this call.
+     * of all allocated memory (either {@link #tail} in small-tail mode or {@link #pages}
+     * in paged mode) to the result — this builder is invalid after this call.
      */
     public PagedBytesRef build() {
         if (length() == 0) {
@@ -183,30 +194,31 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         assert mode() == Mode.BUILT;
     }
 
-    /**
-     * Called when the there is no space left in the tail to get more space.
-     * <ol>
-     *     <li>If we're in "paged" mode then grabs another page to write to</li>
-     *     <li>
-     *         If we're in "small tail" mode and the needed byes grow us into
-     *         "paged" mode then flips us to "paged" mode.
-     *     </li>
-     *     <li>Grows the {@code #tail} to the next power of two.</li>
-     * </ol>
-     */
-    private void tailExhausted(int needed) {
-        if (tail.length == BYTE_PAGE_SIZE) {
-            maybeGrowPagesArray();
-            grabNextPageFromRecycler();
-            tailOffset = 0;
-            return;
+    private boolean smallTailPreflight(int needed) {
+        if (pages != null) {
+            // Already in paged mode
+            return false;
         }
-        int length = nextPowerOfTwo(tail.length + needed);
-        if (length >= MAX_SMALL_TAIL_SIZE) {
+        int end = tailOffset + needed;
+        if (end < tail.length) {
+            // Fits in the small tail
+            return true;
+        }
+        // Got to grow
+        int length = nextPowerOfTwo(end);
+        if (length > MAX_SMALL_TAIL_SIZE) {
+            // Would grow too large
             promoteToPaged(length);
-            return;
+            return false;
         }
         growSmallTail(length);
+        return true;
+    }
+
+    private void nextPage() {
+        maybeGrowPagesArray();
+        grabNextPageFromRecycler();
+        tailOffset = 0;
     }
 
     private void maybeGrowPagesArray() {

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.compute.operator;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -24,14 +24,14 @@ import java.util.function.Function;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 
-@Repeat(iterations = 1000)
 public class PagedBytesRefBuilderTests extends ESTestCase {
+    private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
     public void testBreakOnBuild() {
         String label = randomAlphaOfLength(4);
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(0));
         expectThrows(
             CircuitBreakingException.class,
-            () -> new PagedBytesRefBuilder(breaker, label, 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)
+            () -> new PagedBytesRefBuilder(breaker, label, 0, recycler)
         );
     }
 
@@ -98,9 +98,40 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
         });
     }
 
+    public void testBigButNotHuge() {
+        testBigButNotHuge(newLimitedBreaker(ByteSizeValue.ofGb(1)));
+    }
+
+    public void testBigButNotHugeCranky() {
+        try {
+            testBigButNotHuge(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testBigButNotHuge(CircuitBreaker breaker) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
+            byte[] chunk = randomByteArrayOfLength(Math.toIntExact(ByteSizeValue.ofKb(6).getBytes()));
+            builder.append(chunk, 0, chunk.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
+            builder.append(chunk, 0, chunk.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+            builder.append(chunk, 0, chunk.length);
+
+            assertThat(builder.length(), equalTo(chunk.length * 3));
+            try (PagedBytesRef ref = builder.build()) {
+                assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.BUILT));
+                assertThat(ref.length(), equalTo(chunk.length * 3));
+                assertThat(ref.pages().length, equalTo(2));
+            }
+        }
+    }
+
     public void testSpansMultiplePages() {
-        long limit = BYTE_PAGE_SIZE * 4 + PagedBytesRefBuilder.SHALLOW_SIZE * 4;
-        testSpansMultiplePages(newLimitedBreaker(ByteSizeValue.ofBytes(limit)));
+        testSpansMultiplePages(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testSpansMultiplePagesCranky() {
@@ -113,46 +144,63 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
     }
 
     private void testSpansMultiplePages(CircuitBreaker breaker) {
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
             byte[] chunk = randomByteArrayOfLength(BYTE_PAGE_SIZE);
             builder.append(chunk, 0, chunk.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
             builder.append(chunk, 0, chunk.length);
             builder.append(chunk, 0, chunk.length);
 
             assertThat(builder.length(), equalTo(BYTE_PAGE_SIZE * 3));
             try (PagedBytesRef ref = builder.build()) {
+                assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.BUILT));
                 assertThat(ref.length(), equalTo(BYTE_PAGE_SIZE * 3));
                 assertThat(ref.pages().length, equalTo(3));
             }
         }
     }
 
+    public void testInitialCapacityThreeQuartersPageSize() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(
+            breaker,
+            "test",
+            BYTE_PAGE_SIZE * 3 / 4,
+            recycler
+        )) {
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+        }
+    }
+
     public void testBreakOnGrow() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(PagedBytesRefBuilder.PAGE_RAM_BYTES_USED * 2));
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
             byte[] chunk = randomByteArrayOfLength(BYTE_PAGE_SIZE);
             builder.append(chunk, 0, chunk.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
             // next append triggers a new page which should break
             expectThrows(CircuitBreakingException.class, () -> builder.append((byte) 0));
         }
     }
 
     public void testRamBytesUsed() {
-        int limit = BYTE_PAGE_SIZE * 10;
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(limit));
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)) {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
             assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
             builder.append(randomByteArrayOfLength(BYTE_PAGE_SIZE), 0, BYTE_PAGE_SIZE);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
             assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
             builder.append(randomByteArrayOfLength(BYTE_PAGE_SIZE), 0, BYTE_PAGE_SIZE);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
             assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
         }
     }
 
     public void testCompareTo() {
-        long limit = BYTE_PAGE_SIZE * 10;
         for (int i = 0; i < 100; i++) {
-            testCompareTo(newLimitedBreaker(ByteSizeValue.ofBytes(limit * 2)));
+            testCompareTo(newLimitedBreaker(ByteSizeValue.ofMb(50)));
         }
     }
 
@@ -169,8 +217,8 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
         byte[] lhsFlat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
         byte[] rhsFlat = randomBoolean() ? lhsFlat.clone() : randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
         try (
-            PagedBytesRefBuilder lhs = new PagedBytesRefBuilder(breaker, "lhs", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE);
-            PagedBytesRefBuilder rhs = new PagedBytesRefBuilder(breaker, "rhs", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)
+            PagedBytesRefBuilder lhs = new PagedBytesRefBuilder(breaker, "lhs", 0, recycler);
+            PagedBytesRefBuilder rhs = new PagedBytesRefBuilder(breaker, "rhs", 0, recycler)
         ) {
             lhs.append(lhsFlat, 0, lhsFlat.length);
             rhs.append(rhsFlat, 0, rhsFlat.length);
@@ -182,9 +230,8 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        long limit = BYTE_PAGE_SIZE * 10;
         for (int i = 0; i < 100; i++) {
-            testEqualsAndHashCode(newLimitedBreaker(ByteSizeValue.ofBytes(limit * 2)));
+            testEqualsAndHashCode(newLimitedBreaker(ByteSizeValue.ofMb(50)));
         }
     }
 
@@ -200,8 +247,8 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
     private void testEqualsAndHashCode(CircuitBreaker breaker) {
         byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
         try (
-            PagedBytesRefBuilder a = new PagedBytesRefBuilder(breaker, "a", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE);
-            PagedBytesRefBuilder b = new PagedBytesRefBuilder(breaker, "b", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)
+            PagedBytesRefBuilder a = new PagedBytesRefBuilder(breaker, "a", 0, recycler);
+            PagedBytesRefBuilder b = new PagedBytesRefBuilder(breaker, "b", 0, recycler)
         ) {
             a.append(flat, 0, flat.length);
             b.append(flat, 0, flat.length);
@@ -228,8 +275,9 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
     }
 
     private void testNeverBuild(CircuitBreaker breaker) {
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
             builder.append(randomByteArrayOfLength(BYTE_PAGE_SIZE), 0, BYTE_PAGE_SIZE);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
             assertTrue(breaker.getUsed() > 0);
         }
     }
@@ -248,10 +296,12 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
     }
 
     private void testBuildTransfersBreakerToRef(CircuitBreaker breaker) {
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
             builder.append(randomByteArrayOfLength(BYTE_PAGE_SIZE), 0, BYTE_PAGE_SIZE);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
             long preCloseCharge = breaker.getUsed();
             try (PagedBytesRef ref = builder.build()) {
+                assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.BUILT));
                 // builder is now empty; breaker charge transferred to ref
                 assertThat(breaker.getUsed(), equalTo(preCloseCharge));
             }
@@ -269,8 +319,8 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
     private void testAgainstOracle(CircuitBreaker breaker, Function<PagedBytesRefBuilder, byte[]> appender) {
         int capacity = BYTE_PAGE_SIZE * 10;
         PagedBytesRefBuilder builder = randomBoolean()
-            ? new PagedBytesRefBuilder(breaker, "test", 0, PageCacheRecycler.NON_RECYCLING_INSTANCE)
-            : new PagedBytesRefBuilder(breaker, "test", capacity, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            ? new PagedBytesRefBuilder(breaker, "test", 0, recycler)
+            : new PagedBytesRefBuilder(breaker, "test", capacity, recycler);
         try (builder) {
             byte[] expected = new byte[0];
             int iterations = randomIntBetween(1, 5);
