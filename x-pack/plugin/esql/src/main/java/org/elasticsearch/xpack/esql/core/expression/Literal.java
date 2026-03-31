@@ -171,7 +171,7 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return toString() + "[" + dataType + "]";
     }
 
