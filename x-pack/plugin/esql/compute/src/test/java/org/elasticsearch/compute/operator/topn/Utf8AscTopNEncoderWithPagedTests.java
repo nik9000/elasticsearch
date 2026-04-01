@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import static org.hamcrest.Matchers.lessThan;
 

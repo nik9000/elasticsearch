@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import java.util.Locale;
 

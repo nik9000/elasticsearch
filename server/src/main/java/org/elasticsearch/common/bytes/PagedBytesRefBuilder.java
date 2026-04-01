@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
@@ -26,9 +26,13 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * Builder for {@link PagedBytesRef}. This <strong>feels</strong> quite like:
  * <ul>
  *     <li>
- *         {@link BreakingBytesRefBuilder}, but runs more slowly to make sure
+ *         {@code BreakingBytesRefBuilder}, but runs more slowly to make sure
  *         it never allocated any single array bigger than 16kb. It's a list
  *         of them.
+ *     </li>
+ *     <li>
+ *         {@link BytesReference}, but there isn't all of the invokeinterface
+ *         to worry about.
  *     </li>
  *     <li>
  *         {@link ByteArray}, but runs more quickly because it's append only,

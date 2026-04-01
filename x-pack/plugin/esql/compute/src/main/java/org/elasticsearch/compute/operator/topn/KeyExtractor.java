@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 /**
  * Extracts keys into a {@link PagedBytesRefBuilder}.

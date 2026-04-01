@@ -12,9 +12,9 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.operator.PagedBytesRef;
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Comparator;

@@ -9,8 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 
 /**
  * TopNEncoder for data types that are unsupported. This is just a placeholder class, reaching the encode/decode methods here is a bug.

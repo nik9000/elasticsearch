@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 public class ValueExtractorForLongRange implements ValueExtractor {
     private final LongRangeBlock block;

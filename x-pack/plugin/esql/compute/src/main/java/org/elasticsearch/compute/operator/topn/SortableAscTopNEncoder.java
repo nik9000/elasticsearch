@@ -10,8 +10,8 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
-import org.elasticsearch.compute.operator.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
