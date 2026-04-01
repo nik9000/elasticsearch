@@ -267,7 +267,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
             PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", len, recycler)
         ) {
             builder.append(flat, 0, len);
-            PagedBytesRef paged = builder.bytesRefView();
+            PagedBytesRef paged = builder.view();
 
             assertThat(hash.add(paged), equalTo(0L));
             assertThat(hash.add(paged), equalTo(-1L));

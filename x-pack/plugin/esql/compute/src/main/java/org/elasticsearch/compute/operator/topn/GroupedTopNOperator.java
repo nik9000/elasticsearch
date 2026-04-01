@@ -17,7 +17,6 @@ import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
 import org.elasticsearch.compute.operator.Operator;
@@ -66,9 +65,13 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
         @Override
         public GroupedTopNOperator get(DriverContext driverContext) {
-            var scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "group-key-encoder");
             int[] groupKeysArray = groupKeys.stream().mapToInt(Integer::intValue).toArray();
-            var keyEncoder = new GroupKeyEncoder(groupKeysArray, elementTypes, scratch);
+            var keyEncoder = new GroupKeyEncoder(
+                groupKeysArray,
+                elementTypes,
+                driverContext.breaker(),
+                driverContext.bigArrays().recycler()
+            );
             return new GroupedTopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
@@ -176,8 +179,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
             TopNOperator.RowFiller rowFiller = new TopNOperator.RowFiller(elementTypes, encoders, sortOrders, channelInKey, page);
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
-                BytesRef key = keyEncoder.encode(page, pos);
-                long hashOrd = keysHash.add(key);
+                long hashOrd = keyEncoder.encodeAndAdd(page, pos, keysHash);
                 long groupId = BlockHash.hashOrdToGroup(hashOrd);
                 processRow(rowFiller, pos, groupId);
             }

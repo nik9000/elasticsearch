@@ -249,7 +249,11 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * Total bytes written so far.
      */
     public int length() {
-        return (usedPages == 0 ? 0 : (usedPages - 1) * BYTE_PAGE_SIZE) + tailOffset;
+        int length = tailOffset;
+        if (usedPages > 1) {
+            length += (usedPages - 1) * BYTE_PAGE_SIZE;
+        }
+        return length;
     }
 
     /**
@@ -274,11 +278,11 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     /**
-     * Returns a {@link PagedBytesRef} that is a live view into this builder's current contents.
+     * Returns a {@link PagedBytesRef} view into this builder's current contents.
      * The builder retains ownership of all memory; closing the returned ref does nothing.
-     * The view is only valid until the next {@link #clear()} or {@link #close()} call.
+     * Do not modify the builder while holding a reference to the returned view.
      */
-    public PagedBytesRef bytesRefView() {
+    public PagedBytesRef view() {
         int len = length();
         if (len == 0) {
             return PagedBytesRef.EMPTY;
