@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.ByteArray;
@@ -273,6 +274,26 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     /**
+     * Returns a {@link PagedBytesRef} that is a live view into this builder's current contents.
+     * The builder retains ownership of all memory; closing the returned ref does nothing.
+     * The view is only valid until the next {@link #clear()} or {@link #close()} call.
+     */
+    public PagedBytesRef bytesRefView() {
+        int len = length();
+        if (len == 0) {
+            return PagedBytesRef.EMPTY;
+        }
+        if (usedPages == 0) {
+            return new PagedBytesRef(new byte[][] { tail }, tailOffset, () -> {});
+        }
+        byte[][] bytePages = new byte[usedPages][];
+        for (int i = 0; i < usedPages; i++) {
+            bytePages[i] = pages[i].v();
+        }
+        return new PagedBytesRef(bytePages, len, () -> {});
+    }
+
+    /**
      * Build a {@link PagedBytesRef} from the bytes written so far. Transfers ownership
      * of all allocated memory (either {@link #tail} in small-tail mode or {@link #pages}
      * in paged mode) to the result — this builder is invalid after this call.
@@ -453,17 +474,22 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
 
     @Override
     public int hashCode() {
+        // Must match BytesRef.hashCode() for the same byte sequence so that paged and
+        // flat keys are interchangeable in BytesRefHashTable.
+        // BytesRef.hashCode() delegates to StringHelper.murmurhash3_x86_32.
+        // NOCOMMIT: this materializes all bytes into a temporary array. Replace with a
+        // streaming murmur3 implementation that processes pages in-place.
         int len = length();
-        int fullPages = len / BYTE_PAGE_SIZE;
-        int tailLen = len % BYTE_PAGE_SIZE;
-        int result = len;
-        for (int page = 0; page < fullPages; page++) {
-            result = 31 * result + Arrays.hashCode(pages[page].v());
+        byte[] flat = new byte[len];
+        int off = 0;
+        if (pages != null) {
+            for (int i = 0; i < usedPages - 1; i++) {
+                System.arraycopy(pages[i].v(), 0, flat, off, BYTE_PAGE_SIZE);
+                off += BYTE_PAGE_SIZE;
+            }
         }
-        for (int i = 0; i < tailLen; i++) {
-            result = 31 * result + tail[i];
-        }
-        return result;
+        System.arraycopy(tail, 0, flat, off, tailOffset);
+        return StringHelper.murmurhash3_x86_32(flat, 0, len, StringHelper.GOOD_FAST_HASH_SEED);
     }
 
     @Override

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
@@ -79,6 +81,31 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
         return length;
     }
 
+    /**
+     * Returns {@code true} if this paged byte sequence is equal to {@code other}.
+     * Compatible with {@link BytesRef#bytesEquals(BytesRef)}.
+     */
+    public boolean bytesEquals(BytesRef other) {
+        if (length != other.length) {
+            return false;
+        }
+        int otherOffset = other.offset;
+        int remaining = length;
+        for (byte[] page : pages) {
+            int len = Math.min(page.length, remaining);
+            for (int i = 0; i < len; i++) {
+                if (page[i] != other.bytes[otherOffset++]) {
+                    return false;
+                }
+            }
+            remaining -= len;
+            if (remaining == 0) {
+                break;
+            }
+        }
+        return true;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -96,16 +123,22 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
 
     @Override
     public int hashCode() {
-        int fullPages = length / BYTE_PAGE_SIZE;
-        int tail = length % BYTE_PAGE_SIZE;
-        int result = length;
-        for (int page = 0; page < fullPages; page++) {
-            result = 31 * result + Arrays.hashCode(pages[page]);
+        // Must match BytesRef.hashCode() for the same byte sequence so that paged and
+        // flat keys are interchangeable in BytesRefHashTable.
+        // BytesRef.hashCode() delegates to StringHelper.murmurhash3_x86_32.
+        // NOCOMMIT: this materializes all bytes into a temporary array. Replace with a
+        // streaming murmur3 implementation that processes pages in-place.
+        byte[] flat = new byte[length];
+        int off = 0;
+        int remaining = length;
+        for (byte[] page : pages) {
+            int len = Math.min(page.length, remaining);
+            System.arraycopy(page, 0, flat, off, len);
+            off += len;
+            remaining -= len;
+            if (remaining == 0) break;
         }
-        for (int i = 0; i < tail; i++) {
-            result = 31 * result + pages[fullPages][i];
-        }
-        return result;
+        return StringHelper.murmurhash3_x86_32(flat, 0, length, StringHelper.GOOD_FAST_HASH_SEED);
     }
 
     @Override

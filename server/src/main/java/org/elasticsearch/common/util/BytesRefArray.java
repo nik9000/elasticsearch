@@ -12,6 +12,7 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.bytes.PagedBytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -92,6 +93,27 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         if (key.length > 0) {
             bytes = bigArrays.grow(bytes, startOffset + key.length);
             bytes.set(startOffset, key.bytes, key.offset, key.length);
+        }
+    }
+
+    public void append(PagedBytesRef key) {
+        final long startOffset = startOffsets.get(size);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
+        startOffsets.set(size + 1, startOffset + key.length());
+        ++size;
+        if (key.length() > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + key.length());
+            long writeOffset = startOffset;
+            int remaining = key.length();
+            for (byte[] page : key.pages()) {
+                int len = Math.min(page.length, remaining);
+                bytes.set(writeOffset, page, 0, len);
+                writeOffset += len;
+                remaining -= len;
+                if (remaining == 0) {
+                    break;
+                }
+            }
         }
     }
 

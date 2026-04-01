@@ -443,6 +443,21 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
         }
     }
 
+    public void testHashCodeMatchesBytesRef() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        for (int i = 0; i < 100; i++) {
+            byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
+            int expected = new BytesRef(flat).hashCode();
+            try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+                builder.append(flat, 0, flat.length);
+                assertThat(builder.hashCode(), equalTo(expected));
+                try (PagedBytesRef ref = builder.build()) {
+                    assertThat(ref.hashCode(), equalTo(expected));
+                }
+            }
+        }
+    }
+
     public void testNeverBuild() {
         testNeverBuild(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
     }

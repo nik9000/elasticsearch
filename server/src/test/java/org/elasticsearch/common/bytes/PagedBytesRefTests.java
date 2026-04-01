@@ -7,6 +7,7 @@
 
 package org.elasticsearch.common.bytes;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -58,6 +59,13 @@ public class PagedBytesRefTests extends ESTestCase {
         }
     }
 
+    public void testHashCodeMatchesBytesRef() {
+        for (int i = 0; i < 100; i++) {
+            byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
+            assertThat(newPagedBytesRef(flat).hashCode(), equalTo(new BytesRef(flat).hashCode()));
+        }
+    }
+
     public void testNotEqualsDifferentBytes() {
         byte[] flat = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE * 3));
         byte[] other = Arrays.copyOf(flat, flat.length);
@@ -75,7 +83,7 @@ public class PagedBytesRefTests extends ESTestCase {
      * Builds a {@link PagedBytesRef} from a {@code byte[]}, splitting into pages of
      * {@link org.elasticsearch.common.util.PageCacheRecycler#BYTE_PAGE_SIZE}.
      */
-    static PagedBytesRef newPagedBytesRef(byte[] flat) {
+    public static PagedBytesRef newPagedBytesRef(byte[] flat) {
         if (flat.length == 0) {
             return PagedBytesRef.EMPTY;
         }
