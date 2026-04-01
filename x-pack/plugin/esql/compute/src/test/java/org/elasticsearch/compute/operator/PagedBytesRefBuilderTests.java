@@ -18,6 +18,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.function.Function;
 
@@ -25,6 +28,9 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PagedBytesRefBuilderTests extends ESTestCase {
+    private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+
     private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
     public void testBreakOnBuild() {
         String label = randomAlphaOfLength(4);
@@ -75,6 +81,182 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
             builder.append(b, 0, b.length);
             return b;
         });
+    }
+
+    public void testAppendInt() {
+        testAppendInt(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+    }
+
+    public void testAppendIntCranky() {
+        try {
+            testAppendInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendInt(CircuitBreaker breaker) {
+        testAgainstOracle(breaker, builder -> {
+            int v = randomInt();
+            builder.append(v);
+            byte[] expected = new byte[Integer.BYTES];
+            INT.set(expected, 0, v);
+            return expected;
+        });
+    }
+
+    public void testAppendManyInts() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        // 3 pages worth of ints — enough to shift to PAGED and span multiple pages
+        int count = BYTE_PAGE_SIZE / Integer.BYTES * 3;
+        int[] values = new int[count];
+        for (int i = 0; i < count; i++) {
+            values[i] = randomInt();
+        }
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
+            for (int v : values) {
+                builder.append(v);
+            }
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+            assertThat(builder.length(), equalTo(count * Integer.BYTES));
+            byte[] expected = new byte[count * Integer.BYTES];
+            for (int i = 0; i < count; i++) {
+                INT.set(expected, i * Integer.BYTES, values[i]);
+            }
+            try (PagedBytesRef ref = builder.build()) {
+                assertThat(toFlat(ref), equalTo(expected));
+            }
+        }
+    }
+
+    public void testAppendLong() {
+        testAppendLong(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+    }
+
+    public void testAppendLongCranky() {
+        try {
+            testAppendLong(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendLong(CircuitBreaker breaker) {
+        testAgainstOracle(breaker, builder -> {
+            long v = randomLong();
+            builder.append(v);
+            byte[] expected = new byte[Long.BYTES];
+            LONG.set(expected, 0, v);
+            return expected;
+        });
+    }
+
+    public void testAppendPagedBytesRefBuilder() {
+        testAppendPagedBytesRefBuilder(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendPagedBytesRefBuilderCranky() {
+        try {
+            testAppendPagedBytesRefBuilder(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendPagedBytesRefBuilder(CircuitBreaker breaker) {
+        int pages = randomIntBetween(0, 10);
+        byte[] expected = randomByteArrayOfLength(pages * BYTE_PAGE_SIZE + randomIntBetween(0, BYTE_PAGE_SIZE - 1));
+        try (
+            PagedBytesRefBuilder src = new PagedBytesRefBuilder(breaker, "src", 0, recycler);
+            PagedBytesRefBuilder dst = new PagedBytesRefBuilder(breaker, "dst", 0, recycler)
+        ) {
+            src.append(expected, 0, expected.length);
+            dst.append(src);
+            assertThat(dst.length(), equalTo(expected.length));
+            try (PagedBytesRef built = dst.build()) {
+                assertThat(toFlat(built), equalTo(expected));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesRefShort() {
+        testAppendPagedBytesRefShort(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendPagedBytesRefShortCranky() {
+        try {
+            testAppendPagedBytesRefShort(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendPagedBytesRefShort(CircuitBreaker breaker) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            byte[] expected = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE - 1));
+            PagedBytesRef ref = PagedBytesRefTests.newPagedBytesRef(expected);
+            builder.append(ref);
+            assertThat(builder.length(), equalTo(expected.length));
+            try (PagedBytesRef built = builder.build()) {
+                assertThat(toFlat(built), equalTo(expected));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesRefMultiPage() {
+        testAppendPagedBytesRefMultiPage(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendPagedBytesRefMultiPageCranky() {
+        try {
+            testAppendPagedBytesRefMultiPage(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendPagedBytesRefMultiPage(CircuitBreaker breaker) {
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            int pages = randomIntBetween(1, 10);
+            byte[] expected = randomByteArrayOfLength(pages * BYTE_PAGE_SIZE + randomIntBetween(0, BYTE_PAGE_SIZE - 1));
+            PagedBytesRef ref = PagedBytesRefTests.newPagedBytesRef(expected);
+            builder.append(ref);
+            assertThat(builder.length(), equalTo(expected.length));
+            try (PagedBytesRef built = builder.build()) {
+                assertThat(toFlat(built), equalTo(expected));
+            }
+        }
+    }
+
+    public void testAppendManyLongs() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        // 3 pages worth of longs — enough to shift to PAGED and span multiple pages
+        int count = BYTE_PAGE_SIZE / Long.BYTES * 3;
+        long[] values = new long[count];
+        for (int i = 0; i < count; i++) {
+            values[i] = randomLong();
+        }
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
+            for (long v : values) {
+                builder.append(v);
+            }
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+            assertThat(builder.length(), equalTo(count * Long.BYTES));
+            byte[] expected = new byte[count * Long.BYTES];
+            for (int i = 0; i < count; i++) {
+                LONG.set(expected, i * Long.BYTES, values[i]);
+            }
+            try (PagedBytesRef ref = builder.build()) {
+                assertThat(toFlat(ref), equalTo(expected));
+            }
+        }
     }
 
     public void testAppendBytesRef() {
@@ -310,6 +492,79 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
         }
         // closing the empty builder releases nothing — charge was already released by ref
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testClearSmallTail() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            byte[] first = randomByteArrayOfLength(randomIntBetween(1, PagedBytesRefBuilder.MAX_SMALL_TAIL_SIZE - 1));
+            builder.append(first, 0, first.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
+            long chargeBeforeClear = breaker.getUsed();
+
+            builder.clear();
+
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.SMALL_TAIL));
+            assertThat(builder.length(), equalTo(0));
+            assertThat(breaker.getUsed(), equalTo(chargeBeforeClear));
+
+            // can still append after clear
+            byte[] second = randomByteArrayOfLength(randomIntBetween(1, PagedBytesRefBuilder.MAX_SMALL_TAIL_SIZE - 1));
+            builder.append(second, 0, second.length);
+            assertThat(builder.length(), equalTo(second.length));
+            try (PagedBytesRef ref = builder.build()) {
+                assertThat(toFlat(ref), equalTo(second));
+            }
+        }
+    }
+
+    public void testClearPagedOnePage() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            byte[] data = randomByteArrayOfLength(BYTE_PAGE_SIZE);
+            builder.append(data, 0, data.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+            long chargeBeforeClear = breaker.getUsed();
+
+            builder.clear();
+
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+            assertThat(builder.length(), equalTo(0));
+            assertThat(breaker.getUsed(), equalTo(chargeBeforeClear));
+
+            // can still append after clear
+            byte[] second = randomByteArrayOfLength(BYTE_PAGE_SIZE / 2);
+            builder.append(second, 0, second.length);
+            assertThat(builder.length(), equalTo(second.length));
+            try (PagedBytesRef ref = builder.build()) {
+                assertThat(toFlat(ref), equalTo(second));
+            }
+        }
+    }
+
+    public void testClearPagedMultiplePages() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            int pageCount = randomIntBetween(2, 5);
+            byte[] data = randomByteArrayOfLength(pageCount * BYTE_PAGE_SIZE);
+            builder.append(data, 0, data.length);
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+
+            builder.clear();
+
+            assertThat(builder.mode(), equalTo(PagedBytesRefBuilder.Mode.PAGED));
+            assertThat(builder.length(), equalTo(0));
+            // breaker should reflect only one page remaining (plus shallow + pages array)
+            assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
+
+            // can still append after clear
+            byte[] second = randomByteArrayOfLength(BYTE_PAGE_SIZE / 2);
+            builder.append(second, 0, second.length);
+            assertThat(builder.length(), equalTo(second.length));
+            try (PagedBytesRef ref = builder.build()) {
+                assertThat(toFlat(ref), equalTo(second));
+            }
+        }
     }
 
     /**

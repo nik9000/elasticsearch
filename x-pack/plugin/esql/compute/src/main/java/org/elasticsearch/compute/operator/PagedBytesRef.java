@@ -16,9 +16,9 @@ import java.util.Arrays;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
- * Represents a slice of pages spread across multiple {@code byte[]}. All pages have
- * exactly {@link PageCacheRecycler#BYTE_PAGE_SIZE} bytes; {@link #length} tracks how
- * many of those bytes are valid.
+ * Represents a slice of pages spread across multiple {@code byte[]}. All pages
+ * except the last have exactly {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
+ * {@link #length} tracks how many of those bytes are valid.
  */
 public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasable {
     /**

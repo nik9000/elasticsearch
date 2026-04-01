@@ -88,7 +88,11 @@ public class PagedBytesRefTests extends ESTestCase {
         int tailStart = (pageCount - 1) * BYTE_PAGE_SIZE;
         // Use a full BYTE_PAGE_SIZE page so bytes past the end are random garbage,
         // verifying that compareTo/equals respects length and ignores those bytes.
-        pages[pageCount - 1] = randomByteArrayOfLength(BYTE_PAGE_SIZE);
+        if (randomBoolean()) {
+            pages[pageCount - 1] = randomByteArrayOfLength(BYTE_PAGE_SIZE);
+        } else {
+            pages[pageCount - 1] = randomByteArrayOfLength(flat.length - tailStart);
+        }
         System.arraycopy(flat, tailStart, pages[pageCount - 1], 0, flat.length - tailStart);
         return new PagedBytesRef(pages, flat.length, () -> {});
     }

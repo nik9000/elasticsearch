@@ -134,6 +134,30 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     /**
+     * Append the bitwise NOT of bytes.
+     * NOCOMMIT optimize
+     */
+    public void appendNot(byte[] b, int off, int len) {
+        if (smallTailPreflight(len)) {
+            for (int i = 0; i < len; i++) {
+                tail[tailOffset++] = (byte) ~b[off + i];
+            }
+            return;
+        }
+        while (len > 0) {
+            if (tailOffset == tail.length) {
+                nextPage();
+            }
+            int toCopy = Math.min(tail.length - tailOffset, len);
+            for (int i = 0; i < toCopy; i++) {
+                tail[tailOffset++] = (byte) ~b[off + i];
+            }
+            off += toCopy;
+            len -= toCopy;
+        }
+    }
+
+    /**
      * Append bytes.
      */
     public void append(BytesRef b) {
@@ -141,10 +165,81 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     /**
+     * Append bytes.
+     */
+    public void append(PagedBytesRefBuilder b) {
+        for (int i = 0; i < b.usedPages - 1; i++) {
+            append(b.pages[i].v(), 0, BYTE_PAGE_SIZE);
+        }
+        if (b.tail != null) {
+            append(b.tail, 0, b.tailOffset);
+        }
+    }
+
+    /**
+     * Append bytes.
+     */
+    public void append(PagedBytesRef b) {
+        int remaining = b.length();
+        for (byte[] page : b.pages()) {
+            int toCopy = Math.min(page.length, remaining);
+            append(page, 0, toCopy);
+            remaining -= toCopy;
+        }
+    }
+
+    /**
+     * Append an int in big-endian order.
+     * NOCOMMIT optimize
+     */
+    public void append(int v) {
+        append((byte) (v >> 24));
+        append((byte) (v >> 16));
+        append((byte) (v >> 8));
+        append((byte) v);
+    }
+
+    /**
+     * Append a long in big-endian order.
+     * NOCOMMIT optimize
+     */
+    public void append(long v) {
+        append((byte) (v >> 56));
+        append((byte) (v >> 48));
+        append((byte) (v >> 40));
+        append((byte) (v >> 32));
+        append((byte) (v >> 24));
+        append((byte) (v >> 16));
+        append((byte) (v >> 8));
+        append((byte) v);
+    }
+
+    /**
      * Total bytes written so far.
      */
     public int length() {
         return (usedPages == 0 ? 0 : (usedPages - 1) * BYTE_PAGE_SIZE) + tailOffset;
+    }
+
+    /**
+     * Reset to zero length without changing mode. In small-tail mode the heap array
+     * is kept at its current capacity. In paged mode all pages beyond the first are
+     * released back to the recycler; the first page is kept so the next write does
+     * not immediately allocate.
+     */
+    public void clear() {
+        assert mode() != Mode.BUILT : "clear() called on a built PagedBytesRefBuilder";
+        if (pages != null && usedPages > 1) {
+            long released = (long) (usedPages - 1) * PAGE_RAM_BYTES_USED;
+            for (int i = 1; i < usedPages; i++) {
+                pages[i].close();
+                pages[i] = null;
+            }
+            usedPages = 1;
+            tail = pages[0].v();
+            breaker.addWithoutBreaking(-released);
+        }
+        tailOffset = 0;
     }
 
     /**
