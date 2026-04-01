@@ -98,6 +98,45 @@ public class PagedBytesRefCursorTests extends ESTestCase {
         }
     }
 
+    public void testReadVInt() {
+        var breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        int[] values = new int[randomIntBetween(1, 100)];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = randomInt();
+        }
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            for (int v : values) {
+                builder.appendVInt(v);
+            }
+            int totalBytes = builder.length();
+            try (PagedBytesRef ref = builder.build()) {
+                var cursor = new PagedBytesRefCursor(ref);
+                assertThat(cursor.remaining(), equalTo(totalBytes));
+                for (int v : values) {
+                    assertThat(cursor.readVInt(), equalTo(v));
+                }
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
+    }
+
+    public void testReadVIntCrossPage() {
+        var breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        // Padding puts the 5-byte VInt starting 2 bytes before the page boundary
+        byte[] padding = new byte[BYTE_PAGE_SIZE - 2];
+        int value = Integer.MAX_VALUE; // always encodes as 5 bytes
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            builder.append(padding, 0, padding.length);
+            builder.appendVInt(value);
+            try (PagedBytesRef ref = builder.build()) {
+                var cursor = new PagedBytesRefCursor(ref);
+                for (int i = 0; i < padding.length; i++) cursor.readByte();
+                assertThat(cursor.readVInt(), equalTo(value));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
+    }
+
     public void testReadBytesRefWithLen() {
         var breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         byte[] expected = randomByteArrayOfLength(randomIntBetween(1, 200));

@@ -118,16 +118,16 @@ entirely.
 
 | File | Change |
 |---|---|
-| `PagedBytesRefBuilder` | Add `clear()`, already has `append(PagedBytesRefBuilder)` |
-| `PagedBytesRef` (new cursor type or inner class) | Sequential-read cursor over pages |
+| ~~`PagedBytesRefBuilder`~~ | ~~Add `clear()`, already has `append(PagedBytesRefBuilder)`~~ ✅ |
+| ~~`PagedBytesRef` (new cursor type or inner class)~~ | ~~Sequential-read cursor over pages~~ ✅ (`PagedBytesRefCursor`) |
 | `TopNRow` | Swap field types, add recycler param |
 | `TopNOperator` | Pass recycler to `TopNRow` |
 | `GroupedTopNOperator` | Same |
 | `KeyExtractor` | Change interface signature |
 | `ValueExtractor` | Change interface signature |
-| `TopNEncoder` | Change `encodeBytesRef` signature |
+| ~~`TopNEncoder`~~ | ~~Change `encodeBytesRef` signature~~ ✅ (added paged overloads for all methods) |
 | All `KeyExtractorFor*` classes | Update implementations |
 | All `ValueExtractorFor*` classes | Update implementations |
-| All `*TopNEncoder` classes | Update `encodeBytesRef`, update `decodeBytesRef` etc. to use cursor |
+| ~~All `*TopNEncoder` classes~~ | ~~Update `encodeBytesRef`, update `decodeBytesRef` etc. to use cursor~~ ✅ |
 | `TopNRowTests` | Update for new constructor |
-| `PagedBytesRefBuilderTests` | Add `clear()` tests |
+| ~~`PagedBytesRefBuilderTests`~~ | ~~Add `clear()` tests~~ ✅ |

@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -22,7 +23,20 @@ import java.util.Arrays;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
- * Builder for {@link PagedBytesRef}. Runs in one of three modes:
+ * Builder for {@link PagedBytesRef}. This <strong>feels</strong> quite like:
+ * <ul>
+ *     <li>
+ *         {@link BreakingBytesRefBuilder}, but runs more slowly to make sure
+ *         it never allocated any single array bigger than 16kb. It's a list
+ *         of them.
+ *     </li>
+ *     <li>
+ *         {@link ByteArray}, but runs more quickly because it's append only,
+ *         not random access. And it's purpose built for ESQL, so there are
+ *         a lot fewer "layers".
+ *     </li>
+ * </ul>
+ * Runs in one of three modes:
  * <ol>
  *     <li>
  *         When the bytes sequence is {@code <= BYTE_PAGE_SIZE / 2}
@@ -212,6 +226,18 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         append((byte) (v >> 16));
         append((byte) (v >> 8));
         append((byte) v);
+    }
+
+    /**
+     * Append an int in variable-length format. Writes between one and five bytes.
+     * Smaller values take fewer bytes. Negative numbers always use all 5 bytes.
+     */
+    public void appendVInt(int value) {
+        while ((value & ~0x7F) != 0) {
+            append((byte) ((value & 0x7f) | 0x80));
+            value >>>= 7;
+        }
+        append((byte) value);
     }
 
     /**

@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 class DefaultSortableAscTopNEncoder extends SortableAscTopNEncoder {
     private final DefaultSortableDescTopNEncoder descEncoder = new DefaultSortableDescTopNEncoder(this);
@@ -20,6 +22,16 @@ class DefaultSortableAscTopNEncoder extends SortableAscTopNEncoder {
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
+        throw new IllegalStateException("Cannot find encoder for BytesRef value");
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        throw new IllegalStateException("Cannot find encoder for BytesRef value");
+    }
+
+    @Override
+    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
         throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }
 

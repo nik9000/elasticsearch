@@ -10,6 +10,8 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
@@ -20,6 +22,11 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
         NumericUtils.longToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
+    }
+
+    @Override
+    public final void encodeLong(long value, PagedBytesRefBuilder builder) {
+        builder.append(value ^ Long.MIN_VALUE);
     }
 
     @Override
@@ -34,10 +41,20 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public final long decodeLong(PagedBytesRefCursor bytes) {
+        return bytes.readLong() ^ Long.MIN_VALUE;
+    }
+
+    @Override
     public final void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
         NumericUtils.intToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
+    }
+
+    @Override
+    public final void encodeInt(int value, PagedBytesRefBuilder builder) {
+        builder.append(value ^ Integer.MIN_VALUE);
     }
 
     @Override
@@ -52,12 +69,27 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public final int decodeInt(PagedBytesRefCursor bytes) {
+        return bytes.readInt() ^ Integer.MIN_VALUE;
+    }
+
+    @Override
     public final void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
         encodeInt(NumericUtils.floatToSortableInt(value), bytesRefBuilder);
     }
 
     @Override
+    public final void encodeFloat(float value, PagedBytesRefBuilder builder) {
+        encodeInt(NumericUtils.floatToSortableInt(value), builder);
+    }
+
+    @Override
     public final float decodeFloat(BytesRef bytes) {
+        return NumericUtils.sortableIntToFloat(decodeInt(bytes));
+    }
+
+    @Override
+    public final float decodeFloat(PagedBytesRefCursor bytes) {
         return NumericUtils.sortableIntToFloat(decodeInt(bytes));
     }
 
@@ -67,13 +99,28 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public final void encodeDouble(double value, PagedBytesRefBuilder builder) {
+        encodeLong(NumericUtils.doubleToSortableLong(value), builder);
+    }
+
+    @Override
     public final double decodeDouble(BytesRef bytes) {
+        return NumericUtils.sortableLongToDouble(decodeLong(bytes));
+    }
+
+    @Override
+    public final double decodeDouble(PagedBytesRefCursor bytes) {
         return NumericUtils.sortableLongToDouble(decodeLong(bytes));
     }
 
     @Override
     public final void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
+    }
+
+    @Override
+    public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+        builder.append(value ? (byte) 1 : (byte) 0);
     }
 
     @Override
@@ -85,5 +132,10 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
         bytes.offset += Byte.BYTES;
         bytes.length -= Byte.BYTES;
         return v;
+    }
+
+    @Override
+    public final boolean decodeBoolean(PagedBytesRefCursor bytes) {
+        return bytes.readByte() == 1;
     }
 }

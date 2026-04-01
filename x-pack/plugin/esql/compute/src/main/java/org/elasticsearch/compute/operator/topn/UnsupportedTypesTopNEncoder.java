@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 /**
  * TopNEncoder for data types that are unsupported. This is just a placeholder class, reaching the encode/decode methods here is a bug.
@@ -25,6 +27,16 @@ class UnsupportedTypesTopNEncoder extends SortableAscTopNEncoder {
 
     @Override
     public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
+        throw new UnsupportedOperationException("Encountered a bug; trying to decode an unsupported data type value for TopN");
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        throw new UnsupportedOperationException("Encountered a bug; trying to encode an unsupported data type value for TopN");
+    }
+
+    @Override
+    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
         throw new UnsupportedOperationException("Encountered a bug; trying to decode an unsupported data type value for TopN");
     }
 

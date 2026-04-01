@@ -10,6 +10,8 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 /**
  * Encodes values for {@link TopNOperator}. Some encoders encode values so sorting
@@ -50,29 +52,54 @@ public interface TopNEncoder {
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
 
+    // NOCOMMIT remove the old BreakingBytesRefBuilder/BytesRef methods once all callers are migrated to PagedBytesRefBuilder/PagedBytesRefCursor
     void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
+
+    void encodeLong(long value, PagedBytesRefBuilder builder);
 
     long decodeLong(BytesRef bytes);
 
+    long decodeLong(PagedBytesRefCursor bytes);
+
     void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder);
+
+    void encodeInt(int value, PagedBytesRefBuilder builder);
 
     int decodeInt(BytesRef bytes);
 
+    int decodeInt(PagedBytesRefCursor bytes);
+
     void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder);
+
+    void encodeFloat(float value, PagedBytesRefBuilder builder);
 
     float decodeFloat(BytesRef bytes);
 
+    float decodeFloat(PagedBytesRefCursor bytes);
+
     void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder);
+
+    void encodeDouble(double value, PagedBytesRefBuilder builder);
 
     double decodeDouble(BytesRef bytes);
 
+    double decodeDouble(PagedBytesRefCursor bytes);
+
     void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder);
 
+    void encodeBoolean(boolean value, PagedBytesRefBuilder builder);
+
     boolean decodeBoolean(BytesRef bytes);
+
+    boolean decodeBoolean(PagedBytesRefCursor bytes);
 
     void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
 
     BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
+
+    void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder);
+
+    BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch);
 
     /**
      * Get a version of this encoder that encodes values such that sorting

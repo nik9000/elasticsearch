@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.CONTINUATION_BYTE;
 import static org.elasticsearch.compute.operator.topn.Utf8AscTopNEncoder.TERMINATOR;
@@ -81,6 +83,38 @@ final class Utf8DescTopNEncoder extends SortableDescTopNEncoder {
         scratch.length = i - bytes.offset;
         bytes.offset = i + 1;
         bytes.length -= scratch.length + 1;
+        return scratch;
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        int end = value.offset + value.length;
+        for (int i = value.offset; i < end; i++) {
+            byte b = value.bytes[i];
+            if ((b & CONTINUATION_BYTE) == 0) {
+                b++;
+            }
+            builder.append((byte) ~b);
+        }
+        builder.append((byte) ~TERMINATOR);
+    }
+
+    @Override
+    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
+        cursor.readTerminatedBytesRef((byte) ~TERMINATOR, scratch);
+        int i = 0;
+        while (i < scratch.length) {
+            int leadByte = ~scratch.bytes[i] & 0xff;
+            int numBytes = utf8CodeLength[leadByte];
+            if (numBytes == 1) {
+                scratch.bytes[i] = (byte) (~scratch.bytes[i] - 1);
+            } else {
+                for (int j = i; j < i + numBytes; j++) {
+                    scratch.bytes[j] = (byte) ~scratch.bytes[j];
+                }
+            }
+            i += numBytes;
+        }
         return scratch;
     }
 

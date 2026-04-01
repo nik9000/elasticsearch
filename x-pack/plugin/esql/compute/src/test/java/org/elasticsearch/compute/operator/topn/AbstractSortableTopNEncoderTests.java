@@ -21,6 +21,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
+// NOCOMMIT remove this and rename AbstractSortableTopNEncoderWithPagedTests
 public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
     protected record TestCase<T>(
         String name,

@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
     private final int length;
@@ -39,6 +41,21 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
         scratch.length = length;
         bytes.offset += length;
         bytes.length -= length;
+        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + length);
+        return scratch;
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        if (value.length != length) {
+            throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
+        }
+        builder.appendNot(value.bytes, value.offset, value.length);
+    }
+
+    @Override
+    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
+        cursor.readBytesRefMutable(length, scratch);
         bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + length);
         return scratch;
     }

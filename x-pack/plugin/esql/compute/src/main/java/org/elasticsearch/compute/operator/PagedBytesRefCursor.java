@@ -109,6 +109,31 @@ public class PagedBytesRefCursor {
     }
 
     /**
+     * Read an int stored in variable-length format. Reads between one and five bytes.
+     * Smaller values take fewer bytes. Negative numbers always use all 5 bytes.
+     */
+    public int readVInt() {
+        byte b = readByte();
+        if (b >= 0) return b;
+        int i = b & 0x7F;
+        b = readByte();
+        i |= (b & 0x7F) << 7;
+        if (b >= 0) return i;
+        b = readByte();
+        i |= (b & 0x7F) << 14;
+        if (b >= 0) return i;
+        b = readByte();
+        i |= (b & 0x7F) << 21;
+        if (b >= 0) return i;
+        b = readByte();
+        i |= (b & 0x0F) << 28;
+        if ((b & 0xF0) != 0) {
+            throw new IllegalStateException("Invalid last byte for a vint [" + Integer.toHexString(b) + "]");
+        }
+        return i;
+    }
+
+    /**
      * Read {@code len} bytes and advance. Returns a {@link BytesRef} pointing directly
      * into the current page when the bytes fit within it (zero-copy), or copies into
      * {@code scratch} when they span a page boundary.
@@ -143,6 +168,24 @@ public class PagedBytesRefCursor {
     }
 
     /**
+     * Read {@code len} bytes and advance, always copying into {@code scratch}.
+     * Use when the caller will mutate the returned bytes in-place.
+     * NOCOMMIT optimize: use arraycopy for the within-page case
+     */
+    public BytesRef readBytesRefMutable(int len, BytesRef scratch) {
+        if (remaining < len) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        scratch.bytes = ArrayUtil.grow(scratch.bytes, len);
+        scratch.offset = 0;
+        scratch.length = len;
+        for (int i = 0; i < len; i++) {
+            scratch.bytes[i] = readByte();
+        }
+        return scratch;
+    }
+
+    /**
      * Read bytes up to (and consuming) {@code terminator}, copying them into {@code scratch}.
      * Always copies — callers are expected to mutate the result in place.
      * <p>
@@ -153,7 +196,7 @@ public class PagedBytesRefCursor {
      */
     public BytesRef readTerminatedBytesRef(byte terminator, BytesRef scratch) {
         int len = findTerminator(terminator);
-        readBytesRef(len, scratch);
+        readBytesRefMutable(len, scratch);
         readByte(); // consume the terminator
         return scratch;
     }

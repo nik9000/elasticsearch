@@ -494,6 +494,38 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testAppendVInt() {
+        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+    }
+
+    public void testAppendVIntCranky() {
+        try {
+            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendVInt(CircuitBreaker breaker) {
+        testAgainstOracle(breaker, builder -> {
+            int v = randomInt();
+            builder.appendVInt(v);
+            return vIntBytes(v);
+        });
+    }
+
+    private static byte[] vIntBytes(int value) {
+        byte[] buf = new byte[5];
+        int i = 0;
+        while ((value & ~0x7F) != 0) {
+            buf[i++] = (byte) ((value & 0x7f) | 0x80);
+            value >>>= 7;
+        }
+        buf[i++] = (byte) value;
+        return Arrays.copyOf(buf, i);
+    }
+
     public void testClearSmallTail() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {

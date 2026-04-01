@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 import static org.elasticsearch.compute.operator.topn.VersionAscTopNEncoder.refuseNul;
 
@@ -40,6 +42,21 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
         scratch.length = i - bytes.offset;
         bytes.offset += scratch.length + 1;
         bytes.length -= scratch.length + 1;
+        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + scratch.length);
+        return scratch;
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
+        refuseNul(value);
+        builder.appendNot(value.bytes, value.offset, value.length);
+        builder.append((byte) ~Utf8AscTopNEncoder.TERMINATOR);
+    }
+
+    @Override
+    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
+        cursor.readTerminatedBytesRef((byte) ~Utf8AscTopNEncoder.TERMINATOR, scratch);
         bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + scratch.length);
         return scratch;
     }

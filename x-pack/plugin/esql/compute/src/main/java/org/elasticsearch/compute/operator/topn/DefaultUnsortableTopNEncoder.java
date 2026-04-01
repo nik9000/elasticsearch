@@ -9,6 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefCursor;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -32,6 +34,11 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public void encodeLong(long value, PagedBytesRefBuilder builder) {
+        builder.append(value);
+    }
+
+    @Override
     public long decodeLong(BytesRef bytes) {
         if (bytes.length < Long.BYTES) {
             throw new IllegalArgumentException("not enough bytes");
@@ -40,6 +47,11 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
         bytes.offset += Long.BYTES;
         bytes.length -= Long.BYTES;
         return v;
+    }
+
+    @Override
+    public long decodeLong(PagedBytesRefCursor bytes) {
+        return bytes.readLong();
     }
 
     /**
@@ -111,6 +123,11 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public void encodeInt(int value, PagedBytesRefBuilder builder) {
+        builder.append(value);
+    }
+
+    @Override
     public int decodeInt(BytesRef bytes) {
         if (bytes.length < Integer.BYTES) {
             throw new IllegalArgumentException("not enough bytes");
@@ -122,10 +139,20 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public int decodeInt(PagedBytesRefCursor bytes) {
+        return bytes.readInt();
+    }
+
+    @Override
     public void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Float.BYTES);
         FLOAT.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Float.BYTES);
+    }
+
+    @Override
+    public void encodeFloat(float value, PagedBytesRefBuilder builder) {
+        builder.append(Float.floatToRawIntBits(value));
     }
 
     @Override
@@ -140,10 +167,20 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public float decodeFloat(PagedBytesRefCursor bytes) {
+        return Float.intBitsToFloat(bytes.readInt());
+    }
+
+    @Override
     public void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Double.BYTES);
         DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
         bytesRefBuilder.setLength(bytesRefBuilder.length() + Double.BYTES);
+    }
+
+    @Override
+    public void encodeDouble(double value, PagedBytesRefBuilder builder) {
+        builder.append(Double.doubleToRawLongBits(value));
     }
 
     @Override
@@ -158,8 +195,18 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
+    public double decodeDouble(PagedBytesRefCursor bytes) {
+        return Double.longBitsToDouble(bytes.readLong());
+    }
+
+    @Override
     public void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
+    }
+
+    @Override
+    public void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+        builder.append(value ? (byte) 1 : (byte) 0);
     }
 
     @Override
@@ -171,6 +218,11 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
         bytes.offset += Byte.BYTES;
         bytes.length -= Byte.BYTES;
         return v;
+    }
+
+    @Override
+    public boolean decodeBoolean(PagedBytesRefCursor bytes) {
+        return bytes.readByte() == 1;
     }
 
     @Override
@@ -188,6 +240,17 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
         bytes.offset += len;
         bytes.length -= len;
         return scratch;
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        builder.appendVInt(value.length);
+        builder.append(value);
+    }
+
+    @Override
+    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
+        return cursor.readBytesRef(cursor.readVInt(), scratch);
     }
 
     @Override
