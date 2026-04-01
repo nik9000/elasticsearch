@@ -13,6 +13,7 @@ $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
 
 import java.util.Locale;
 
@@ -49,6 +50,7 @@ $endif$
         this.nonNul = nonNul;
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void nonNul(BreakingBytesRefBuilder key, $type$ value) {
         key.append(nonNul);
 $if(BytesRef)$
@@ -60,7 +62,23 @@ $else$
 $endif$
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void nul(BreakingBytesRefBuilder key) {
+        key.append(nul);
+    }
+
+    protected final void nonNul(PagedBytesRefBuilder key, $type$ value) {
+        key.append(nonNul);
+$if(BytesRef)$
+        encoder.encodeBytesRef(value, key);
+$elseif(boolean)$
+        encoder.encodeBoolean(value, key);
+$else$
+        encoder.encode$Type$(value, key);
+$endif$
+    }
+
+    protected final void nul(PagedBytesRefBuilder key) {
         key.append(nul);
     }
 
@@ -81,8 +99,18 @@ $endif$
             this.vector = vector;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+$if(BytesRef)$
+            nonNul(key, vector.get$Type$(position, scratch));
+$else$
+            nonNul(key, vector.get$Type$(position));
+$endif$
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
 $if(BytesRef)$
             nonNul(key, vector.get$Type$(position, scratch));
 $else$
@@ -99,8 +127,22 @@ $endif$
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            if (block.isNull(position)) {
+                nul(key);
+                return;
+            }
+$if(BytesRef)$
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position), scratch));
+$else$
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position)));
+$endif$
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -121,8 +163,22 @@ $endif$
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            if (block.isNull(position)) {
+                nul(key);
+                return;
+            }
+$if(BytesRef)$
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
+$else$
+            nonNul(key, block.get$Type$(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+$endif$
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -147,8 +203,46 @@ $endif$
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            int size = block.getValueCount(position);
+            if (size == 0) {
+                nul(key);
+                return;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + size;
+$if(BytesRef)$
+            BytesRef min = block.getBytesRef(start, minScratch);
+            for (int i = start; i < end; i++) {
+                BytesRef v = block.getBytesRef(i, scratch);
+                if (v.compareTo(min) < 0) {
+                    min.bytes = v.bytes;
+                    min.offset = v.offset;
+                    min.length = v.length;
+                }
+            }
+            nonNul(key, min);
+$elseif(boolean)$
+            for (int i = start; i < end; i++) {
+                if (block.getBoolean(i) == false) {
+                    nonNul(key, false);
+                    return;
+                }
+            }
+            nonNul(key, true);
+$else$
+            $type$ min = block.get$Type$(start);
+            for (int i = start + 1; i < end; i++) {
+                min = Math.min(min, block.get$Type$(i));
+            }
+            nonNul(key, min);
+$endif$
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);
@@ -197,8 +291,46 @@ $endif$
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            int size = block.getValueCount(position);
+            if (size == 0) {
+                nul(key);
+                return;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + size;
+$if(BytesRef)$
+            BytesRef max = block.getBytesRef(start, maxScratch);
+            for (int i = start; i < end; i++) {
+                BytesRef v = block.getBytesRef(i, scratch);
+                if (v.compareTo(max) > 0) {
+                    max.bytes = v.bytes;
+                    max.offset = v.offset;
+                    max.length = v.length;
+                }
+            }
+            nonNul(key, max);
+$elseif(boolean)$
+            for (int i = start; i < end; i++) {
+                if (block.getBoolean(i)) {
+                    nonNul(key, true);
+                    return;
+                }
+            }
+            nonNul(key, false);
+$else$
+            $type$ max = block.get$Type$(start);
+            for (int i = start + 1; i < end; i++) {
+                max = Math.max(max, block.get$Type$(i));
+            }
+            nonNul(key, max);
+$endif$
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);

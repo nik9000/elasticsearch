@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
 
 import java.util.Locale;
 
@@ -43,12 +44,23 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void nonNul(BreakingBytesRefBuilder key, float value) {
         key.append(nonNul);
         encoder.encodeFloat(value, key);
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void nul(BreakingBytesRefBuilder key) {
+        key.append(nul);
+    }
+
+    protected final void nonNul(PagedBytesRefBuilder key, float value) {
+        key.append(nonNul);
+        encoder.encodeFloat(value, key);
+    }
+
+    protected final void nul(PagedBytesRefBuilder key) {
         key.append(nul);
     }
 
@@ -65,8 +77,14 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             this.vector = vector;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            nonNul(key, vector.getFloat(position));
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             nonNul(key, vector.getFloat(position));
         }
     }
@@ -79,8 +97,18 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            if (block.isNull(position)) {
+                nul(key);
+                return;
+            }
+            nonNul(key, block.getFloat(block.getFirstValueIndex(position)));
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -97,8 +125,18 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            if (block.isNull(position)) {
+                nul(key);
+                return;
+            }
+            nonNul(key, block.getFloat(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
                 nul(key);
                 return;
@@ -115,8 +153,25 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            int size = block.getValueCount(position);
+            if (size == 0) {
+                nul(key);
+                return;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + size;
+            float min = block.getFloat(start);
+            for (int i = start + 1; i < end; i++) {
+                min = Math.min(min, block.getFloat(i));
+            }
+            nonNul(key, min);
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);
@@ -140,8 +195,25 @@ abstract class KeyExtractorForFloat implements KeyExtractor {
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeKey(BreakingBytesRefBuilder key, int position) {
+            int size = block.getValueCount(position);
+            if (size == 0) {
+                nul(key);
+                return;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + size;
+            float max = block.getFloat(start);
+            for (int i = start + 1; i < end; i++) {
+                max = Math.max(max, block.getFloat(i));
+            }
+            nonNul(key, max);
+        }
+
+        @Override
+        public void writeKey(PagedBytesRefBuilder key, int position) {
             int size = block.getValueCount(position);
             if (size == 0) {
                 nul(key);

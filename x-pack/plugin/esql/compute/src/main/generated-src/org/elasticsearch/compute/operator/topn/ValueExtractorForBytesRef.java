@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
 
 /**
  * Extracts non-sort-key values for top-n from their {@link BytesRefBlock}s.
@@ -36,11 +37,21 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
         this.inKey = inKey;
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void writeCount(BreakingBytesRefBuilder values, int count) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void actualWriteValue(BreakingBytesRefBuilder values, BytesRef value) {
+        encoder.encodeBytesRef(value, values);
+    }
+
+    protected final void writeCount(PagedBytesRefBuilder values, int count) {
+        values.appendVInt(count);
+    }
+
+    protected final void actualWriteValue(PagedBytesRefBuilder values, BytesRef value) {
         encoder.encodeBytesRef(value, values);
     }
 
@@ -52,8 +63,19 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
             this.vector = vector;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeValue(BreakingBytesRefBuilder values, int position) {
+            writeCount(values, 1);
+            if (inKey) {
+                // will read results from the key
+                return;
+            }
+            actualWriteValue(values, vector.getBytesRef(position, scratch));
+        }
+
+        @Override
+        public void writeValue(PagedBytesRefBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -71,8 +93,24 @@ abstract class ValueExtractorForBytesRef implements ValueExtractor {
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeValue(BreakingBytesRefBuilder values, int position) {
+            int size = block.getValueCount(position);
+            writeCount(values, size);
+            if (size == 1 && inKey) {
+                // Will read results from the key
+                return;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + size;
+            for (int i = start; i < end; i++) {
+                actualWriteValue(values, block.getBytesRef(i, scratch));
+            }
+        }
+
+        @Override
+        public void writeValue(PagedBytesRefBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {

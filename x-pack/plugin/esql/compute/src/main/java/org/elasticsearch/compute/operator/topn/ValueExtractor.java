@@ -21,14 +21,18 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 
 /**
- * Extracts values into a {@link BreakingBytesRefBuilder}.
+ * Extracts values into a {@link PagedBytesRefBuilder}.
  */
 interface ValueExtractor {
+    // NOCOMMIT remove once all callers are migrated to PagedBytesRefBuilder
     void writeValue(BreakingBytesRefBuilder values, int position);
+
+    void writeValue(PagedBytesRefBuilder values, int position);
 
     /**
      * This should return a non-null value if the row is supposed to hold a temporary reference to a shard (including incrementing and

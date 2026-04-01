@@ -16,9 +16,10 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
 
 /**
- * Extracts keys into a {@link BreakingBytesRefBuilder}.
+ * Extracts keys into a {@link PagedBytesRefBuilder}.
  * <p>
  *     The keys are encoded as a sequence of bytes:
  * </p>
@@ -33,7 +34,10 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  * </p>
  */
 interface KeyExtractor {
+    // NOCOMMIT remove once all callers are migrated to PagedBytesRefBuilder
     void writeKey(BreakingBytesRefBuilder key, int position);
+
+    void writeKey(PagedBytesRefBuilder key, int position);
 
     /**
      * Build a {@link KeyExtractor} extractor for the provided configuration.

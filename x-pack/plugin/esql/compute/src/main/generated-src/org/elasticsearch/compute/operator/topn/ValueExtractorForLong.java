@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.compute.operator.PagedBytesRefBuilder;
 
 /**
  * Extracts non-sort-key values for top-n from their {@link LongBlock}s.
@@ -31,11 +32,21 @@ abstract class ValueExtractorForLong implements ValueExtractor {
         this.inKey = inKey;
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void writeCount(BreakingBytesRefBuilder values, int count) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
     }
 
+    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
     protected final void actualWriteValue(BreakingBytesRefBuilder values, long value) {
+        TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(value, values);
+    }
+
+    protected final void writeCount(PagedBytesRefBuilder values, int count) {
+        values.appendVInt(count);
+    }
+
+    protected final void actualWriteValue(PagedBytesRefBuilder values, long value) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(value, values);
     }
 
@@ -47,8 +58,19 @@ abstract class ValueExtractorForLong implements ValueExtractor {
             this.vector = vector;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeValue(BreakingBytesRefBuilder values, int position) {
+            writeCount(values, 1);
+            if (inKey) {
+                // will read results from the key
+                return;
+            }
+            actualWriteValue(values, vector.getLong(position));
+        }
+
+        @Override
+        public void writeValue(PagedBytesRefBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -66,8 +88,24 @@ abstract class ValueExtractorForLong implements ValueExtractor {
             this.block = block;
         }
 
+        // NOCOMMIT remove old BreakingBytesRefBuilder override
         @Override
         public void writeValue(BreakingBytesRefBuilder values, int position) {
+            int size = block.getValueCount(position);
+            writeCount(values, size);
+            if (size == 1 && inKey) {
+                // Will read results from the key
+                return;
+            }
+            int start = block.getFirstValueIndex(position);
+            int end = start + size;
+            for (int i = start; i < end; i++) {
+                actualWriteValue(values, block.getLong(i));
+            }
+        }
+
+        @Override
+        public void writeValue(PagedBytesRefBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {
