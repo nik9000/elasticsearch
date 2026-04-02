@@ -126,19 +126,96 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
         // Must match BytesRef.hashCode() for the same byte sequence so that paged and
         // flat keys are interchangeable in BytesRefHashTable.
         // BytesRef.hashCode() delegates to StringHelper.murmurhash3_x86_32.
-        // NOCOMMIT: this materializes all bytes into a temporary array. Replace with a
-        // streaming murmur3 implementation that processes pages in-place.
-        byte[] flat = new byte[length];
-        int off = 0;
-        int remaining = length;
-        for (byte[] page : pages) {
-            int len = Math.min(page.length, remaining);
-            System.arraycopy(page, 0, flat, off, len);
-            off += len;
-            remaining -= len;
-            if (remaining == 0) break;
+        var hasher = new MurmurHash3x86_32(StringHelper.GOOD_FAST_HASH_SEED);
+        for (int i = 0; i < pages.length - 1; i++) {
+            hasher.fullPage(pages[i]);
         }
-        return StringHelper.murmurhash3_x86_32(flat, 0, length, StringHelper.GOOD_FAST_HASH_SEED);
+        return pages.length == 0
+            ? hasher.lastPage(new byte[0], 0)
+            : hasher.lastPage(pages[pages.length - 1], length - (pages.length - 1) * BYTE_PAGE_SIZE);
+    }
+
+    /**
+     * Computes the same hash code used by {@link BytesRef} without materializing into a
+     * contiguous array. It's {@code MurmurHash3_x86_32}! Feed full pages via {@link #fullPage},
+     * then call {@link #lastPage} once to mix in the final (possibly partial) page and get the hash.
+     * <p>
+     * Because {@link PageCacheRecycler#BYTE_PAGE_SIZE} is a multiple of 4, the 4-byte blocks
+     * that murmur3 processes never straddle page boundaries. Only the last page can have a tail
+     * of 0–3 bytes.
+     */
+    static class MurmurHash3x86_32 {
+        private static final int C1 = 0xcc9e2d51;
+        private static final int C2 = 0x1b873593;
+
+        private int h1;
+        private int totalLength;
+
+        MurmurHash3x86_32(int seed) {
+            this.h1 = seed;
+        }
+
+        /** Mix in one full {@link PageCacheRecycler#BYTE_PAGE_SIZE}-byte page. */
+        void fullPage(byte[] page) {
+            // BYTE_PAGE_SIZE is a multiple of 4, so there is no tail.
+            for (int i = 0; i < page.length; i += 4) {
+                int k1 = (page[i] & 0xff)
+                    | ((page[i + 1] & 0xff) << 8)
+                    | ((page[i + 2] & 0xff) << 16)
+                    | ((page[i + 3] & 0xff) << 24);
+                k1 *= C1;
+                k1 = Integer.rotateLeft(k1, 15);
+                k1 *= C2;
+                h1 ^= k1;
+                h1 = Integer.rotateLeft(h1, 13);
+                h1 = h1 * 5 + 0xe6546b64;
+            }
+            totalLength += page.length;
+        }
+
+        /** Mix in the last page (using only the first {@code length} bytes) and return the hash. */
+        int lastPage(byte[] page, int length) {
+            totalLength += length;
+            int roundedEnd = length & ~3;
+
+            for (int i = 0; i < roundedEnd; i += 4) {
+                int k1 = (page[i] & 0xff)
+                    | ((page[i + 1] & 0xff) << 8)
+                    | ((page[i + 2] & 0xff) << 16)
+                    | ((page[i + 3] & 0xff) << 24);
+                k1 *= C1;
+                k1 = Integer.rotateLeft(k1, 15);
+                k1 *= C2;
+                h1 ^= k1;
+                h1 = Integer.rotateLeft(h1, 13);
+                h1 = h1 * 5 + 0xe6546b64;
+            }
+
+            int tailLen = length & 3;
+            if (tailLen > 0) {
+                int k1 = switch (tailLen) {
+                    case 3 -> ((page[roundedEnd + 2] & 0xff) << 16)
+                        | ((page[roundedEnd + 1] & 0xff) << 8)
+                        | (page[roundedEnd] & 0xff);
+                    case 2 -> ((page[roundedEnd + 1] & 0xff) << 8) | (page[roundedEnd] & 0xff);
+                    default -> page[roundedEnd] & 0xff;
+                };
+                k1 *= C1;
+                k1 = Integer.rotateLeft(k1, 15);
+                k1 *= C2;
+                h1 ^= k1;
+            }
+
+            // Finalization — force all bits to avalanche.
+            h1 ^= totalLength;
+            h1 ^= h1 >>> 16;
+            h1 *= 0x85ebca6b;
+            h1 ^= h1 >>> 13;
+            h1 *= 0xc2b2ae35;
+            h1 ^= h1 >>> 16;
+
+            return h1;
+        }
     }
 
     @Override

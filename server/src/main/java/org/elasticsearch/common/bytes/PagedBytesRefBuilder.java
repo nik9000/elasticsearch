@@ -481,19 +481,15 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         // Must match BytesRef.hashCode() for the same byte sequence so that paged and
         // flat keys are interchangeable in BytesRefHashTable.
         // BytesRef.hashCode() delegates to StringHelper.murmurhash3_x86_32.
-        // NOCOMMIT: this materializes all bytes into a temporary array. Replace with a
-        // streaming murmur3 implementation that processes pages in-place.
-        int len = length();
-        byte[] flat = new byte[len];
-        int off = 0;
-        if (pages != null) {
-            for (int i = 0; i < usedPages - 1; i++) {
-                System.arraycopy(pages[i].v(), 0, flat, off, BYTE_PAGE_SIZE);
-                off += BYTE_PAGE_SIZE;
-            }
+        if (pages == null) {
+            // Small-tail mode: all bytes are in a single contiguous array.
+            return StringHelper.murmurhash3_x86_32(tail, 0, tailOffset, StringHelper.GOOD_FAST_HASH_SEED);
         }
-        System.arraycopy(tail, 0, flat, off, tailOffset);
-        return StringHelper.murmurhash3_x86_32(flat, 0, len, StringHelper.GOOD_FAST_HASH_SEED);
+        var hasher = new PagedBytesRef.MurmurHash3x86_32(StringHelper.GOOD_FAST_HASH_SEED);
+        for (int i = 0; i < usedPages - 1; i++) {
+            hasher.fullPage(pages[i].v());
+        }
+        return hasher.lastPage(tail, tailOffset);
     }
 
     @Override

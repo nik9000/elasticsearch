@@ -163,6 +163,10 @@ public class GroupedTopNOperator implements Operator, Accountable {
         for (TopNOperator.SortOrder so : sortOrders) {
             channelInKey[so.channel()] = true;
         }
+        // TODO: group-key columns are currently stored in row.values just like any other
+        // non-sort-key column. This is redundant — their bytes already live in keysHash.
+        // Instead, keep keysHash alive through buildResult(), skip writing group-key columns
+        // into values, and restore them from the hash at output time.
     }
 
     @Override
