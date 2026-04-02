@@ -102,19 +102,19 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         this.recycler = recycler;
         this.breaker = breaker;
         this.label = label;
-        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, label);
-        boolean success = false;
         initialCapacity = initialCapacity <= MIN_SIZE ? MIN_SIZE : nextPowerOfTwo(initialCapacity);
-        try {
-            if (initialCapacity < MAX_SMALL_TAIL_SIZE) {
-                allocateSmallTail(initialCapacity);
-            } else {
+        if (initialCapacity < MAX_SMALL_TAIL_SIZE) {
+            initSmallTailMode(initialCapacity);
+        } else {
+            boolean success = false;
+            try {
+                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, label);
                 allocatePages(initialCapacity);
-            }
-            success = true;
-        } finally {
-            if (success == false) {
-                breaker.addEstimateBytesAndMaybeBreak(-SHALLOW_SIZE, label);
+                success = true;
+            } finally {
+                if (success == false) {
+                    breaker.addEstimateBytesAndMaybeBreak(-SHALLOW_SIZE, label);
+                }
             }
         }
     }
@@ -123,7 +123,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * Append a byte.
      */
     public void append(byte b) {
-        if (smallTailPreflight(1)) {
+        if (growTail(1)) {
             tail[tailOffset++] = b;
             return;
         }
@@ -137,7 +137,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * Append bytes.
      */
     public void append(byte[] b, int off, int len) {
-        if (smallTailPreflight(len)) {
+        if (growTail(len)) {
             System.arraycopy(b, off, tail, tailOffset, len);
             tailOffset += len;
             return;
@@ -159,7 +159,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * NOCOMMIT optimize
      */
     public void appendNot(byte[] b, int off, int len) {
-        if (smallTailPreflight(len)) {
+        if (growTail(len)) {
             for (int i = 0; i < len; i++) {
                 tail[tailOffset++] = (byte) ~b[off + i];
             }
@@ -346,22 +346,68 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         assert mode() == Mode.BUILT;
     }
 
-    private boolean smallTailPreflight(int needed) {
-        if (pages != null) {
-            // Already in paged mode
-            return false;
-        }
+    /**
+     * Try to grow the tail to have room for an {@code append} operation adding
+     * {@code needed} bytes. Returns {@code true} if the bytes fit in the tail.
+     * Returns {@code false} if the bytes must be split across two pages.
+     * <p>
+     *     If this returns {@code false} then we are in {@link Mode#PAGED} mode.
+     *     If this returns {@code true} then we may be in {@link Mode#PAGED} mode
+     *     or {@link Mode#SMALL_TAIL} mode. The caller shouldn't care - it can
+     *     just write the bytes to the {@link #tail} regardless of how we've
+     *     allocated it.
+     * </p>
+     * <p>
+     *     If we need to grow the tail to more than {@link #MAX_SMALL_TAIL_SIZE}
+     *     then this transitions to small tail mode.
+     * </p>
+     * <p>
+     *     To get the bytes to fit into the tail there are a few options:
+     * </p>
+     * {@snippet lang=text:
+     *  ┌─────────────────────────────────────────┐
+     *  │      needed bytes fit in the tail?      │
+     *  └─────────────────────────────────────────┘
+     *            yes │                 │ no
+     *                ▼                 ▼
+     *          return true    ┌─────────────────┐
+     *                         │   paged mode?   │
+     *                         └─────────────────┘
+     *                      yes │              │ no
+     *                          ▼              ▼
+     *                     return false  ┌─────────────────────────────┐
+     *                                   │ small tail mode:            │
+     *                                   │ grow to nextPowerOfTwo(end) │
+     *                                   │ would flip to paged mode?   │
+     *                                   └─────────────────────────────┘
+     *                                       yes │             │ no
+     *                                           ▼             ▼
+     *                                ╔════════════════╗  ┌────────────┐
+     *                                ║   TRANSITION   ║  │  grow the  │
+     *                                ║    TO PAGED    ║  │ small tail │
+     *                                ║      MODE      ║  └────────────┘
+     *                                ╚════════════════╝        │
+     *                                           │              │
+     *                                           ▼              ▼
+     *                                     return false    return true
+     * }
+     */
+    private boolean growTail(int needed) {
         int end = tailOffset + needed;
         if (end < tail.length) {
-            // Fits in the small tail
+            // Fits in the tail
             return true;
         }
-        // Got to grow
+        // Got to grow.
+        if (pages != null) {
+            // Already in paged mode. Growth always involves adding pages.
+            return false;
+        }
         int length = nextPowerOfTwo(end);
         if (length > MAX_SMALL_TAIL_SIZE) {
             // Would grow too large
             promoteToPaged(length);
-            return false;
+            return length < BYTE_PAGE_SIZE;
         }
         growSmallTail(length);
         return true;
@@ -393,7 +439,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     /**
-     * Promote from "small tail" mode to "paged" mode.
+     * Promote from {@link Mode#SMALL_TAIL} mode to {@link Mode#PAGED} mode.
      */
     private void promoteToPaged(int length) {
         assert mode() == Mode.SMALL_TAIL;
@@ -422,6 +468,9 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         }
     }
 
+    /**
+     * Grow the {@link #tail} array via heap allocation.
+     */
     private void growSmallTail(int length) {
         assert length <= MAX_SMALL_TAIL_SIZE;
         breaker.addEstimateBytesAndMaybeBreak(smallTailRamBytesUsed(length), label);
@@ -430,9 +479,9 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         breaker.addEstimateBytesAndMaybeBreak(-smallTailRamBytesUsed(oldLength), label);
     }
 
-    private void allocateSmallTail(int length) {
+    private void initSmallTailMode(int length) {
         assert length <= MAX_SMALL_TAIL_SIZE;
-        breaker.addEstimateBytesAndMaybeBreak(smallTailRamBytesUsed(length), label);
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + smallTailRamBytesUsed(length), label);
         tail = new byte[length];
     }
 
