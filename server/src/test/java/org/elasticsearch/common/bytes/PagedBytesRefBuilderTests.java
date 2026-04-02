@@ -655,6 +655,26 @@ public class PagedBytesRefBuilderTests extends ESTestCase {
         return flat;
     }
 
+    public void testToStringSmall() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        try (PagedBytesRefBuilder b = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            b.append((byte) 0x0a);
+            b.append((byte) 0xff);
+            b.append((byte) 0x00);
+            assertThat(b.toString(), equalTo("0a ff 00"));
+        }
+    }
+
+    public void testToStringTruncates() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        try (PagedBytesRefBuilder b = new PagedBytesRefBuilder(breaker, "test", 0, recycler)) {
+            for (int i = 0; i < 101; i++) {
+                b.append((byte) 0);
+            }
+            assertTrue("should truncate beyond 100 bytes", b.toString().endsWith("..."));
+        }
+    }
+
     private static long bytesArrayRamBytesUsed(int capacity) {
         return RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) capacity * RamUsageEstimator.NUM_BYTES_OBJECT_REF

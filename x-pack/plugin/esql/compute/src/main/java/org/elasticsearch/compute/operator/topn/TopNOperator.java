@@ -11,11 +11,11 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRef;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
@@ -99,7 +99,7 @@ public class TopNOperator implements Operator, Accountable {
             for (KeyExtractor keyExtractor : keyExtractors) {
                 keyExtractor.writeKey(row.keys, position);
             }
-            keyPreAllocSize = newPreAllocSize(row.keys, keyPreAllocSize);
+            keyPreAllocSize = newPreAllocSize(row.keys.length(), keyPreAllocSize);
         }
 
         void writeValues(int position, TopNRow destination) {
@@ -117,10 +117,6 @@ public class TopNOperator implements Operator, Accountable {
          * Pre-allocation size heuristic: use the larger of the current builder length and half
          * the previous pre-alloc size, so the size decays after a single unusually large row.
          */
-        private static int newPreAllocSize(BreakingBytesRefBuilder builder, int sparePreAllocSize) {
-            return newPreAllocSize(builder.length(), sparePreAllocSize);
-        }
-
         private static int newPreAllocSize(int length, int sparePreAllocSize) {
             return Math.max(length, sparePreAllocSize / 2);
         }
@@ -376,7 +372,7 @@ public class TopNOperator implements Operator, Accountable {
         if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
             return;
         }
-        if (minCompetitive.offer(inputQueue.top().keys.bytesRefView())) {
+        if (minCompetitive.offer(inputQueue.top().keys.view())) {
             minCompetitiveUpdates++;
         }
     }
@@ -538,8 +534,12 @@ public class TopNOperator implements Operator, Accountable {
                 int rEnd = r + size;
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
-                        readKeys(builders, row.keys.bytesRefView());
-                        readValues(builders, new PagedBytesRefCursor(row.values.view()));
+                        try (PagedBytesRef keysRef = row.keys.build()) {
+                            readKeys(builders, keysRef);
+                        }
+                        try (PagedBytesRef valuesRef = row.values.build()) {
+                            readValues(builders, new PagedBytesRefCursor(valuesRef));
+                        }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;
@@ -568,7 +568,8 @@ public class TopNOperator implements Operator, Accountable {
         /**
          * Read keys into the results. See {@link KeyExtractor} for the key layout.
          */
-        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+        private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
+            BytesRef keys = keysRef.toBytesRef();
             for (SortOrder so : sortOrders) {
                 if (keys.bytes[keys.offset] == so.nul()) {
                     // Discard the null byte.

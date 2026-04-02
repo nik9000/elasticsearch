@@ -79,6 +79,32 @@ public class PagedBytesRefTests extends ESTestCase {
         assertNotEquals(newPagedBytesRef(flat), newPagedBytesRef(Arrays.copyOf(flat, flat.length - 1)));
     }
 
+    public void testLimitedToStringEmpty() {
+        assertThat(PagedBytesRef.limitedToString(new byte[0]), equalTo(""));
+    }
+
+    public void testLimitedToStringShort() {
+        assertThat(PagedBytesRef.limitedToString(new byte[] { 0x0a, (byte) 0xff, 0x00 }), equalTo("0a ff 00"));
+    }
+
+    public void testLimitedToStringExactly100() {
+        byte[] bytes = new byte[100];
+        for (int i = 0; i < 100; i++) {
+            bytes[i] = (byte) i;
+        }
+        String result = PagedBytesRef.limitedToString(bytes);
+        assertFalse("should not truncate at exactly 100 bytes", result.endsWith("..."));
+    }
+
+    public void testLimitedToStringTruncates() {
+        byte[] bytes = new byte[101];
+        String result = PagedBytesRef.limitedToString(bytes);
+        assertTrue("should truncate beyond 100 bytes", result.endsWith("..."));
+        // should show exactly 100 tokens before the ellipsis
+        String withoutEllipsis = result.substring(0, result.length() - 3);
+        assertThat(withoutEllipsis.split(" ").length, equalTo(100));
+    }
+
     /**
      * Builds a {@link PagedBytesRef} from a {@code byte[]}, splitting into pages of
      * {@link org.elasticsearch.common.util.PageCacheRecycler#BYTE_PAGE_SIZE}.

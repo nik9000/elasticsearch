@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRef;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -359,8 +360,12 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 int rEnd = r + size;
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
-                        readKeys(builders, row.keys.bytesRefView());
-                        readValues(builders, new PagedBytesRefCursor(row.values.view()));
+                        try (PagedBytesRef keysRef = row.keys.build()) {
+                            readKeys(builders, keysRef);
+                        }
+                        try (PagedBytesRef valuesRef = row.values.build()) {
+                            readValues(builders, new PagedBytesRefCursor(valuesRef));
+                        }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;
@@ -387,7 +392,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
             Releasables.close(rows);
         }
 
-        private void readKeys(ResultBuilder[] builders, BytesRef keys) {
+        private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
+            BytesRef keys = keysRef.toBytesRef();
             for (TopNOperator.SortOrder so : sortOrders) {
                 if (keys.bytes[keys.offset] == so.nul()) {
                     keys.offset++;

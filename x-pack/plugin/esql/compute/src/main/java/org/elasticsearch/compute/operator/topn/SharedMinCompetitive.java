@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
@@ -69,6 +70,10 @@ public class SharedMinCompetitive extends SideChannel {
      *         value in the local top n is greater than or equal to the minimum
      *         competitive value already recorded
      */
+    public boolean offer(PagedBytesRef minCompetitive) {
+        return offer(minCompetitive.toBytesRef());
+    }
+
     public boolean offer(BytesRef minCompetitive) {
         synchronized (value) {
             if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {

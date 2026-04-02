@@ -11,9 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -33,7 +31,7 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     /**
      * The sort keys, encoded into bytes so we can sort by calling {@link Arrays#compareUnsigned}.
      */
-    final BreakingBytesRefBuilder keys;
+    final PagedBytesRefBuilder keys;
 
     /**
      * Values to reconstruct the row. When we reconstruct the row we read
@@ -54,7 +52,7 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
         this.breaker = breaker;
         boolean success = false;
         try {
-            keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
+            keys = new PagedBytesRefBuilder(breaker, "topn", preAllocatedKeysSize, recycler);
             values = new PagedBytesRefBuilder(breaker, "topn", 0, recycler);
             success = true;
         } finally {
@@ -100,7 +98,7 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     public int compareTo(TopNRow rhs) {
         // TODO if we fill the trailing bytes with 0 we could do a comparison on the entire array
         // When Nik measured this it was marginally faster. But it's worth a bit of research.
-        return -keys.bytesRefView().compareTo(rhs.keys.bytesRefView());
+        return -keys.compareTo(rhs.keys);
     }
 
     @Override
@@ -109,30 +107,16 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
             return false;
         }
         TopNRow row = (TopNRow) o;
-        return keys.bytesRefView().equals(row.keys.bytesRefView());
+        return keys.equals(row.keys);
     }
 
     @Override
     public int hashCode() {
-        return keys.bytesRefView().hashCode();
+        return keys.hashCode();
     }
 
     @Override
     public String toString() {
-        StringBuilder b = new StringBuilder("TopNRow[key=");
-        b.append(keys.bytesRefView());
-        b.append(", values=[");
-        int limit = Math.min(values.length(), 100);
-        PagedBytesRefCursor cursor = new PagedBytesRefCursor(values.view());
-        for (int i = 0; i < limit; i++) {
-            if (i != 0) {
-                b.append(" ");
-            }
-            b.append(Integer.toHexString(cursor.readByte() & 255));
-        }
-        if (values.length() > 100) {
-            b.append("...");
-        }
-        return b.append("]]").toString();
+        return "TopNRow[key=" + keys + ", values=[" + values + "]]";
     }
 }

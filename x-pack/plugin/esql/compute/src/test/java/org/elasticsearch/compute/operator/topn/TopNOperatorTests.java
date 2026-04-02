@@ -2104,7 +2104,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             // BreakingBytesRefBuilder due to exponential tail growth before switching to paged mode.
             // 1 is for the min-heap itself.
             // Ascending encodes fewer values (sort key stored separately from value columns).
-            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 185L : 199L));
+            // NOCOMMIT update these counts once append(int) is optimized to call growTail once
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 174L : 188L));
         }
     }
 

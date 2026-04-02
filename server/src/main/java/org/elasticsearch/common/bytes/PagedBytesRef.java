@@ -159,10 +159,7 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
         void fullPage(byte[] page) {
             // BYTE_PAGE_SIZE is a multiple of 4, so there is no tail.
             for (int i = 0; i < page.length; i += 4) {
-                int k1 = (page[i] & 0xff)
-                    | ((page[i + 1] & 0xff) << 8)
-                    | ((page[i + 2] & 0xff) << 16)
-                    | ((page[i + 3] & 0xff) << 24);
+                int k1 = (page[i] & 0xff) | ((page[i + 1] & 0xff) << 8) | ((page[i + 2] & 0xff) << 16) | ((page[i + 3] & 0xff) << 24);
                 k1 *= C1;
                 k1 = Integer.rotateLeft(k1, 15);
                 k1 *= C2;
@@ -179,10 +176,7 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
             int roundedEnd = length & ~3;
 
             for (int i = 0; i < roundedEnd; i += 4) {
-                int k1 = (page[i] & 0xff)
-                    | ((page[i + 1] & 0xff) << 8)
-                    | ((page[i + 2] & 0xff) << 16)
-                    | ((page[i + 3] & 0xff) << 24);
+                int k1 = (page[i] & 0xff) | ((page[i + 1] & 0xff) << 8) | ((page[i + 2] & 0xff) << 16) | ((page[i + 3] & 0xff) << 24);
                 k1 *= C1;
                 k1 = Integer.rotateLeft(k1, 15);
                 k1 *= C2;
@@ -194,9 +188,7 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
             int tailLen = length & 3;
             if (tailLen > 0) {
                 int k1 = switch (tailLen) {
-                    case 3 -> ((page[roundedEnd + 2] & 0xff) << 16)
-                        | ((page[roundedEnd + 1] & 0xff) << 8)
-                        | (page[roundedEnd] & 0xff);
+                    case 3 -> ((page[roundedEnd + 2] & 0xff) << 16) | ((page[roundedEnd + 1] & 0xff) << 8) | (page[roundedEnd] & 0xff);
                     case 2 -> ((page[roundedEnd + 1] & 0xff) << 8) | (page[roundedEnd] & 0xff);
                     default -> page[roundedEnd] & 0xff;
                 };
@@ -240,6 +232,58 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
 
         // All shared pages are the same.
         return this.length - rhs.length;
+    }
+
+    @Override
+    public String toString() {
+        // Truncate to valid bytes; if there are multiple pages limitedToString will add "..." since
+        // pages[0].length == BYTE_PAGE_SIZE > 100.
+        return limitedToString(Arrays.copyOf(pages[0], Math.min(pages[0].length, length)));
+    }
+
+    /**
+     * Renders up to 100 bytes from {@code head} as space-separated hex.
+     */
+    static String limitedToString(byte[] head) {
+        StringBuilder b = new StringBuilder();
+        int length = Math.min(100, head.length);
+        for (int i = 0; i < length; i++) {
+            if (i != 0) {
+                b.append(' ');
+            }
+            int v = head[i] & 0xff;
+            if (v < 0x10) {
+                b.append('0');
+            }
+            b.append(Integer.toHexString(v));
+        }
+        if (length != head.length) {
+            b.append("...");
+        }
+        return b.toString();
+    }
+
+    /**
+     * Materializes all pages into a single contiguous {@code byte[]} and returns it as a
+     * {@link BytesRef}. This allocates a new array of size {@link #length}.
+     * <p>
+     * NOCOMMIT: callers should be migrated to work directly with {@link PagedBytesRef} to
+     * avoid the allocation and copy.
+     */
+    public BytesRef toBytesRef() {
+        byte[] bytes = new byte[length];
+        int offset = 0;
+        int remaining = length;
+        for (byte[] page : pages) {
+            int toCopy = Math.min(page.length, remaining);
+            System.arraycopy(page, 0, bytes, offset, toCopy);
+            offset += toCopy;
+            remaining -= toCopy;
+            if (remaining == 0) {
+                break;
+            }
+        }
+        return new BytesRef(bytes, 0, length);
     }
 
     @Override

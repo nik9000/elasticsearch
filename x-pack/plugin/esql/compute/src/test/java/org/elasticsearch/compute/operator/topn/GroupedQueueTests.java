@@ -110,7 +110,7 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static void assertRowValues(TopNRow row, int expectedSortKey, int expectedValue) {
-        BytesRef keys = row.keys.bytesRefView();
+        BytesRef keys = row.keys.view().toBytesRef();
         assertThat(
             TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1)),
             equalTo(expectedSortKey)

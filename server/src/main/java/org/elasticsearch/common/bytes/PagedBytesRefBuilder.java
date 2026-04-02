@@ -617,6 +617,11 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     @Override
+    public String toString() {
+        return view().toString();
+    }
+
+    @Override
     public void close() {
         if (mode() == Mode.BUILT) {
             return;
