@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -110,11 +109,9 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static void assertRowValues(TopNRow row, int expectedSortKey, int expectedValue) {
-        BytesRef keys = row.keys.view().toBytesRef();
-        assertThat(
-            TopNEncoder.DEFAULT_SORTABLE.decodeInt(new BytesRef(keys.bytes, keys.offset + 1, keys.length - 1)),
-            equalTo(expectedSortKey)
-        );
+        PagedBytesRefCursor keysCursor = row.keys.view().cursor();
+        keysCursor.readByte(); // skip null sentinel
+        assertThat(TopNEncoder.DEFAULT_SORTABLE.decodeInt(keysCursor), equalTo(expectedSortKey));
 
         PagedBytesRefCursor cursor = row.values.view().cursor();
         assertThat(cursor.readVInt(), equalTo(1));

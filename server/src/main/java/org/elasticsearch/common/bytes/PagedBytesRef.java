@@ -286,29 +286,6 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
         return new PagedBytesRefCursor(this);
     }
 
-    /**
-     * Materializes all pages into a single contiguous {@code byte[]} and returns it as a
-     * {@link BytesRef}. This allocates a new array of size {@link #length}.
-     * <p>
-     * NOCOMMIT: callers should be migrated to work directly with {@link PagedBytesRef} to
-     * avoid the allocation and copy.
-     */
-    public BytesRef toBytesRef() {
-        byte[] bytes = new byte[length];
-        int offset = 0;
-        int remaining = length;
-        for (byte[] page : pages) {
-            int toCopy = Math.min(page.length, remaining);
-            System.arraycopy(page, 0, bytes, offset, toCopy);
-            offset += toCopy;
-            remaining -= toCopy;
-            if (remaining == 0) {
-                break;
-            }
-        }
-        return new BytesRef(bytes, 0, length);
-    }
-
     @Override
     public void close() {
         onClose.close();
