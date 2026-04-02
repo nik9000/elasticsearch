@@ -38,6 +38,20 @@ public class PagedBytesRefCursor {
     }
 
     /**
+     * Wrap a flat {@link BytesRef} as a single-page cursor. No copy is made.
+     */
+    public static PagedBytesRefCursor fromBytesRef(BytesRef ref) {
+        return new PagedBytesRefCursor(ref);
+    }
+
+    private PagedBytesRefCursor(BytesRef ref) {
+        this.pages = new byte[][] { ref.bytes };
+        this.pageIndex = 0;
+        this.pageOffset = ref.offset;
+        this.remaining = ref.length;
+    }
+
+    /**
      * Number of bytes not yet read.
      */
     public int remaining() {

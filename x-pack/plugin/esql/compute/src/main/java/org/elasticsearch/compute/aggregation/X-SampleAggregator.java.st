@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -20,7 +22,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.sort.BytesRefBucketedSort;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
 import org.elasticsearch.core.Releasables;
@@ -108,9 +109,9 @@ class Sample$Type$Aggregator {
                     int start = bytesRefBlock.getFirstValueIndex(position);
                     int end = start + valueCount;
                     for (int i = start; i < end; i++) {
-                        BytesRef value = bytesRefBlock.getBytesRef(i, scratch).clone();
-                        ENCODER.decodeLong(value);
-                        $type$Block.append$Type$(ENCODER.decode$Type$(value$if(BytesRef)$, scratch$endif$));
+                        PagedBytesRefCursor cursor = PagedBytesRefCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
+                        ENCODER.decodeLong(cursor);
+                        $type$Block.append$Type$(ENCODER.decode$Type$(cursor$if(BytesRef)$, scratch$endif$));
                     }
                     if (valueCount > 1) {
                         $type$Block.endPositionEntry();
