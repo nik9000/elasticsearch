@@ -142,8 +142,7 @@ class SampleDoubleAggregator {
         public void add(int groupId, double value) {
             ENCODER.encodeLong(Randomness.get().nextLong(), keyBuilder);
             ENCODER.encodeDouble(value, keyBuilder);
-            // NOCOMMIT: toBytesRef creates an unnecessary copy; migrate BytesRefBucketedSort to accept PagedBytesRef directly
-            sort.collect(keyBuilder.view().toBytesRef(), groupId);
+            sort.collect(keyBuilder, groupId);
             keyBuilder.clear();
         }
 

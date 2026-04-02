@@ -235,6 +235,21 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
         return this.length - rhs.length;
     }
 
+    public int compareTo(BytesRef rhs) {
+        int remaining = Math.min(this.length, rhs.length);
+        int rhsOffset = rhs.offset;
+        for (int i = 0; remaining > 0; i++) {
+            int pageLen = Math.min(remaining, BYTE_PAGE_SIZE);
+            int diff = Arrays.compareUnsigned(this.pages[i], 0, pageLen, rhs.bytes, rhsOffset, rhsOffset + pageLen);
+            if (diff != 0) {
+                return diff;
+            }
+            remaining -= pageLen;
+            rhsOffset += pageLen;
+        }
+        return this.length - rhs.length;
+    }
+
     @Override
     public String toString() {
         // Truncate to valid bytes; if there are multiple pages limitedToString will add "..." since
