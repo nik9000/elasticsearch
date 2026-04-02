@@ -18,12 +18,12 @@ import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     @Override
     public void encodeLong(long value, PagedBytesRefBuilder builder) {
-        builder.append(value);
+        builder.appendNative(value);
     }
 
     @Override
     public long decodeLong(PagedBytesRefCursor bytes) {
-        return bytes.readLong();
+        return bytes.readLongNative();
     }
 
     /**
@@ -44,32 +44,32 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeInt(int value, PagedBytesRefBuilder builder) {
-        builder.append(value);
+        builder.appendNative(value);
     }
 
     @Override
     public int decodeInt(PagedBytesRefCursor bytes) {
-        return bytes.readInt();
+        return bytes.readIntNative();
     }
 
     @Override
     public void encodeFloat(float value, PagedBytesRefBuilder builder) {
-        builder.append(Float.floatToRawIntBits(value));
+        builder.appendNative(Float.floatToRawIntBits(value));
     }
 
     @Override
     public float decodeFloat(PagedBytesRefCursor bytes) {
-        return Float.intBitsToFloat(bytes.readInt());
+        return Float.intBitsToFloat(bytes.readIntNative());
     }
 
     @Override
     public void encodeDouble(double value, PagedBytesRefBuilder builder) {
-        builder.append(Double.doubleToRawLongBits(value));
+        builder.appendNative(Double.doubleToRawLongBits(value));
     }
 
     @Override
     public double decodeDouble(PagedBytesRefCursor bytes) {
-        return Double.longBitsToDouble(bytes.readLong());
+        return Double.longBitsToDouble(bytes.readLongNative());
     }
 
     @Override
