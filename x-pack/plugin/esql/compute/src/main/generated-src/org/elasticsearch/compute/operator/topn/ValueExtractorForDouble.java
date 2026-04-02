@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 /**
@@ -32,16 +31,6 @@ abstract class ValueExtractorForDouble implements ValueExtractor {
         this.inKey = inKey;
     }
 
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void writeCount(BreakingBytesRefBuilder values, int count) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void actualWriteValue(BreakingBytesRefBuilder values, double value) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeDouble(value, values);
-    }
-
     protected final void writeCount(PagedBytesRefBuilder values, int count) {
         values.appendVInt(count);
     }
@@ -56,17 +45,6 @@ abstract class ValueExtractorForDouble implements ValueExtractor {
         ForVector(TopNEncoder encoder, boolean inKey, DoubleVector vector) {
             super(encoder, inKey);
             this.vector = vector;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
-            writeCount(values, 1);
-            if (inKey) {
-                // will read results from the key
-                return;
-            }
-            actualWriteValue(values, vector.getDouble(position));
         }
 
         @Override
@@ -86,22 +64,6 @@ abstract class ValueExtractorForDouble implements ValueExtractor {
         ForBlock(TopNEncoder encoder, boolean inKey, DoubleBlock block) {
             super(encoder, inKey);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
-            int size = block.getValueCount(position);
-            writeCount(values, size);
-            if (size == 1 && inKey) {
-                // Will read results from the key
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            for (int i = start; i < end; i++) {
-                actualWriteValue(values, block.getDouble(i));
-            }
         }
 
         @Override

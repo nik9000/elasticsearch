@@ -48,6 +48,7 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         refuseNul(value);
         builder.appendNot(value.bytes, value.offset, value.length);

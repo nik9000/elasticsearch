@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import java.util.Locale;
@@ -44,17 +43,6 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void nonNul(BreakingBytesRefBuilder key, double value) {
-        key.append(nonNul);
-        encoder.encodeDouble(value, key);
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void nul(BreakingBytesRefBuilder key) {
-        key.append(nul);
-    }
-
     protected final void nonNul(PagedBytesRefBuilder key, double value) {
         key.append(nonNul);
         encoder.encodeDouble(value, key);
@@ -77,12 +65,6 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
             this.vector = vector;
         }
 
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            nonNul(key, vector.getDouble(position));
-        }
-
         @Override
         public void writeKey(PagedBytesRefBuilder key, int position) {
             nonNul(key, vector.getDouble(position));
@@ -95,16 +77,6 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            if (block.isNull(position)) {
-                nul(key);
-                return;
-            }
-            nonNul(key, block.getDouble(block.getFirstValueIndex(position)));
         }
 
         @Override
@@ -125,16 +97,6 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
             this.block = block;
         }
 
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            if (block.isNull(position)) {
-                nul(key);
-                return;
-            }
-            nonNul(key, block.getDouble(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
-        }
-
         @Override
         public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
@@ -151,23 +113,6 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            int size = block.getValueCount(position);
-            if (size == 0) {
-                nul(key);
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            double min = block.getDouble(start);
-            for (int i = start + 1; i < end; i++) {
-                min = Math.min(min, block.getDouble(i));
-            }
-            nonNul(key, min);
         }
 
         @Override
@@ -193,23 +138,6 @@ abstract class KeyExtractorForDouble implements KeyExtractor {
         MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, DoubleBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            int size = block.getValueCount(position);
-            if (size == 0) {
-                nul(key);
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            double max = block.getDouble(start);
-            for (int i = start + 1; i < end; i++) {
-                max = Math.max(max, block.getDouble(i));
-            }
-            nonNul(key, max);
         }
 
         @Override

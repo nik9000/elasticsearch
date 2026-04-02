@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
 import java.util.ArrayList;
@@ -111,13 +113,12 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
     }
 
     private void offerLong(BlockFactory blockFactory, SharedMinCompetitive minCompetitive, long l) {
-        try (
-            Block block = blockFactory.newConstantLongBlockWith(l, 1);
-            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(blockFactory.breaker(), "work");
-        ) {
+        try (Block block = blockFactory.newConstantLongBlockWith(l, 1)) {
             KeyExtractor extractor = longExtractor(block);
-            extractor.writeKey(b, 0);
-            minCompetitive.offer(b.bytesRefView());
+            try (PagedBytesRefBuilder b = new PagedBytesRefBuilder(blockFactory.breaker(), "work", 0, new MockPageCacheRecycler(Settings.EMPTY))) {
+                extractor.writeKey(b, 0);
+                minCompetitive.offer(b.view());
+            }
         }
     }
 

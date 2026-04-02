@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 $endif$
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 /**
@@ -45,20 +44,6 @@ $endif$
         this.inKey = inKey;
     }
 
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void writeCount(BreakingBytesRefBuilder values, int count) {
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(count, values);
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void actualWriteValue(BreakingBytesRefBuilder values, $type$ value) {
-$if(BytesRef)$
-        encoder.encodeBytesRef(value, values);
-$else$
-        TopNEncoder.DEFAULT_UNSORTABLE.encode$Type$(value, values);
-$endif$
-    }
-
     protected final void writeCount(PagedBytesRefBuilder values, int count) {
         values.appendVInt(count);
     }
@@ -77,21 +62,6 @@ $endif$
         ForVector(TopNEncoder encoder, boolean inKey, $Type$Vector vector) {
             super(encoder, inKey);
             this.vector = vector;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
-            writeCount(values, 1);
-            if (inKey) {
-                // will read results from the key
-                return;
-            }
-$if(BytesRef)$
-            actualWriteValue(values, vector.get$Type$(position, scratch));
-$else$
-            actualWriteValue(values, vector.get$Type$(position));
-$endif$
         }
 
         @Override
@@ -115,26 +85,6 @@ $endif$
         ForBlock(TopNEncoder encoder, boolean inKey, $Type$Block block) {
             super(encoder, inKey);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeValue(BreakingBytesRefBuilder values, int position) {
-            int size = block.getValueCount(position);
-            writeCount(values, size);
-            if (size == 1 && inKey) {
-                // Will read results from the key
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            for (int i = start; i < end; i++) {
-$if(BytesRef)$
-                actualWriteValue(values, block.getBytesRef(i, scratch));
-$else$
-                actualWriteValue(values, block.get$Type$(i));
-$endif$
-            }
         }
 
         @Override

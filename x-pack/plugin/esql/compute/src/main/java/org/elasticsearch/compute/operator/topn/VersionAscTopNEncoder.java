@@ -15,14 +15,6 @@ import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     private final VersionDescTopNEncoder descEncoder = new VersionDescTopNEncoder(this);
 
-    @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
-        refuseNul(value);
-        bytesRefBuilder.append(value);
-        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
-    }
-
     static void refuseNul(BytesRef value) {
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {
@@ -30,6 +22,14 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
                 throw new IllegalArgumentException("Can't sort versions containing nul");
             }
         }
+    }
+
+    @Override
+    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
+        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
+        refuseNul(value);
+        bytesRefBuilder.append(value);
+        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
     }
 
     @Override
@@ -48,6 +48,7 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         refuseNul(value);
         builder.append(value);

@@ -24,6 +24,7 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeLong(long value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         TopNEncoder.DEFAULT_SORTABLE.encodeLong(~value, builder);
     }
 
@@ -44,6 +45,7 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeInt(int value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         TopNEncoder.DEFAULT_SORTABLE.encodeInt(~value, builder);
     }
 
@@ -64,6 +66,7 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeFloat(float value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         encodeInt(NumericUtils.floatToSortableInt(value), builder);
     }
 
@@ -84,6 +87,7 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeDouble(double value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         encodeLong(NumericUtils.doubleToSortableLong(value), builder);
     }
 
@@ -104,6 +108,7 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value == false, builder);
     }
 

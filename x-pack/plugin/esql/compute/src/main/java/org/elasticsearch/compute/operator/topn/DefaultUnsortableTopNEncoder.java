@@ -35,6 +35,7 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeLong(long value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value);
     }
 
@@ -52,19 +53,6 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     @Override
     public long decodeLong(PagedBytesRefCursor bytes) {
         return bytes.readLong();
-    }
-
-    /**
-     * Writes an int in a variable-length format. Writes between one and
-     * five bytes. Smaller values take fewer bytes. Negative numbers
-     * will always use all 5 bytes.
-     */
-    public void encodeVInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
-        while ((value & ~0x7F) != 0) {
-            bytesRefBuilder.append(((byte) ((value & 0x7f) | 0x80)));
-            value >>>= 7;
-        }
-        bytesRefBuilder.append((byte) value);
     }
 
     /**
@@ -115,6 +103,19 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
         return i;
     }
 
+    /**
+     * Writes an int in a variable-length format. Writes between one and
+     * five bytes. Smaller values take fewer bytes. Negative numbers
+     * will always use all 5 bytes.
+     */
+    public void encodeVInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
+        while ((value & ~0x7F) != 0) {
+            bytesRefBuilder.append(((byte) ((value & 0x7f) | 0x80)));
+            value >>>= 7;
+        }
+        bytesRefBuilder.append((byte) value);
+    }
+
     @Override
     public void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
@@ -124,6 +125,7 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeInt(int value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value);
     }
 
@@ -152,6 +154,7 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeFloat(float value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(Float.floatToRawIntBits(value));
     }
 
@@ -180,6 +183,7 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeDouble(double value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(Double.doubleToRawLongBits(value));
     }
 
@@ -206,6 +210,7 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ? (byte) 1 : (byte) 0);
     }
 
@@ -244,6 +249,7 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.appendVInt(value.length);
         builder.append(value);
     }

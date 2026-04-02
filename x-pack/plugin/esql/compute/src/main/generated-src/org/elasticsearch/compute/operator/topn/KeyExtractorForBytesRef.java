@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import java.util.Locale;
@@ -46,17 +45,6 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void nonNul(BreakingBytesRefBuilder key, BytesRef value) {
-        key.append(nonNul);
-        encoder.encodeBytesRef(value, key);
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void nul(BreakingBytesRefBuilder key) {
-        key.append(nul);
-    }
-
     protected final void nonNul(PagedBytesRefBuilder key, BytesRef value) {
         key.append(nonNul);
         encoder.encodeBytesRef(value, key);
@@ -79,12 +67,6 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
             this.vector = vector;
         }
 
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            nonNul(key, vector.getBytesRef(position, scratch));
-        }
-
         @Override
         public void writeKey(PagedBytesRefBuilder key, int position) {
             nonNul(key, vector.getBytesRef(position, scratch));
@@ -97,16 +79,6 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, BytesRefBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            if (block.isNull(position)) {
-                nul(key);
-                return;
-            }
-            nonNul(key, block.getBytesRef(block.getFirstValueIndex(position), scratch));
         }
 
         @Override
@@ -127,16 +99,6 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
             this.block = block;
         }
 
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            if (block.isNull(position)) {
-                nul(key);
-                return;
-            }
-            nonNul(key, block.getBytesRef(block.getFirstValueIndex(position) + block.getValueCount(position) - 1, scratch));
-        }
-
         @Override
         public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
@@ -155,28 +117,6 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BytesRefBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            int size = block.getValueCount(position);
-            if (size == 0) {
-                nul(key);
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            BytesRef min = block.getBytesRef(start, minScratch);
-            for (int i = start; i < end; i++) {
-                BytesRef v = block.getBytesRef(i, scratch);
-                if (v.compareTo(min) < 0) {
-                    min.bytes = v.bytes;
-                    min.offset = v.offset;
-                    min.length = v.length;
-                }
-            }
-            nonNul(key, min);
         }
 
         @Override
@@ -209,28 +149,6 @@ abstract class KeyExtractorForBytesRef implements KeyExtractor {
         MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BytesRefBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            int size = block.getValueCount(position);
-            if (size == 0) {
-                nul(key);
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            BytesRef max = block.getBytesRef(start, maxScratch);
-            for (int i = start; i < end; i++) {
-                BytesRef v = block.getBytesRef(i, scratch);
-                if (v.compareTo(max) > 0) {
-                    max.bytes = v.bytes;
-                    max.offset = v.offset;
-                    max.length = v.length;
-                }
-            }
-            nonNul(key, max);
         }
 
         @Override

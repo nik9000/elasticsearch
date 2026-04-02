@@ -9,34 +9,17 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 public class ValueExtractorForTDigest implements ValueExtractor {
     private final TDigestBlock block;
 
     private final BytesRef scratch = new BytesRef();
-    private final ReusableTopNEncoderOutput reusableOutput = new ReusableTopNEncoderOutput();
     private final PagedReusableTopNEncoderOutput pagedReusableOutput = new PagedReusableTopNEncoderOutput();
 
     ValueExtractorForTDigest(TopNEncoder encoder, TDigestBlock block) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE;
         this.block = block;
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder override
-    @Override
-    public void writeValue(BreakingBytesRefBuilder values, int position) {
-        // number of multi-values first for compatibility with ValueExtractorForNull
-        if (block.isNull(position)) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(0, values);
-        } else {
-            assert block.getValueCount(position) == 1 : "Multi-valued ExponentialHistogram blocks are not supported in TopN";
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(1, values);
-            int valueIndex = block.getFirstValueIndex(position);
-            reusableOutput.target = values;
-            block.serializeTDigest(valueIndex, reusableOutput, scratch);
-        }
     }
 
     @Override
@@ -56,25 +39,6 @@ public class ValueExtractorForTDigest implements ValueExtractor {
     @Override
     public String toString() {
         return "ValueExtractorForExponentialHistogram";
-    }
-
-    private static final class ReusableTopNEncoderOutput implements TDigestBlock.SerializedTDigestOutput {
-        BreakingBytesRefBuilder target;
-
-        @Override
-        public void appendDouble(double value) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeDouble(value, target);
-        }
-
-        @Override
-        public void appendLong(long value) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeLong(value, target);
-        }
-
-        @Override
-        public void appendBytesRef(BytesRef value) {
-            TopNEncoder.DEFAULT_UNSORTABLE.encodeBytesRef(value, target);
-        }
     }
 
     private static final class PagedReusableTopNEncoderOutput implements TDigestBlock.SerializedTDigestOutput {

@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import java.util.Locale;
@@ -44,17 +43,6 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         this.nonNul = nonNul;
     }
 
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void nonNul(BreakingBytesRefBuilder key, boolean value) {
-        key.append(nonNul);
-        encoder.encodeBoolean(value, key);
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder overrides
-    protected final void nul(BreakingBytesRefBuilder key) {
-        key.append(nul);
-    }
-
     protected final void nonNul(PagedBytesRefBuilder key, boolean value) {
         key.append(nonNul);
         encoder.encodeBoolean(value, key);
@@ -77,12 +65,6 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
             this.vector = vector;
         }
 
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            nonNul(key, vector.getBoolean(position));
-        }
-
         @Override
         public void writeKey(PagedBytesRefBuilder key, int position) {
             nonNul(key, vector.getBoolean(position));
@@ -95,16 +77,6 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         MinFromAscendingBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            if (block.isNull(position)) {
-                nul(key);
-                return;
-            }
-            nonNul(key, block.getBoolean(block.getFirstValueIndex(position)));
         }
 
         @Override
@@ -125,16 +97,6 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
             this.block = block;
         }
 
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            if (block.isNull(position)) {
-                nul(key);
-                return;
-            }
-            nonNul(key, block.getBoolean(block.getFirstValueIndex(position) + block.getValueCount(position) - 1));
-        }
-
         @Override
         public void writeKey(PagedBytesRefBuilder key, int position) {
             if (block.isNull(position)) {
@@ -151,25 +113,6 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         MinFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            int size = block.getValueCount(position);
-            if (size == 0) {
-                nul(key);
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            for (int i = start; i < end; i++) {
-                if (block.getBoolean(i) == false) {
-                    nonNul(key, false);
-                    return;
-                }
-            }
-            nonNul(key, true);
         }
 
         @Override
@@ -197,25 +140,6 @@ abstract class KeyExtractorForBoolean implements KeyExtractor {
         MaxFromUnorderedBlock(TopNEncoder encoder, byte nul, byte nonNul, BooleanBlock block) {
             super(encoder, nul, nonNul);
             this.block = block;
-        }
-
-        // NOCOMMIT remove old BreakingBytesRefBuilder override
-        @Override
-        public void writeKey(BreakingBytesRefBuilder key, int position) {
-            int size = block.getValueCount(position);
-            if (size == 0) {
-                nul(key);
-                return;
-            }
-            int start = block.getFirstValueIndex(position);
-            int end = start + size;
-            for (int i = start; i < end; i++) {
-                if (block.getBoolean(i)) {
-                    nonNul(key, true);
-                    return;
-                }
-            }
-            nonNul(key, false);
         }
 
         @Override

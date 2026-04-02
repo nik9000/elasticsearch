@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.core.RefCounted;
 
@@ -28,14 +27,6 @@ class ValueExtractorForDoc implements ValueExtractor {
 
     DocVector vector() {
         return vector;
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder override
-    @Override
-    public void writeValue(BreakingBytesRefBuilder values, int position) {
-        encoder.encodeInt(vector.shards().getInt(position), values);
-        encoder.encodeInt(vector.segments().getInt(position), values);
-        encoder.encodeInt(vector.docs().getInt(position), values);
     }
 
     @Override

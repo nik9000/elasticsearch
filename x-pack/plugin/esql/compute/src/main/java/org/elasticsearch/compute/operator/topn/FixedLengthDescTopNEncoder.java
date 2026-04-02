@@ -47,6 +47,7 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");
         }

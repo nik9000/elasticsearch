@@ -83,6 +83,7 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {
             byte b = value.bytes[i];

@@ -20,7 +20,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -29,9 +28,6 @@ import org.elasticsearch.core.RefCounted;
  * Extracts values into a {@link PagedBytesRefBuilder}.
  */
 interface ValueExtractor {
-    // NOCOMMIT remove once all callers are migrated to PagedBytesRefBuilder
-    void writeValue(BreakingBytesRefBuilder values, int position);
-
     void writeValue(PagedBytesRefBuilder values, int position);
 
     /**

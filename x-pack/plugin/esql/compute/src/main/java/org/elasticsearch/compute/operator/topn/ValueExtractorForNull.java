@@ -7,20 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 class ValueExtractorForNull implements ValueExtractor {
-    // NOCOMMIT remove old BreakingBytesRefBuilder override
-    @Override
-    public void writeValue(BreakingBytesRefBuilder values, int position) {
-        /*
-         * Write 0 values which can be read by *any* result builder and will always
-         * make a null value.
-         */
-        TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(0, values);
-    }
-
     @Override
     public void writeValue(PagedBytesRefBuilder values, int position) {
         /*

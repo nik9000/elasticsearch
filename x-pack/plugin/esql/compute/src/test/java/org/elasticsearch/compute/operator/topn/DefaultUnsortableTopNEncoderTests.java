@@ -39,7 +39,7 @@ public class DefaultUnsortableTopNEncoderTests extends ESTestCase {
     }
 
     private void testVInt(int v, int expectedBytes) {
-        BreakingBytesRefBuilder builder = ExtractorTests.nonBreakingBytesRefBuilder();
+        BreakingBytesRefBuilder builder = TopNEncoderTests.nonBreakingBytesRefBuilder();
         TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
         assertThat(builder.length(), equalTo(expectedBytes));
         BytesRef bytes = builder.bytesRefView();

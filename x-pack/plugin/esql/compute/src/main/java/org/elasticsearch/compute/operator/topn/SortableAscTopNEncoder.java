@@ -26,6 +26,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeLong(long value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ^ Long.MIN_VALUE);
     }
 
@@ -54,6 +55,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeInt(int value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ^ Integer.MIN_VALUE);
     }
 
@@ -80,6 +82,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeFloat(float value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         encodeInt(NumericUtils.floatToSortableInt(value), builder);
     }
 
@@ -100,6 +103,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeDouble(double value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         encodeLong(NumericUtils.doubleToSortableLong(value), builder);
     }
 
@@ -120,6 +124,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
 
     @Override
     public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ? (byte) 1 : (byte) 0);
     }
 

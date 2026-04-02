@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 class KeyExtractorForNull implements KeyExtractor {
@@ -15,12 +14,6 @@ class KeyExtractorForNull implements KeyExtractor {
 
     KeyExtractorForNull(byte nul) {
         this.nul = nul;
-    }
-
-    // NOCOMMIT remove old BreakingBytesRefBuilder override
-    @Override
-    public void writeKey(BreakingBytesRefBuilder values, int position) {
-        values.append(nul);
     }
 
     @Override

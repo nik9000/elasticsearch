@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 /**
@@ -34,9 +33,6 @@ import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
  * </p>
  */
 interface KeyExtractor {
-    // NOCOMMIT remove once all callers are migrated to PagedBytesRefBuilder
-    void writeKey(BreakingBytesRefBuilder key, int position);
-
     void writeKey(PagedBytesRefBuilder key, int position);
 
     /**

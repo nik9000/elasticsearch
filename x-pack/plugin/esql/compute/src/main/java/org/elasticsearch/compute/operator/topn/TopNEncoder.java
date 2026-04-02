@@ -52,7 +52,6 @@ public interface TopNEncoder {
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
 
-    // NOCOMMIT remove the old BreakingBytesRefBuilder/BytesRef methods once all callers are migrated to PagedBytesRefBuilder/PagedBytesRefCursor
     void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
 
     void encodeLong(long value, PagedBytesRefBuilder builder);
@@ -95,9 +94,9 @@ public interface TopNEncoder {
 
     void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
 
-    BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
-
     void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder);
+
+    BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
 
     BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch);
 
