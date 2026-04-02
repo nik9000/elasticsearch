@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 
@@ -22,14 +21,6 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
                 throw new IllegalArgumentException("Can't sort versions containing nul");
             }
         }
-    }
-
-    @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
-        refuseNul(value);
-        bytesRefBuilder.append(value);
-        bytesRefBuilder.append(Utf8AscTopNEncoder.TERMINATOR);
     }
 
     @Override
@@ -48,7 +39,6 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         refuseNul(value);
         builder.append(value);

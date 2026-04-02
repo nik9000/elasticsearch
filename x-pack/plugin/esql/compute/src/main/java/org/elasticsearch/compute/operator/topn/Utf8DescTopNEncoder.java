@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 
@@ -24,23 +23,6 @@ final class Utf8DescTopNEncoder extends SortableDescTopNEncoder {
 
     Utf8DescTopNEncoder(Utf8AscTopNEncoder ascEncoder) {
         this.ascEncoder = ascEncoder;
-    }
-
-    @Override
-    public void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder) {
-        /*
-         * add one to every non-continuation byte so that there are no "0" bytes
-         * in the encoded copy. The only "0" bytes are separators.
-         */
-        int end = value.offset + value.length;
-        for (int i = value.offset; i < end; i++) {
-            byte b = value.bytes[i];
-            if ((b & CONTINUATION_BYTE) == 0) {
-                b++;
-            }
-            bytesRefBuilder.append((byte) ~b);
-        }
-        bytesRefBuilder.append((byte) ~TERMINATOR);
     }
 
     @Override
@@ -88,7 +70,6 @@ final class Utf8DescTopNEncoder extends SortableDescTopNEncoder {
 
     @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {
             byte b = value.bytes[i];

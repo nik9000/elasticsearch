@@ -25,6 +25,10 @@ public abstract class AbstractUtf8TopNEncoderTests extends AbstractSortableTopNE
         return tests.stream().map(t -> new Object[] { t }).toList();
     }
 
+    protected AbstractUtf8TopNEncoderTests(TestCase<?> testCase) {
+        super(testCase);
+    }
+
     private static List<TestCase<BytesRef>> testCases(String name, Supplier<String> randomValue) {
         return List.of(
             testCase(name, () -> new BytesRef(randomValue.get())),
@@ -38,11 +42,7 @@ public abstract class AbstractUtf8TopNEncoderTests extends AbstractSortableTopNE
             randomValue,
             BytesRef::compareTo,
             TopNEncoder::encodeBytesRef,
-            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
+            (encoder, cursor) -> encoder.decodeBytesRef(cursor, new BytesRef())
         );
-    }
-
-    protected AbstractUtf8TopNEncoderTests(TestCase<?> testCase) {
-        super(testCase);
     }
 }

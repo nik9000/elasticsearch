@@ -281,6 +281,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * is kept at its current capacity. In paged mode all pages beyond the first are
      * released back to the recycler; the first page is kept so the next write does
      * not immediately allocate.
+     * NOCOMMIT keep pages when in paged mode
      */
     public void clear() {
         assert mode() != Mode.BUILT : "clear() called on a built PagedBytesRefBuilder";

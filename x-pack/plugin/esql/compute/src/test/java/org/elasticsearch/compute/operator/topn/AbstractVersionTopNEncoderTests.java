@@ -10,9 +10,8 @@ package org.elasticsearch.compute.operator.topn;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,16 +38,15 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
             randomValue,
             BytesRef::compareTo,
             TopNEncoder::encodeBytesRef,
-            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
+            (encoder, cursor) -> encoder.decodeBytesRef(cursor, new BytesRef())
         );
     }
 
     public void testContainingNul() {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BytesRef v = (BytesRef) testCase.randomValue().get();
         insertNul(v);
-        try (BreakingBytesRefBuilder bytes = new BreakingBytesRefBuilder(breaker, "bytes")) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> encoder().encodeBytesRef(v, bytes));
+        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(new NoopCircuitBreaker("test"), "bytes", 0, recycler())) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> encoder().encodeBytesRef(v, builder));
             assertThat(e.getMessage(), equalTo("Can't sort versions containing nul"));
         }
     }

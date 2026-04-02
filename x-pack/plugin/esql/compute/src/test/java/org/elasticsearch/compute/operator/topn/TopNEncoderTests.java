@@ -13,7 +13,11 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -45,39 +49,51 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     public void testLong() {
-        BreakingBytesRefBuilder builder = nonBreakingBytesRefBuilder();
         long v = randomLong();
-        encoder.encodeLong(v, builder);
-        BytesRef encoded = builder.bytesRefView();
-        assertThat(encoder.decodeLong(encoded), equalTo(v));
-        assertThat(encoded.length, equalTo(0));
+        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+            encoder.encodeLong(v, builder);
+            try (PagedBytesRef ref = builder.build()) {
+                PagedBytesRefCursor cursor = new PagedBytesRefCursor(ref);
+                assertThat(encoder.decodeLong(cursor), equalTo(v));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 
     public void testInt() {
-        BreakingBytesRefBuilder builder = nonBreakingBytesRefBuilder();
         int v = randomInt();
-        encoder.encodeInt(v, builder);
-        BytesRef encoded = builder.bytesRefView();
-        assertThat(encoder.decodeInt(encoded), equalTo(v));
-        assertThat(encoded.length, equalTo(0));
+        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+            encoder.encodeInt(v, builder);
+            try (PagedBytesRef ref = builder.build()) {
+                PagedBytesRefCursor cursor = new PagedBytesRefCursor(ref);
+                assertThat(encoder.decodeInt(cursor), equalTo(v));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 
     public void testDouble() {
-        BreakingBytesRefBuilder builder = nonBreakingBytesRefBuilder();
         double v = randomDouble();
-        encoder.encodeDouble(v, builder);
-        BytesRef encoded = builder.bytesRefView();
-        assertThat(encoder.decodeDouble(encoded), equalTo(v));
-        assertThat(encoded.length, equalTo(0));
+        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+            encoder.encodeDouble(v, builder);
+            try (PagedBytesRef ref = builder.build()) {
+                PagedBytesRefCursor cursor = new PagedBytesRefCursor(ref);
+                assertThat(encoder.decodeDouble(cursor), equalTo(v));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 
     public void testBoolean() {
-        BreakingBytesRefBuilder builder = nonBreakingBytesRefBuilder();
         boolean v = randomBoolean();
-        encoder.encodeBoolean(v, builder);
-        BytesRef encoded = builder.bytesRefView();
-        assertThat(encoder.decodeBoolean(encoded), equalTo(v));
-        assertThat(encoded.length, equalTo(0));
+        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+            encoder.encodeBoolean(v, builder);
+            try (PagedBytesRef ref = builder.build()) {
+                PagedBytesRefCursor cursor = new PagedBytesRefCursor(ref);
+                assertThat(encoder.decodeBoolean(cursor), equalTo(v));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 
     public void testAlpha() {
@@ -122,15 +138,23 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     private void roundTripBytesRef(BytesRef v) {
-        BreakingBytesRefBuilder builder = nonBreakingBytesRefBuilder();
-        encoder.encodeBytesRef(v, builder);
-        BytesRef encoded = builder.bytesRefView();
-        assertThat(encoder.decodeBytesRef(encoded, new BytesRef()), equalTo(v));
-        assertThat(encoded.length, equalTo(0));
+        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+            encoder.encodeBytesRef(v, builder);
+            try (PagedBytesRef ref = builder.build()) {
+                PagedBytesRefCursor cursor = new PagedBytesRefCursor(ref);
+                assertThat(encoder.decodeBytesRef(cursor, new BytesRef()), equalTo(v));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
     }
 
-    static BreakingBytesRefBuilder nonBreakingBytesRefBuilder() {
-        return new BreakingBytesRefBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn");
+    static PagedBytesRefBuilder newPagedBuilder() {
+        return new PagedBytesRefBuilder(
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            "topn",
+            0,
+            new MockPageCacheRecycler(Settings.EMPTY)
+        );
     }
 
     static Version randomVersion() {

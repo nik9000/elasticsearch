@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRef;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -29,26 +28,7 @@ public class EncodeLongPagedBytesRefBuilderTests extends ESTestCase {
     private final MockPageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
     /**
-     * The {@link PagedBytesRefBuilder} path produces the same bytes as the
-     * {@link BreakingBytesRefBuilder} path for the asc sortable encoder.
-     */
-    public void testAscMatchesOldPath() {
-        long value = randomLong();
-        assertMatchesOldPath(TopNEncoder.DEFAULT_SORTABLE, value);
-    }
-
-    /**
-     * The {@link PagedBytesRefBuilder} path produces the same bytes as the
-     * {@link BreakingBytesRefBuilder} path for the desc sortable encoder.
-     */
-    public void testDescMatchesOldPath() {
-        long value = randomLong();
-        assertMatchesOldPath(TopNEncoder.DEFAULT_SORTABLE.toSortable(false), value);
-    }
-
-    /**
-     * The unsortable encoder writes big-endian bytes into the {@link PagedBytesRefBuilder}
-     * (unlike the {@link BreakingBytesRefBuilder} path which uses native byte order).
+     * The unsortable encoder writes big-endian bytes into the {@link PagedBytesRefBuilder}.
      */
     public void testUnsortableEncodesBigEndian() {
         long value = randomLong();
@@ -96,19 +76,6 @@ public class EncodeLongPagedBytesRefBuilderTests extends ESTestCase {
                 assertThat(aBytes, greaterThan(bBytes));
             } else {
                 assertThat(aBytes, lessThan(bBytes));
-            }
-        }
-    }
-
-    private void assertMatchesOldPath(TopNEncoder encoder, long value) {
-        BreakingBytesRefBuilder old = new BreakingBytesRefBuilder(new NoopCircuitBreaker("test"), "old");
-        encoder.encodeLong(value, old);
-        BytesRef expected = old.bytesRefView();
-
-        try (PagedBytesRefBuilder builder = newBuilder()) {
-            encoder.encodeLong(value, builder);
-            try (PagedBytesRef ref = builder.build()) {
-                assertThat(toFlat(ref), equalTo(expected));
             }
         }
     }

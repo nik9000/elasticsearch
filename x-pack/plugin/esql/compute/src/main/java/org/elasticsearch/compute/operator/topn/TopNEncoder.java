@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 
@@ -52,15 +51,11 @@ public interface TopNEncoder {
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
 
-    void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
-
     void encodeLong(long value, PagedBytesRefBuilder builder);
 
     long decodeLong(BytesRef bytes);
 
     long decodeLong(PagedBytesRefCursor bytes);
-
-    void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder);
 
     void encodeInt(int value, PagedBytesRefBuilder builder);
 
@@ -68,15 +63,11 @@ public interface TopNEncoder {
 
     int decodeInt(PagedBytesRefCursor bytes);
 
-    void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder);
-
     void encodeFloat(float value, PagedBytesRefBuilder builder);
 
     float decodeFloat(BytesRef bytes);
 
     float decodeFloat(PagedBytesRefCursor bytes);
-
-    void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder);
 
     void encodeDouble(double value, PagedBytesRefBuilder builder);
 
@@ -84,15 +75,11 @@ public interface TopNEncoder {
 
     double decodeDouble(PagedBytesRefCursor bytes);
 
-    void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder);
-
     void encodeBoolean(boolean value, PagedBytesRefBuilder builder);
 
     boolean decodeBoolean(BytesRef bytes);
 
     boolean decodeBoolean(PagedBytesRefCursor bytes);
-
-    void encodeBytesRef(BytesRef value, BreakingBytesRefBuilder bytesRefBuilder);
 
     void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder);
 

@@ -40,7 +40,7 @@ public abstract class AbstractFixedTopNEncoderTests extends AbstractSortableTopN
             randomValue,
             BytesRef::compareTo,
             TopNEncoder::encodeBytesRef,
-            (encoder, encoded) -> encoder.decodeBytesRef(encoded, new BytesRef())
+            (encoder, cursor) -> encoder.decodeBytesRef(cursor, new BytesRef())
         );
     }
 }

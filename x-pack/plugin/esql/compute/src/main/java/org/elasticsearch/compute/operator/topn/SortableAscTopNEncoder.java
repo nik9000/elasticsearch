@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 
@@ -18,15 +17,7 @@ import org.elasticsearch.common.bytes.PagedBytesRefCursor;
  */
 public abstract class SortableAscTopNEncoder implements TopNEncoder {
     @Override
-    public final void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Long.BYTES);
-        NumericUtils.longToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
-    }
-
-    @Override
     public final void encodeLong(long value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ^ Long.MIN_VALUE);
     }
 
@@ -47,15 +38,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeInt(int value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
-        NumericUtils.intToSortableBytes(value, bytesRefBuilder.bytes(), bytesRefBuilder.length());
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
-    }
-
-    @Override
     public final void encodeInt(int value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ^ Integer.MIN_VALUE);
     }
 
@@ -76,13 +59,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeFloat(float value, BreakingBytesRefBuilder bytesRefBuilder) {
-        encodeInt(NumericUtils.floatToSortableInt(value), bytesRefBuilder);
-    }
-
-    @Override
     public final void encodeFloat(float value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         encodeInt(NumericUtils.floatToSortableInt(value), builder);
     }
 
@@ -97,13 +74,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
-        encodeLong(NumericUtils.doubleToSortableLong(value), bytesRefBuilder);
-    }
-
-    @Override
     public final void encodeDouble(double value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         encodeLong(NumericUtils.doubleToSortableLong(value), builder);
     }
 
@@ -118,13 +89,7 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final void encodeBoolean(boolean value, BreakingBytesRefBuilder bytesRefBuilder) {
-        bytesRefBuilder.append(value ? (byte) 1 : (byte) 0);
-    }
-
-    @Override
     public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
-        // NOCOMMIT verify encoding matches old BreakingBytesRefBuilder implementation
         builder.append(value ? (byte) 1 : (byte) 0);
     }
 

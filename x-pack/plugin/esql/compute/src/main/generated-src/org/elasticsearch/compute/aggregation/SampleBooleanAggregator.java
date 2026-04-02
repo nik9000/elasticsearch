@@ -20,7 +20,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.sort.BytesRefBucketedSort;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.topn.DefaultUnsortableTopNEncoder;
 import org.elasticsearch.core.Releasables;
@@ -123,14 +123,14 @@ class SampleBooleanAggregator {
 
     public static class GroupingState implements GroupingAggregatorState {
         private final BytesRefBucketedSort sort;
-        private final BreakingBytesRefBuilder bytesRefBuilder;
+        private final PagedBytesRefBuilder keyBuilder;
 
         private GroupingState(BigArrays bigArrays, int limit) {
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
             boolean success = false;
             try {
-                this.bytesRefBuilder = new BreakingBytesRefBuilder(breaker, "sample");
+                this.keyBuilder = new PagedBytesRefBuilder(breaker, "sample", 0, bigArrays.recycler());
                 success = true;
             } finally {
                 if (success == false) {
@@ -140,10 +140,11 @@ class SampleBooleanAggregator {
         }
 
         public void add(int groupId, boolean value) {
-            ENCODER.encodeLong(Randomness.get().nextLong(), bytesRefBuilder);
-            ENCODER.encodeBoolean(value, bytesRefBuilder);
-            sort.collect(bytesRefBuilder.bytesRefView(), groupId);
-            bytesRefBuilder.clear();
+            ENCODER.encodeLong(Randomness.get().nextLong(), keyBuilder);
+            ENCODER.encodeBoolean(value, keyBuilder);
+            // NOCOMMIT: toBytesRef creates an unnecessary copy; migrate BytesRefBucketedSort to accept PagedBytesRef directly
+            sort.collect(keyBuilder.view().toBytesRef(), groupId);
+            keyBuilder.clear();
         }
 
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
@@ -161,7 +162,7 @@ class SampleBooleanAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(sort, bytesRefBuilder);
+            Releasables.closeExpectNoException(sort, keyBuilder);
         }
     }
 
