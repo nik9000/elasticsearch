@@ -22,11 +22,6 @@ public class ResultBuilderForNull implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
-        throw new AssertionError("somehow got a value for a null key");
-    }
-
-    @Override
     public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
         throw new AssertionError("somehow got a value for a null key");
     }

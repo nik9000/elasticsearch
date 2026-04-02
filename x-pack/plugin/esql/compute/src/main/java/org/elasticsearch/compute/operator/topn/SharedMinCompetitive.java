@@ -113,7 +113,7 @@ public class SharedMinCompetitive extends SideChannel {
             }
             ResultBuilder[] builders = new ResultBuilder[keyConfig.size()];
             try (PagedBytesRef ref = copy.build()) {
-                PagedBytesRefCursor cursor = new PagedBytesRefCursor(ref);
+                PagedBytesRefCursor cursor = ref.cursor();
                 for (int i = 0; i < builders.length; i++) {
                     KeyConfig config = keyConfig.get(i);
                     ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, config.elementType, config.encoder, true, 1);

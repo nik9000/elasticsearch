@@ -265,6 +265,13 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
     }
 
     /**
+     * Returns a new cursor positioned at the start of this ref.
+     */
+    public PagedBytesRefCursor cursor() {
+        return new PagedBytesRefCursor(this);
+    }
+
+    /**
      * Materializes all pages into a single contiguous {@code byte[]} and returns it as a
      * {@link BytesRef}. This allocates a new array of size {@link #length}.
      * <p>

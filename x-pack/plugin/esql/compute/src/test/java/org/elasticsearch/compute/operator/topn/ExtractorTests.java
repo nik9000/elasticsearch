@@ -262,7 +262,7 @@ public class ExtractorTests extends ESTestCase {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
             assertThat(valuesBuilder.length(), greaterThan(0));
             try (PagedBytesRef ref = valuesBuilder.build()) {
-                result.decodeValue(new PagedBytesRefCursor(ref));
+                result.decodeValue(ref.cursor());
             }
         }
 
@@ -279,7 +279,7 @@ public class ExtractorTests extends ESTestCase {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(pagedBuilder, 0);
             assertThat(pagedBuilder.length(), greaterThan(0));
             try (PagedBytesRef ref = pagedBuilder.build()) {
-                var cursor = new PagedBytesRefCursor(ref);
+                var cursor = ref.cursor();
                 int count = cursor.readVInt();
                 assertThat(count, greaterThan(-1)); // valid count was written
             }
@@ -309,15 +309,14 @@ public class ExtractorTests extends ESTestCase {
             KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, nul, nonNul, value).writeKey(keysBuilder, 0);
             assertThat(keysBuilder.length(), greaterThan(0));
             try (PagedBytesRef keysRef = keysBuilder.build()) {
-                BytesRef keys = keysRef.toBytesRef();
+                PagedBytesRefCursor cursor = keysRef.cursor();
                 if (testCase.type == ElementType.NULL) {
-                    assertThat(keys.length, equalTo(1));
+                    assertThat(cursor.remaining(), equalTo(1));
                 } else {
                     // Skip the non-null byte
-                    keys.offset++;
-                    keys.length--;
-                    result.decodeKey(keys, asc);
-                    assertThat(keys.length, equalTo(0));
+                    cursor.readByte();
+                    result.decodeKey(cursor, asc);
+                    assertThat(cursor.remaining(), equalTo(0));
                 }
             }
         }
@@ -325,7 +324,7 @@ public class ExtractorTests extends ESTestCase {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
             assertThat(valuesBuilder.length(), greaterThan(0));
             try (PagedBytesRef ref = valuesBuilder.build()) {
-                result.decodeValue(new PagedBytesRefCursor(ref));
+                result.decodeValue(ref.cursor());
             }
         }
 
@@ -344,7 +343,7 @@ public class ExtractorTests extends ESTestCase {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(pagedBuilder, 0);
             assertThat(pagedBuilder.length(), greaterThan(0));
             try (PagedBytesRef ref = pagedBuilder.build()) {
-                var cursor = new PagedBytesRefCursor(ref);
+                var cursor = ref.cursor();
                 int count = cursor.readVInt();
                 assertThat(count, greaterThan(-1)); // valid count was written
             }

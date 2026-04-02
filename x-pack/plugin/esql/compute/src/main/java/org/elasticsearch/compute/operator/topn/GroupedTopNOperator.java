@@ -364,7 +364,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
                             readKeys(builders, keysRef);
                         }
                         try (PagedBytesRef valuesRef = row.values.build()) {
-                            readValues(builders, new PagedBytesRefCursor(valuesRef));
+                            readValues(builders, valuesRef.cursor());
                         }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
@@ -392,20 +392,15 @@ public class GroupedTopNOperator implements Operator, Accountable {
             Releasables.close(rows);
         }
 
-        // NOCOMMIT migrate decodeKey to PagedBytesRefCursor
         private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
-            BytesRef keys = keysRef.toBytesRef();
+            PagedBytesRefCursor cursor = keysRef.cursor();
             for (TopNOperator.SortOrder so : sortOrders) {
-                if (keys.bytes[keys.offset] == so.nul()) {
-                    keys.offset++;
-                    keys.length--;
+                if (cursor.readByte() == so.nul()) {
                     continue;
                 }
-                keys.offset++;
-                keys.length--;
-                builders[so.channel()].decodeKey(keys, so.asc());
+                builders[so.channel()].decodeKey(cursor, so.asc());
             }
-            if (keys.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all keys");
             }
         }

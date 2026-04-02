@@ -116,7 +116,7 @@ public class GroupedQueueTests extends ESTestCase {
             equalTo(expectedSortKey)
         );
 
-        PagedBytesRefCursor cursor = new PagedBytesRefCursor(row.values.view());
+        PagedBytesRefCursor cursor = row.values.view().cursor();
         assertThat(cursor.readVInt(), equalTo(1));
         TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor);
         assertThat(cursor.readVInt(), equalTo(1));

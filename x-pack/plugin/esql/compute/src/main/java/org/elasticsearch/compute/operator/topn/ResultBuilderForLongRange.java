@@ -22,11 +22,6 @@ public class ResultBuilderForLongRange implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys, boolean asc) {
-        throw new AssertionError("LongRangeBlock can't be a key");
-    }
-
-    @Override
     public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
         throw new AssertionError("LongRangeBlock can't be a key");
     }

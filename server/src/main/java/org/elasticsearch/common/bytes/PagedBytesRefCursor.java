@@ -32,7 +32,7 @@ public class PagedBytesRefCursor {
     private int remaining;
 
     // NOCOMMIT rename to PagedBytesCursor
-    public PagedBytesRefCursor(PagedBytesRef ref) { //NOCOMMIT move this to `PagedBytesRef.cursor()`
+    PagedBytesRefCursor(PagedBytesRef ref) {
         this.pages = ref.pages();
         this.remaining = ref.length();
     }

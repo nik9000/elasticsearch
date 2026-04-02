@@ -538,7 +538,7 @@ public class TopNOperator implements Operator, Accountable {
                             readKeys(builders, keysRef);
                         }
                         try (PagedBytesRef valuesRef = row.values.build()) {
-                            readValues(builders, new PagedBytesRefCursor(valuesRef));
+                            readValues(builders, valuesRef.cursor());
                         }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
@@ -567,24 +567,16 @@ public class TopNOperator implements Operator, Accountable {
 
         /**
          * Read keys into the results. See {@link KeyExtractor} for the key layout.
-         * NOCOMMIT migrate decodeKey to PagedBytesRefCursor
          */
         private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
-            BytesRef keys = keysRef.toBytesRef();
+            PagedBytesRefCursor cursor = keysRef.cursor();
             for (SortOrder so : sortOrders) {
-                if (keys.bytes[keys.offset] == so.nul()) {
-                    // Discard the null byte.
-                    keys.offset++;
-                    keys.length--;
+                if (cursor.readByte() == so.nul()) {
                     continue;
                 }
-                // Discard the non_null byte.
-                keys.offset++;
-                keys.length--;
-                // Read the key. This will modify offset and length for the next iteration.
-                builders[so.channel].decodeKey(keys, so.asc);
+                builders[so.channel].decodeKey(cursor, so.asc);
             }
-            if (keys.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all keys");
             }
         }
