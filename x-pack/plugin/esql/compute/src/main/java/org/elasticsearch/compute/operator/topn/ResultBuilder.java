@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -16,7 +15,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Builds {@link Block}s from keys and values encoded into {@link BytesRef}s.
+ * Builds {@link Block}s from keys and values encoded into {@link PagedBytesRefCursor}s.
  */
 interface ResultBuilder extends Releasable {
     /**
@@ -36,12 +35,18 @@ interface ResultBuilder extends Releasable {
      * implementations don't write single valued fields that appear in the key and instead
      * use the value form {@link #decodeKey}.
      */
-    void decodeValue(BytesRef values);
+    void decodeValue(PagedBytesRefCursor cursor);
 
     /**
-     * Called once per row to decode the value from a cursor into paged bytes.
+     * Append a {@code null} value to the underlying {@link Block.Builder}.
      */
-    void decodeValue(PagedBytesRefCursor cursor);
+    void appendNull();
+
+    /**
+     * Call after {@link #decodeKey} to append the key that read
+     * to the underlying {@link Block.Builder}.
+     */
+    void appendFromKey();
 
     /**
      * Build the result block.

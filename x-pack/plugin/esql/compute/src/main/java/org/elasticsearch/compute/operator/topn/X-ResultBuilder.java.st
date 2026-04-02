@@ -49,32 +49,6 @@ $endif$
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        switch (count) {
-            case 0 -> {
-                builder.appendNull();
-            }
-            case 1 -> builder.append$Type$(inKey ? key : readValueFromValues(values));
-            default -> {
-                builder.beginPositionEntry();
-                for (int i = 0; i < count; i++) {
-                    builder.append$Type$(readValueFromValues(values));
-                }
-                builder.endPositionEntry();
-            }
-        }
-    }
-
-    private $type$ readValueFromValues(BytesRef values) {
-$if(BytesRef)$
-        return encoder.toUnsortable().decodeBytesRef(values, scratch);
-$else$
-        return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(values);
-$endif$
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int count = cursor.readVInt();
         switch (count) {
@@ -98,6 +72,16 @@ $if(BytesRef)$
 $else$
         return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(cursor);
 $endif$
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        builder.append$Type$(key);
     }
 
     @Override

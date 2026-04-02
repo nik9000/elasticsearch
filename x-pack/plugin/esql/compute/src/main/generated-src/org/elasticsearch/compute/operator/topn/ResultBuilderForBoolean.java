@@ -41,28 +41,6 @@ class ResultBuilderForBoolean implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        switch (count) {
-            case 0 -> {
-                builder.appendNull();
-            }
-            case 1 -> builder.appendBoolean(inKey ? key : readValueFromValues(values));
-            default -> {
-                builder.beginPositionEntry();
-                for (int i = 0; i < count; i++) {
-                    builder.appendBoolean(readValueFromValues(values));
-                }
-                builder.endPositionEntry();
-            }
-        }
-    }
-
-    private boolean readValueFromValues(BytesRef values) {
-        return TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values);
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int count = cursor.readVInt();
         switch (count) {
@@ -82,6 +60,16 @@ class ResultBuilderForBoolean implements ResultBuilder {
 
     private boolean readValueFromValues(PagedBytesRefCursor cursor) {
         return TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor);
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        builder.appendBoolean(key);
     }
 
     @Override

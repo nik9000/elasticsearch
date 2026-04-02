@@ -30,27 +30,6 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        if (count == 0) {
-            builder.appendNull();
-            return;
-        }
-        for (BlockLoader.DoubleBuilder subBuilder : List.of(builder.min(), builder.max(), builder.sum())) {
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                subBuilder.appendDouble(TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(values));
-            } else {
-                subBuilder.appendNull();
-            }
-        }
-        if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-            builder.count().appendInt(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values));
-        } else {
-            builder.count().appendNull();
-        }
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int count = cursor.readVInt();
         if (count == 0) {
@@ -69,6 +48,16 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
         } else {
             builder.count().appendNull();
         }
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 
     @Override

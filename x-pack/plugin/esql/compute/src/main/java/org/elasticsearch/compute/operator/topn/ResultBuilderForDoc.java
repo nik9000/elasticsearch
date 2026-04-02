@@ -29,20 +29,6 @@ class ResultBuilderForDoc implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int shard = encoder.decodeInt(values);
-        int segment = encoder.decodeInt(values);
-        int doc = encoder.decodeInt(values);
-
-        // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
-        encoder.refCounteds().get(shard).mustIncRef();
-
-        builder.appendShard(shard);
-        builder.appendSegment(segment);
-        builder.appendDoc(doc);
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int shard = encoder.decodeInt(cursor);
         int segment = encoder.decodeInt(cursor);
@@ -54,6 +40,16 @@ class ResultBuilderForDoc implements ResultBuilder {
         builder.appendShard(shard);
         builder.appendSegment(segment);
         builder.appendDoc(doc);
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("_doc can't be a key");
     }
 
     @Override

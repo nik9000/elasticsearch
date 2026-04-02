@@ -41,28 +41,6 @@ class ResultBuilderForDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        switch (count) {
-            case 0 -> {
-                builder.appendNull();
-            }
-            case 1 -> builder.appendDouble(inKey ? key : readValueFromValues(values));
-            default -> {
-                builder.beginPositionEntry();
-                for (int i = 0; i < count; i++) {
-                    builder.appendDouble(readValueFromValues(values));
-                }
-                builder.endPositionEntry();
-            }
-        }
-    }
-
-    private double readValueFromValues(BytesRef values) {
-        return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(values);
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int count = cursor.readVInt();
         switch (count) {
@@ -82,6 +60,16 @@ class ResultBuilderForDouble implements ResultBuilder {
 
     private double readValueFromValues(PagedBytesRefCursor cursor) {
         return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(cursor);
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        builder.appendDouble(key);
     }
 
     @Override

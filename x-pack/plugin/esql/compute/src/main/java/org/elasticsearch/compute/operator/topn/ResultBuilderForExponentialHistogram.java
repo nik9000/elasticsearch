@@ -30,18 +30,6 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        if (count == 0) {
-            builder.appendNull();
-            return;
-        }
-        assert count == 1 : "ExponentialHistogramBlock does not support multi values";
-        reusableInput.inputValues = values;
-        builder.deserializeAndAppend(reusableInput);
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int count = cursor.readVInt();
         if (count == 0) {
@@ -51,6 +39,16 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
         assert count == 1 : "ExponentialHistogramBlock does not support multi values";
         reusableCursorInput.cursor = cursor;
         builder.deserializeAndAppend(reusableCursorInput);
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("ExponentialHistogramBlock can't be a key");
     }
 
     @Override

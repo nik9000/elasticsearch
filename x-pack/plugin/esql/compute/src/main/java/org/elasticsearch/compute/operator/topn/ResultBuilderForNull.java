@@ -27,8 +27,8 @@ public class ResultBuilderForNull implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int size = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int size = cursor.readVInt();
         if (size != 0) {
             throw new IllegalArgumentException("null columns should always have 0 entries");
         }
@@ -36,12 +36,13 @@ public class ResultBuilderForNull implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(PagedBytesRefCursor cursor) {
-        int size = cursor.readVInt();
-        if (size != 0) {
-            throw new IllegalArgumentException("null columns should always have 0 entries");
-        }
+    public void appendNull() {
         positions++;
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("somehow got a value for a null key");
     }
 
     @Override

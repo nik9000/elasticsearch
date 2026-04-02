@@ -27,25 +27,6 @@ public class ResultBuilderForLongRange implements ResultBuilder {
     }
 
     @Override
-    public void decodeValue(BytesRef values) {
-        int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
-        if (count == 0) {
-            builder.appendNull();
-        } else {
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-            } else {
-                builder.from().appendNull();
-            }
-            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
-                builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
-            } else {
-                builder.to().appendNull();
-            }
-        }
-    }
-
-    @Override
     public void decodeValue(PagedBytesRefCursor cursor) {
         int count = cursor.readVInt();
         if (count == 0) {
@@ -62,6 +43,16 @@ public class ResultBuilderForLongRange implements ResultBuilder {
                 builder.to().appendNull();
             }
         }
+    }
+
+    @Override
+    public void appendNull() {
+        builder.appendNull();
+    }
+
+    @Override
+    public void appendFromKey() {
+        throw new AssertionError("LongRangeBlock can't be a key");
     }
 
     @Override

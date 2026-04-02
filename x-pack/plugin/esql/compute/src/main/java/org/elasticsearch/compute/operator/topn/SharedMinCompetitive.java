@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesRef;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
@@ -96,14 +95,8 @@ public class SharedMinCompetitive extends SideChannel {
         if (length == 0) {
             return null;
         }
-        try (
-            PagedBytesRefBuilder copy = new PagedBytesRefBuilder(
-                blockFactory.breaker(),
-                "min_competitive_copy",
-                length,
-                blockFactory.bigArrays().recycler()
-            )
-        ) {
+        PageCacheRecycler recycler = blockFactory.bigArrays().recycler();
+        try (PagedBytesRefBuilder copy = new PagedBytesRefBuilder(blockFactory.breaker(), "min_competitive_copy", length, recycler);) {
             synchronized (value) {
                 if (value.length() == 0) {
                     // Not assigned anything yet
@@ -119,11 +112,11 @@ public class SharedMinCompetitive extends SideChannel {
                     ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, config.elementType, config.encoder, true, 1);
                     builders[i] = builder;
                     if (cursor.readByte() == (config.nullsFirst ? SMALL_NULL : BIG_NULL)) {
-                        builder.decodeValue(new BytesRef(new byte[] { 0 }));
+                        builder.appendNull();
                         continue;
                     }
                     builder.decodeKey(cursor, config.asc());
-                    builder.decodeValue(new BytesRef(new byte[] { 1 }));
+                    builder.appendFromKey();
                 }
                 return new Page(ResultBuilder.buildAll(builders));
             } finally {
