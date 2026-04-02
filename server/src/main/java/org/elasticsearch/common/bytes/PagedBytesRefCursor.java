@@ -22,6 +22,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * {@code read*} methods.
  */
 public class PagedBytesRefCursor {
+    // NOCOMMIT should we use native byte order instead of big-endian? It'd be faster on x86, but we'd need to audit all callers.
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 

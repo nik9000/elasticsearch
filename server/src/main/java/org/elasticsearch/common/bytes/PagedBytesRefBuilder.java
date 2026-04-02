@@ -228,6 +228,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     /**
      * Append an int in big-endian order.
      * NOCOMMIT optimize
+     * NOCOMMIT should we use native byte order instead of big-endian? It'd be faster on x86, but we'd need to audit all callers.
      */
     public void append(int v) {
         append((byte) (v >> 24));
@@ -239,6 +240,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     /**
      * Append a long in big-endian order.
      * NOCOMMIT optimize
+     * NOCOMMIT should we use native byte order instead of big-endian? It'd be faster on x86, but we'd need to audit all callers.
      */
     public void append(long v) {
         append((byte) (v >> 56));
