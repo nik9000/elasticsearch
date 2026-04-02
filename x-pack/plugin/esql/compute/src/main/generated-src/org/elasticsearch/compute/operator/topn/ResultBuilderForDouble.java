@@ -41,6 +41,12 @@ class ResultBuilderForDouble implements ResultBuilder {
     }
 
     @Override
+    public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
+        assert inKey;
+        key = encoder.toSortable(asc).decodeDouble(keys);
+    }
+
+    @Override
     public void decodeValue(BytesRef values) {
         int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
         switch (count) {

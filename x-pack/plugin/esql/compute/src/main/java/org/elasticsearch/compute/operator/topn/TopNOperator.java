@@ -372,7 +372,7 @@ public class TopNOperator implements Operator, Accountable {
         if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
             return;
         }
-        if (minCompetitive.offer(inputQueue.top().keys.view())) {
+        if (minCompetitive.offer(inputQueue.top().keys)) {
             minCompetitiveUpdates++;
         }
     }
@@ -567,6 +567,7 @@ public class TopNOperator implements Operator, Accountable {
 
         /**
          * Read keys into the results. See {@link KeyExtractor} for the key layout.
+         * NOCOMMIT migrate decodeKey to PagedBytesRefCursor
          */
         private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
             BytesRef keys = keysRef.toBytesRef();

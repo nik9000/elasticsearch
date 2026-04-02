@@ -29,6 +29,11 @@ class ResultBuilderForDoc implements ResultBuilder {
     }
 
     @Override
+    public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
+        throw new AssertionError("_doc can't be a key");
+    }
+
+    @Override
     public void decodeValue(BytesRef values) {
         int shard = encoder.decodeInt(values);
         int segment = encoder.decodeInt(values);

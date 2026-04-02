@@ -49,6 +49,16 @@ $endif$
     }
 
     @Override
+    public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
+        assert inKey;
+$if(BytesRef)$
+        key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
+$else$
+        key = encoder.toSortable(asc).decode$Type$(keys);
+$endif$
+    }
+
+    @Override
     public void decodeValue(BytesRef values) {
         int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
         switch (count) {

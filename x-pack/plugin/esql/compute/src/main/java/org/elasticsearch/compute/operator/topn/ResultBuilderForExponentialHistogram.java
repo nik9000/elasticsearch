@@ -30,6 +30,11 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
     }
 
     @Override
+    public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
+        throw new AssertionError("ExponentialHistogramBlock can't be a key");
+    }
+
+    @Override
     public void decodeValue(BytesRef values) {
         int count = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
         if (count == 0) {

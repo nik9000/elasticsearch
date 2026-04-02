@@ -109,7 +109,7 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
             so.asc(),
             so.nullsFirst()
         );
-        return new SharedMinCompetitive.Supplier(blockFactory().breaker(), List.of(keyConfig)).get();
+        return new SharedMinCompetitive.Supplier(new MockPageCacheRecycler(Settings.EMPTY), blockFactory().breaker(), List.of(keyConfig)).get();
     }
 
     private void offerLong(BlockFactory blockFactory, SharedMinCompetitive minCompetitive, long l) {
@@ -117,7 +117,7 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
             KeyExtractor extractor = longExtractor(block);
             try (PagedBytesRefBuilder b = new PagedBytesRefBuilder(blockFactory.breaker(), "work", 0, new MockPageCacheRecycler(Settings.EMPTY))) {
                 extractor.writeKey(b, 0);
-                minCompetitive.offer(b.view());
+                minCompetitive.offer(b);
             }
         }
     }

@@ -196,7 +196,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false));
         SharedMinCompetitive.Supplier minCompetitive = randomBoolean()
             ? null
-            : new SharedMinCompetitive.Supplier(blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders));
+            : new SharedMinCompetitive.Supplier(blockFactory().bigArrays().recycler(), blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders));
         return new TopNOperator.TopNOperatorFactory(
             4,
             elementTypes,
@@ -2700,7 +2700,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
         NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
         SharedMinCompetitive.Supplier minCompetitiveSupplier = randomBoolean()
-            ? new SharedMinCompetitive.Supplier(blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders))
+            ? new SharedMinCompetitive.Supplier(blockFactory().bigArrays().recycler(), blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders))
             : null;
         SharedMinCompetitive minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
 

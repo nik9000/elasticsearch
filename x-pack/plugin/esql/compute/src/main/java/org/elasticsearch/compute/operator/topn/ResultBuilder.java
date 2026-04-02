@@ -30,6 +30,16 @@ interface ResultBuilder extends Releasable {
     void decodeKey(BytesRef keys, boolean asc);
 
     /**
+     * Called for each sort key before {@link #decodeValue} to consume the sort key and
+     * store the value of the key for {@link #decodeValue} can use it to reconstruct
+     * the value. This will only be called if the value is part of the key.
+     * @param asc Is the sort ascending ({@code true}) or descending ({@code false})?
+     *            Keys are encoded with their bits flipped when sorting descending. This
+     *            undoes that.
+     */
+    void decodeKey(PagedBytesRefCursor keys, boolean asc);
+
+    /**
      * Called once per row to decode the value and write to the internal {@link Block.Builder}.
      * If the value is part of the key then {@link #decodeKey} will be called first and
      * implementations can store keys in that method and reuse them in this method. Most

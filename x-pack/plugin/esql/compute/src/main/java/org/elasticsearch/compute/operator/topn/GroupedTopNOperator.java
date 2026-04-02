@@ -392,6 +392,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             Releasables.close(rows);
         }
 
+        // NOCOMMIT migrate decodeKey to PagedBytesRefCursor
         private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
             BytesRef keys = keysRef.toBytesRef();
             for (TopNOperator.SortOrder so : sortOrders) {
