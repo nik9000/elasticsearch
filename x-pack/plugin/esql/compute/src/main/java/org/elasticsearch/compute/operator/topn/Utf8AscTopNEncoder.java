@@ -30,40 +30,6 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
     private final Utf8DescTopNEncoder descEncoder = new Utf8DescTopNEncoder(this);
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        int i = bytes.offset;
-        decode: while (true) {
-            int leadByte = bytes.bytes[i] & 0xff;
-            int numBytes = utf8CodeLength[leadByte];
-            switch (numBytes) {
-                case 0:
-                    break decode;
-                case 1:
-                    bytes.bytes[i]--;
-                    i++;
-                    break;
-                case 2:
-                    i += 2;
-                    break;
-                case 3:
-                    i += 3;
-                    break;
-                case 4:
-                    i += 4;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Invalid UTF8 header byte: 0x" + Integer.toHexString(leadByte));
-            }
-        }
-        scratch.length = i - bytes.offset;
-        bytes.offset = i + 1;
-        bytes.length -= scratch.length + 1;
-        return scratch;
-    }
-
-    @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {

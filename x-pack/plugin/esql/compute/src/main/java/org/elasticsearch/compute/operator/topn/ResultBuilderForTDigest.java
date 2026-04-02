@@ -16,8 +16,7 @@ import org.elasticsearch.compute.data.TDigestBlockBuilder;
 
 public class ResultBuilderForTDigest implements ResultBuilder {
     private final TDigestBlockBuilder builder;
-    private final ResultBuilderForTDigest.ReusableTopNEncoderInput reusableInput = new ReusableTopNEncoderInput();
-    private final ResultBuilderForTDigest.ReusableTopNEncoderCursorInput reusableCursorInput = new ReusableTopNEncoderCursorInput();
+    private final ReusableTopNEncoderCursorInput reusableCursorInput = new ReusableTopNEncoderCursorInput();
 
     ResultBuilderForTDigest(BlockFactory blockFactory, int positions) {
         this.builder = blockFactory.newTDigestBlockBuilder(positions);
@@ -68,25 +67,6 @@ public class ResultBuilderForTDigest implements ResultBuilder {
     @Override
     public void close() {
         builder.close();
-    }
-
-    private static final class ReusableTopNEncoderInput implements TDigestBlock.SerializedTDigestInput {
-        BytesRef inputValues;
-
-        @Override
-        public double readDouble() {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(inputValues);
-        }
-
-        @Override
-        public long readLong() {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(inputValues);
-        }
-
-        @Override
-        public BytesRef readBytesRef(BytesRef scratch) {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(inputValues, scratch);
-        }
     }
 
     private static final class ReusableTopNEncoderCursorInput implements TDigestBlock.SerializedTDigestInput {

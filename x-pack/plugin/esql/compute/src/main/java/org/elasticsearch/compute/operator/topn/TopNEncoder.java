@@ -53,37 +53,25 @@ public interface TopNEncoder {
 
     void encodeLong(long value, PagedBytesRefBuilder builder);
 
-    long decodeLong(BytesRef bytes);
-
     long decodeLong(PagedBytesRefCursor bytes);
 
     void encodeInt(int value, PagedBytesRefBuilder builder);
-
-    int decodeInt(BytesRef bytes);
 
     int decodeInt(PagedBytesRefCursor bytes);
 
     void encodeFloat(float value, PagedBytesRefBuilder builder);
 
-    float decodeFloat(BytesRef bytes);
-
     float decodeFloat(PagedBytesRefCursor bytes);
 
     void encodeDouble(double value, PagedBytesRefBuilder builder);
-
-    double decodeDouble(BytesRef bytes);
 
     double decodeDouble(PagedBytesRefCursor bytes);
 
     void encodeBoolean(boolean value, PagedBytesRefBuilder builder);
 
-    boolean decodeBoolean(BytesRef bytes);
-
     boolean decodeBoolean(PagedBytesRefCursor bytes);
 
     void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder);
-
-    BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch);
 
     BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch);
 

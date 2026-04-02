@@ -21,19 +21,6 @@ class FixedLengthAscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        if (bytes.length < length) {
-            throw new IllegalArgumentException("expected [" + length + "] bytes but only [" + bytes.length + "] remain");
-        }
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        scratch.length = length;
-        bytes.offset += length;
-        bytes.length -= length;
-        return scratch;
-    }
-
-    @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
         if (value.length != length) {
             throw new IllegalArgumentException("expected exactly [" + length + "] bytes but got [" + value.length + "]");

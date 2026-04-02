@@ -24,20 +24,6 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        int i = bytes.offset;
-        while (bytes.bytes[i] != Utf8AscTopNEncoder.TERMINATOR) {
-            i++;
-        }
-        scratch.bytes = bytes.bytes;
-        scratch.offset = bytes.offset;
-        scratch.length = i - bytes.offset;
-        bytes.offset += scratch.length + 1;
-        bytes.length -= scratch.length + 1;
-        return scratch;
-    }
-
-    @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
         // TODO versions can contain nul so we need to delegate to the utf-8 encoder for the utf-8 parts of a version
         refuseNul(value);

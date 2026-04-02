@@ -20,11 +20,6 @@ import org.elasticsearch.common.bytes.PagedBytesRefCursor;
  */
 class UnsupportedTypesTopNEncoder extends SortableAscTopNEncoder {
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        throw new UnsupportedOperationException("Encountered a bug; trying to decode an unsupported data type value for TopN");
-    }
-
-    @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
         throw new UnsupportedOperationException("Encountered a bug; trying to encode an unsupported data type value for TopN");
     }

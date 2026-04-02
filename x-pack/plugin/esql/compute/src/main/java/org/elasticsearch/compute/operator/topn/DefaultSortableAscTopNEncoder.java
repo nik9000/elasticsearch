@@ -15,11 +15,6 @@ class DefaultSortableAscTopNEncoder extends SortableAscTopNEncoder {
     private final DefaultSortableDescTopNEncoder descEncoder = new DefaultSortableDescTopNEncoder(this);
 
     @Override
-    public BytesRef decodeBytesRef(BytesRef bytes, BytesRef scratch) {
-        throw new IllegalStateException("Cannot find encoder for BytesRef value");
-    }
-
-    @Override
     public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
         throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
@@ -22,11 +21,6 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final long decodeLong(BytesRef bytes) {
-        return ~TopNEncoder.DEFAULT_SORTABLE.decodeLong(bytes);
-    }
-
-    @Override
     public final long decodeLong(PagedBytesRefCursor bytes) {
         return ~TopNEncoder.DEFAULT_SORTABLE.decodeLong(bytes);
     }
@@ -34,11 +28,6 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeInt(int value, PagedBytesRefBuilder builder) {
         TopNEncoder.DEFAULT_SORTABLE.encodeInt(~value, builder);
-    }
-
-    @Override
-    public final int decodeInt(BytesRef bytes) {
-        return ~TopNEncoder.DEFAULT_SORTABLE.decodeInt(bytes);
     }
 
     @Override
@@ -52,11 +41,6 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final float decodeFloat(BytesRef bytes) {
-        return NumericUtils.sortableIntToFloat(decodeInt(bytes));
-    }
-
-    @Override
     public final float decodeFloat(PagedBytesRefCursor bytes) {
         return NumericUtils.sortableIntToFloat(decodeInt(bytes));
     }
@@ -67,11 +51,6 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final double decodeDouble(BytesRef bytes) {
-        return NumericUtils.sortableLongToDouble(decodeLong(bytes));
-    }
-
-    @Override
     public final double decodeDouble(PagedBytesRefCursor bytes) {
         return NumericUtils.sortableLongToDouble(decodeLong(bytes));
     }
@@ -79,11 +58,6 @@ public abstract class SortableDescTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
         TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value == false, builder);
-    }
-
-    @Override
-    public final boolean decodeBoolean(BytesRef bytes) {
-        return TopNEncoder.DEFAULT_SORTABLE.decodeBoolean(bytes) == false;
     }
 
     @Override

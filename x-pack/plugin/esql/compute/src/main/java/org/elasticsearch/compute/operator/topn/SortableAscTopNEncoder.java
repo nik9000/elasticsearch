@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 import org.elasticsearch.common.bytes.PagedBytesRefCursor;
@@ -22,17 +21,6 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final long decodeLong(BytesRef bytes) {
-        if (bytes.length < Long.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        long v = NumericUtils.sortableBytesToLong(bytes.bytes, bytes.offset);
-        bytes.offset += Long.BYTES;
-        bytes.length -= Long.BYTES;
-        return v;
-    }
-
-    @Override
     public final long decodeLong(PagedBytesRefCursor bytes) {
         return bytes.readLong() ^ Long.MIN_VALUE;
     }
@@ -40,17 +28,6 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeInt(int value, PagedBytesRefBuilder builder) {
         builder.append(value ^ Integer.MIN_VALUE);
-    }
-
-    @Override
-    public final int decodeInt(BytesRef bytes) {
-        if (bytes.length < Integer.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        int v = NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset);
-        bytes.offset += Integer.BYTES;
-        bytes.length -= Integer.BYTES;
-        return v;
     }
 
     @Override
@@ -64,11 +41,6 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final float decodeFloat(BytesRef bytes) {
-        return NumericUtils.sortableIntToFloat(decodeInt(bytes));
-    }
-
-    @Override
     public final float decodeFloat(PagedBytesRefCursor bytes) {
         return NumericUtils.sortableIntToFloat(decodeInt(bytes));
     }
@@ -79,11 +51,6 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public final double decodeDouble(BytesRef bytes) {
-        return NumericUtils.sortableLongToDouble(decodeLong(bytes));
-    }
-
-    @Override
     public final double decodeDouble(PagedBytesRefCursor bytes) {
         return NumericUtils.sortableLongToDouble(decodeLong(bytes));
     }
@@ -91,17 +58,6 @@ public abstract class SortableAscTopNEncoder implements TopNEncoder {
     @Override
     public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
         builder.append(value ? (byte) 1 : (byte) 0);
-    }
-
-    @Override
-    public final boolean decodeBoolean(BytesRef bytes) {
-        if (bytes.length < Byte.BYTES) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        boolean v = bytes.bytes[bytes.offset] == 1;
-        bytes.offset += Byte.BYTES;
-        bytes.length -= Byte.BYTES;
-        return v;
     }
 
     @Override

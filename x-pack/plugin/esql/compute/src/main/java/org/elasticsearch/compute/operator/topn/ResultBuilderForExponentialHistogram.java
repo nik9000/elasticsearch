@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 public class ResultBuilderForExponentialHistogram implements ResultBuilder {
 
     private final ExponentialHistogramBlockBuilder builder;
-    private final ReusableTopNEncoderInput reusableInput = new ReusableTopNEncoderInput();
     private final ReusableTopNEncoderCursorInput reusableCursorInput = new ReusableTopNEncoderCursorInput();
 
     ResultBuilderForExponentialHistogram(BlockFactory blockFactory, int positions) {
@@ -69,25 +68,6 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
     @Override
     public void close() {
         builder.close();
-    }
-
-    private static final class ReusableTopNEncoderInput implements ExponentialHistogramBlock.SerializedInput {
-        BytesRef inputValues;
-
-        @Override
-        public double readDouble() {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(inputValues);
-        }
-
-        @Override
-        public long readLong() {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(inputValues);
-        }
-
-        @Override
-        public BytesRef readBytesRef(BytesRef scratch) {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(inputValues, scratch);
-        }
     }
 
     private static final class ReusableTopNEncoderCursorInput implements ExponentialHistogramBlock.SerializedInput {
