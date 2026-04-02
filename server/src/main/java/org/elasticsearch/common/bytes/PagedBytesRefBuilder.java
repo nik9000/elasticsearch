@@ -138,10 +138,18 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      */
     public void append(byte[] b, int off, int len) {
         if (growTail(len)) {
-            System.arraycopy(b, off, tail, tailOffset, len);
-            tailOffset += len;
+            appendToTail(b, off, len);
             return;
         }
+        appendPaged(b, off, len);
+    }
+
+    private void appendToTail(byte[] b, int off, int len) {
+        System.arraycopy(b, off, tail, tailOffset, len);
+        tailOffset += len;
+    }
+
+    private void appendPaged(byte[] b, int off, int len) {
         while (len > 0) {
             if (tailOffset == tail.length) {
                 nextPage();
@@ -160,11 +168,19 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      */
     public void appendNot(byte[] b, int off, int len) {
         if (growTail(len)) {
-            for (int i = 0; i < len; i++) {
-                tail[tailOffset++] = (byte) ~b[off + i];
-            }
+            appendNotToTail(b, off, len);
             return;
         }
+        appendNotPaged(b, off, len);
+    }
+
+    private void appendNotToTail(byte[] b, int off, int len) {
+        for (int i = 0; i < len; i++) {
+            tail[tailOffset++] = (byte) ~b[off + i];
+        }
+    }
+
+    private void appendNotPaged(byte[] b, int off, int len) {
         while (len > 0) {
             if (tailOffset == tail.length) {
                 nextPage();
