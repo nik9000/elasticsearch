@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -109,7 +110,7 @@ public class TopNOperator implements Operator, Accountable {
                 }
                 e.writeValue(destination.values, position);
             }
-            valuePreAllocSize = newPreAllocSize(destination.values, valuePreAllocSize);
+            valuePreAllocSize = newPreAllocSize(destination.values.length(), valuePreAllocSize);
         }
 
         /**
@@ -117,7 +118,11 @@ public class TopNOperator implements Operator, Accountable {
          * the previous pre-alloc size, so the size decays after a single unusually large row.
          */
         private static int newPreAllocSize(BreakingBytesRefBuilder builder, int sparePreAllocSize) {
-            return Math.max(builder.length(), sparePreAllocSize / 2);
+            return newPreAllocSize(builder.length(), sparePreAllocSize);
+        }
+
+        private static int newPreAllocSize(int length, int sparePreAllocSize) {
+            return Math.max(length, sparePreAllocSize / 2);
         }
     }
 
@@ -317,7 +322,7 @@ public class TopNOperator implements Operator, Accountable {
 
             for (int i = 0; i < page.getPositionCount(); i++) {
                 if (spare == null) {
-                    spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
+                    spare = new TopNRow(breaker, blockFactory.bigArrays().recycler(), rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
                 } else {
                     spare.clear();
                 }
@@ -534,7 +539,7 @@ public class TopNOperator implements Operator, Accountable {
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
                         readKeys(builders, row.keys.bytesRefView());
-                        readValues(builders, row.values.bytesRefView());
+                        readValues(builders, new PagedBytesRefCursor(row.values.view()));
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;
@@ -582,11 +587,11 @@ public class TopNOperator implements Operator, Accountable {
             }
         }
 
-        private void readValues(ResultBuilder[] builders, BytesRef values) {
+        private void readValues(ResultBuilder[] builders, PagedBytesRefCursor cursor) {
             for (ResultBuilder builder : builders) {
-                builder.decodeValue(values);
+                builder.decodeValue(cursor);
             }
-            if (values.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all values");
             }
         }

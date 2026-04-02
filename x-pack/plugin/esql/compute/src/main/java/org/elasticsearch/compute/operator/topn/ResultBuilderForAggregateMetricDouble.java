@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -44,6 +45,27 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
         }
         if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
             builder.count().appendInt(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values));
+        } else {
+            builder.count().appendNull();
+        }
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int count = cursor.readVInt();
+        if (count == 0) {
+            builder.appendNull();
+            return;
+        }
+        for (BlockLoader.DoubleBuilder subBuilder : List.of(builder.min(), builder.max(), builder.sum())) {
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+                subBuilder.appendDouble(TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(cursor));
+            } else {
+                subBuilder.appendNull();
+            }
+        }
+        if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+            builder.count().appendInt(TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor));
         } else {
             builder.count().appendNull();
         }

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
@@ -17,6 +18,7 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
 
     private final ExponentialHistogramBlockBuilder builder;
     private final ReusableTopNEncoderInput reusableInput = new ReusableTopNEncoderInput();
+    private final ReusableTopNEncoderCursorInput reusableCursorInput = new ReusableTopNEncoderCursorInput();
 
     ResultBuilderForExponentialHistogram(BlockFactory blockFactory, int positions) {
         this.builder = blockFactory.newExponentialHistogramBlockBuilder(positions);
@@ -37,6 +39,18 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
         assert count == 1 : "ExponentialHistogramBlock does not support multi values";
         reusableInput.inputValues = values;
         builder.deserializeAndAppend(reusableInput);
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int count = cursor.readVInt();
+        if (count == 0) {
+            builder.appendNull();
+            return;
+        }
+        assert count == 1 : "ExponentialHistogramBlock does not support multi values";
+        reusableCursorInput.cursor = cursor;
+        builder.deserializeAndAppend(reusableCursorInput);
     }
 
     @Override
@@ -75,6 +89,25 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
         @Override
         public BytesRef readBytesRef(BytesRef scratch) {
             return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(inputValues, scratch);
+        }
+    }
+
+    private static final class ReusableTopNEncoderCursorInput implements ExponentialHistogramBlock.SerializedInput {
+        PagedBytesRefCursor cursor;
+
+        @Override
+        public double readDouble() {
+            return TopNEncoder.DEFAULT_UNSORTABLE.decodeDouble(cursor);
+        }
+
+        @Override
+        public long readLong() {
+            return TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(cursor);
+        }
+
+        @Override
+        public BytesRef readBytesRef(BytesRef scratch) {
+            return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(cursor, scratch);
         }
     }
 }

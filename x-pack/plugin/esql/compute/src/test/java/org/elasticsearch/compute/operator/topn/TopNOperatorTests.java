@@ -135,6 +135,9 @@ public class TopNOperatorTests extends OperatorTestCase {
             if (o instanceof BigArrays) {
                 return 0; // shared
             }
+            if (o instanceof PageCacheRecycler) {
+                return 0; // shared
+            }
             if (o instanceof BytesRefHashTable h) {
                 return h.ramBytesUsed();
             }
@@ -925,7 +928,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             channelInKey,
             page
         );
-        TopNRow row = new TopNRow(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
+        TopNRow row = new TopNRow(nonBreakingBigArrays().breakerService().getBreaker("request"), nonBreakingBigArrays().recycler(), 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;
@@ -2097,10 +2100,11 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            // 94 are from the objects
-            // 1 is for the min-heap itself
-            // -1 IF we're sorting ascending. We encode one less value.
-            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 94L : 95L));
+            // Most are from the objects - PagedBytesRefBuilder makes more breaker calls than
+            // BreakingBytesRefBuilder due to exponential tail growth before switching to paged mode.
+            // 1 is for the min-heap itself.
+            // Ascending encodes fewer values (sort key stored separately from value columns).
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 196L : 210L));
         }
     }
 

@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
@@ -197,7 +198,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     private void processRow(TopNOperator.RowFiller rowFiller, int position, long groupId) {
         if (spare == null) {
-            spare = new TopNRow(breaker, rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
+            spare = new TopNRow(breaker, blockFactory.bigArrays().recycler(), rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
         } else {
             spare.clear();
         }
@@ -359,7 +360,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
                         readKeys(builders, row.keys.bytesRefView());
-                        readValues(builders, row.values.bytesRefView());
+                        readValues(builders, new PagedBytesRefCursor(row.values.view()));
                     }
                     if (totalSize(builders) > jumboPageBytes) {
                         break;
@@ -402,11 +403,11 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
         }
 
-        private void readValues(ResultBuilder[] builders, BytesRef values) {
+        private void readValues(ResultBuilder[] builders, PagedBytesRefCursor cursor) {
             for (ResultBuilder builder : builders) {
-                builder.decodeValue(values);
+                builder.decodeValue(cursor);
             }
-            if (values.length != 0) {
+            if (cursor.remaining() != 0) {
                 throw new IllegalArgumentException("didn't read all values");
             }
         }

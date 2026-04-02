@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -32,6 +33,20 @@ class ResultBuilderForDoc implements ResultBuilder {
         int shard = encoder.decodeInt(values);
         int segment = encoder.decodeInt(values);
         int doc = encoder.decodeInt(values);
+
+        // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
+        encoder.refCounteds().get(shard).mustIncRef();
+
+        builder.appendShard(shard);
+        builder.appendSegment(segment);
+        builder.appendDoc(doc);
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int shard = encoder.decodeInt(cursor);
+        int segment = encoder.decodeInt(cursor);
+        int doc = encoder.decodeInt(cursor);
 
         // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
         encoder.refCounteds().get(shard).mustIncRef();

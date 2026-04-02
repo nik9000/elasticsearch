@@ -10,6 +10,9 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -37,7 +40,7 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
      * from both the {@link #keys} and the {@link #values}. So this only contains
      * what is required to reconstruct the row that isn't already stored in {@link #keys}.
      */
-    final BreakingBytesRefBuilder values;
+    final PagedBytesRefBuilder values;
 
     /**
      * Reference counter for the shard this row belongs to, used for rows containing a
@@ -46,13 +49,13 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     @Nullable
     RefCounted shardRefCounter;
 
-    TopNRow(CircuitBreaker breaker, int preAllocatedKeysSize, int preAllocatedValueSize) {
+    TopNRow(CircuitBreaker breaker, PageCacheRecycler recycler, int preAllocatedKeysSize, int preAllocatedValueSize) {
         breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
         this.breaker = breaker;
         boolean success = false;
         try {
             keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
-            values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
+            values = new PagedBytesRefBuilder(breaker, "topn", 0, recycler);
             success = true;
         } finally {
             if (success == false) {
@@ -118,21 +121,18 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     public String toString() {
         StringBuilder b = new StringBuilder("TopNRow[key=");
         b.append(keys.bytesRefView());
-        b.append(", values=");
-
-        if (values.length() < 100) {
-            b.append(values.bytesRefView());
-        } else {
-            b.append('[');
-            assert values.bytesRefView().offset == 0;
-            for (int i = 0; i < 100; i++) {
-                if (i != 0) {
-                    b.append(" ");
-                }
-                b.append(Integer.toHexString(values.bytesRefView().bytes[i] & 255));
+        b.append(", values=[");
+        int limit = Math.min(values.length(), 100);
+        PagedBytesRefCursor cursor = new PagedBytesRefCursor(values.view());
+        for (int i = 0; i < limit; i++) {
+            if (i != 0) {
+                b.append(" ");
             }
+            b.append(Integer.toHexString(cursor.readByte() & 255));
+        }
+        if (values.length() > 100) {
             b.append("...");
         }
-        return b.append("]").toString();
+        return b.append("]]").toString();
     }
 }

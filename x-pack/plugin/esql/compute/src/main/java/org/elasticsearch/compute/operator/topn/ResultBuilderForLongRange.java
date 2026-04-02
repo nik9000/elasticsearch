@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -38,6 +39,25 @@ public class ResultBuilderForLongRange implements ResultBuilder {
             }
             if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values)) {
                 builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(values));
+            } else {
+                builder.to().appendNull();
+            }
+        }
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int count = cursor.readVInt();
+        if (count == 0) {
+            builder.appendNull();
+        } else {
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+                builder.from().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(cursor));
+            } else {
+                builder.from().appendNull();
+            }
+            if (TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor)) {
+                builder.to().appendLong(TopNEncoder.DEFAULT_UNSORTABLE.decodeLong(cursor));
             } else {
                 builder.to().appendNull();
             }

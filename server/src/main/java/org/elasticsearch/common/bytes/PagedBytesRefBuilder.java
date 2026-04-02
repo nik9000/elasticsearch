@@ -64,6 +64,8 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * </p>
  */
 public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable<PagedBytesRefBuilder> {
+    // TODO investigate all users for BreakingBytesRefBuilder for if they should use this
+    // TODO allow adding PagedBytesRef to BytesRefBlock
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesRefBuilder.class);
     static final int MIN_SIZE = 64;
     static final int MAX_SMALL_TAIL_SIZE = BYTE_PAGE_SIZE / 2;

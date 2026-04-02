@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 
@@ -59,6 +60,28 @@ class ResultBuilderForBoolean implements ResultBuilder {
 
     private boolean readValueFromValues(BytesRef values) {
         return TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(values);
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int count = cursor.readVInt();
+        switch (count) {
+            case 0 -> {
+                builder.appendNull();
+            }
+            case 1 -> builder.appendBoolean(inKey ? key : readValueFromValues(cursor));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count; i++) {
+                    builder.appendBoolean(readValueFromValues(cursor));
+                }
+                builder.endPositionEntry();
+            }
+        }
+    }
+
+    private boolean readValueFromValues(PagedBytesRefCursor cursor) {
+        return TopNEncoder.DEFAULT_UNSORTABLE.decodeBoolean(cursor);
     }
 
     @Override

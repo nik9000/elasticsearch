@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantNullBlock;
@@ -28,6 +29,15 @@ public class ResultBuilderForNull implements ResultBuilder {
     @Override
     public void decodeValue(BytesRef values) {
         int size = TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(values);
+        if (size != 0) {
+            throw new IllegalArgumentException("null columns should always have 0 entries");
+        }
+        positions++;
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int size = cursor.readVInt();
         if (size != 0) {
             throw new IllegalArgumentException("null columns should always have 0 entries");
         }

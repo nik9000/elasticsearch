@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 
@@ -70,6 +71,32 @@ $if(BytesRef)$
         return encoder.toUnsortable().decodeBytesRef(values, scratch);
 $else$
         return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(values);
+$endif$
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int count = cursor.readVInt();
+        switch (count) {
+            case 0 -> {
+                builder.appendNull();
+            }
+            case 1 -> builder.append$Type$(inKey ? key : readValueFromValues(cursor));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count; i++) {
+                    builder.append$Type$(readValueFromValues(cursor));
+                }
+                builder.endPositionEntry();
+            }
+        }
+    }
+
+    private $type$ readValueFromValues(PagedBytesRefCursor cursor) {
+$if(BytesRef)$
+        return encoder.toUnsortable().decodeBytesRef(cursor, scratch);
+$else$
+        return TopNEncoder.DEFAULT_UNSORTABLE.decode$Type$(cursor);
 $endif$
     }
 

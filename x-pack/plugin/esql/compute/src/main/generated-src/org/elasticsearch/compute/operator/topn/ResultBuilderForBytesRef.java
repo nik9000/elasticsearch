@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesRefCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 
@@ -61,6 +62,28 @@ class ResultBuilderForBytesRef implements ResultBuilder {
 
     private BytesRef readValueFromValues(BytesRef values) {
         return encoder.toUnsortable().decodeBytesRef(values, scratch);
+    }
+
+    @Override
+    public void decodeValue(PagedBytesRefCursor cursor) {
+        int count = cursor.readVInt();
+        switch (count) {
+            case 0 -> {
+                builder.appendNull();
+            }
+            case 1 -> builder.appendBytesRef(inKey ? key : readValueFromValues(cursor));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count; i++) {
+                    builder.appendBytesRef(readValueFromValues(cursor));
+                }
+                builder.endPositionEntry();
+            }
+        }
+    }
+
+    private BytesRef readValueFromValues(PagedBytesRefCursor cursor) {
+        return encoder.toUnsortable().decodeBytesRef(cursor, scratch);
     }
 
     @Override
