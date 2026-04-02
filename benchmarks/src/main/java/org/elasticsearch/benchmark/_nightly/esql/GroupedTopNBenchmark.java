@@ -10,6 +10,7 @@
 package org.elasticsearch.benchmark._nightly.esql;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.benchmark.ExtraParam;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,6 +27,7 @@ import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.Releasables;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
@@ -77,7 +79,9 @@ public class GroupedTopNBenchmark {
 
     static {
         // Smoke test all the expected values and force loading subclasses more like prod
-        selfTest();
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            selfTest();
+        }
     }
 
     static void selfTest() {
@@ -97,16 +101,20 @@ public class GroupedTopNBenchmark {
         }
     }
 
-    @Param({ LONGS + ASC, LONGS + DESC, BYTES_REFS + ASC, LONGS + ASC + AND + LONGS + ASC, LONGS + ASC + AND + BYTES_REFS + ASC })
+    @Param({ LONGS + ASC, LONGS + DESC, BYTES_REFS + ASC })
+    @ExtraParam({ LONGS + ASC + AND + LONGS + ASC, LONGS + ASC + AND + BYTES_REFS + ASC })
     public String data;
 
-    @Param({ "1", "10", "1000" })
+    @Param({ "1", "1000" })
+    @ExtraParam({ "10" })
     public int topCount;
 
-    @Param({ "10", "100", "1000" })
+    @Param({ "10", "1000" })
+    @ExtraParam({ "100" })
     public int groupCount;
 
-    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
+    @Param({ LONGS, BYTES_REFS, LONGS + AND + LONGS })
+    @ExtraParam({ BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
     public String groupKeys;
 
     private static Operator operator(String data, int topCount, String groupKeys) {
@@ -255,7 +263,7 @@ public class GroupedTopNBenchmark {
         };
     }
 
-    // @Benchmark - disabled temporarily, too slow (225 parameter combinations)
+    @Benchmark
     @OperationsPerInvocation(NUM_PAGES * BLOCK_LENGTH)
     public void run() {
         run(data, topCount, groupCount, groupKeys, NUM_PAGES);
