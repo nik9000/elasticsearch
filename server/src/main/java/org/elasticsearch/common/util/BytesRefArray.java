@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -85,6 +86,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         this.bigArrays = bigArrays;
     }
 
+    /** Copies the bytes from {@code key} into this array. */
     public void append(BytesRef key) {
         final long startOffset = startOffsets.get(size);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
@@ -96,6 +98,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         }
     }
 
+    /** Copies the bytes from {@code key} into this array. */
     public void append(PagedBytes key) {
         final long startOffset = startOffsets.get(size);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
@@ -115,6 +118,11 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
                 }
             }
         }
+    }
+
+    /** Copies the bytes from {@code key} into this array. */
+    public void append(PagedBytesBuilder key) {
+        append(key.view());
     }
 
     /**

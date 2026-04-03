@@ -11,6 +11,8 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -35,6 +37,26 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     public BytesRefBlockBuilder appendBytesRef(BytesRef value) {
         ensureCapacity();
         values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+    @Override
+    public BytesRefBlockBuilder appendBytesRef(PagedBytes key) {
+        ensureCapacity();
+        values.append(key);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+    @Override
+    public BytesRefBlockBuilder appendBytesRef(PagedBytesBuilder builder) {
+        ensureCapacity();
+        values.append(builder);
         hasNonNullValue = true;
         valueCount++;
         updatePosition();

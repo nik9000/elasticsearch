@@ -12,10 +12,13 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -211,6 +214,94 @@ public class BytesRefArrayTests extends ESTestCase {
                 byte[] flat = randomByteArrayOfLength(randomIntBetween(BYTE_PAGE_SIZE + 1, BYTE_PAGE_SIZE * 3));
                 expected[i] = new BytesRef(flat);
                 array.append(PagedBytesTests.newPagedBytes(flat));
+            }
+            assertThat(array.size(), equalTo((long) size));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < size; i++) {
+                assertThat(array.get(i, scratch), equalTo(expected[i]));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesBuilder() {
+        int size = randomIntBetween(1, 100);
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
+            BytesRef[] expected = new BytesRef[size];
+            for (int i = 0; i < size; i++) {
+                byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
+                expected[i] = new BytesRef(flat);
+                try (
+                    PagedBytesBuilder builder = new PagedBytesBuilder(
+                        PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST),
+                        "test",
+                        flat.length
+                    )
+                ) {
+                    builder.append(flat, 0, flat.length);
+                    array.append(builder);
+                }
+            }
+            assertThat(array.size(), equalTo((long) size));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < size; i++) {
+                assertThat(array.get(i, scratch), equalTo(expected[i]));
+            }
+        }
+    }
+
+    public void testAppendPagedBytesBuilderMultiPage() {
+        // Force multi-page inputs: length is always greater than one page
+        int size = randomIntBetween(1, 10);
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
+            BytesRef[] expected = new BytesRef[size];
+            for (int i = 0; i < size; i++) {
+                byte[] flat = randomByteArrayOfLength(randomIntBetween(BYTE_PAGE_SIZE + 1, BYTE_PAGE_SIZE * 3));
+                expected[i] = new BytesRef(flat);
+                try (
+                    PagedBytesBuilder builder = new PagedBytesBuilder(
+                        PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST),
+                        "test",
+                        flat.length
+                    )
+                ) {
+                    builder.append(flat, 0, flat.length);
+                    array.append(builder);
+                }
+            }
+            assertThat(array.size(), equalTo((long) size));
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < size; i++) {
+                assertThat(array.get(i, scratch), equalTo(expected[i]));
+            }
+        }
+    }
+
+    public void testAppendMixedAll() {
+        int size = randomIntBetween(3, 100);
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
+            BytesRef[] expected = new BytesRef[size];
+            for (int i = 0; i < size; i++) {
+                byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 2));
+                expected[i] = new BytesRef(flat);
+                switch (i % 3) {
+                    case 0 -> array.append(new BytesRef(flat));
+                    case 1 -> array.append(PagedBytesTests.newPagedBytes(flat));
+                    case 2 -> {
+                        try (
+                            PagedBytesBuilder builder = new PagedBytesBuilder(
+                                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST),
+                                "test",
+                                flat.length
+                            )
+                        ) {
+                            builder.append(flat, 0, flat.length);
+                            array.append(builder);
+                        }
+                    }
+                }
             }
             assertThat(array.size(), equalTo((long) size));
             BytesRef scratch = new BytesRef();

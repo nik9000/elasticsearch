@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -254,6 +256,16 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
          */
         @Override
         Builder appendBytesRef(BytesRef value);
+
+        /**
+         * Appends the bytes in {@code key} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytes key);
+
+        /**
+         * Appends the bytes written to a {@link PagedBytesBuilder} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytesBuilder builder);
 
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to

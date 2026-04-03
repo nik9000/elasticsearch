@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -170,6 +172,16 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
          * Appends a BytesRef to the current entry.
          */
         Builder appendBytesRef(BytesRef value);
+
+        /**
+         * Appends the bytes in {@code key} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytes key);
+
+        /**
+         * Appends the bytes written to a {@link PagedBytesBuilder} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytesBuilder builder);
 
         @Override
         BytesRefVector build();

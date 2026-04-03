@@ -178,6 +178,7 @@ public class PagedBytesCursor {
      * NOCOMMIT optimize: use arraycopy for the within-page case
      */
     public BytesRef readBytesRefMutable(int len, BytesRef scratch) {
+        // NOCOMMIT this shouldn't exist. callers should clone the bytes on their own if needed
         if (remaining < len) {
             throw new IllegalArgumentException("not enough bytes");
         }

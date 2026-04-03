@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.internal;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -28,22 +27,6 @@ final class InternalPacks {
     static int estimateForBytesBuilder(int positionCount) {
         // allocate at least one page for the bytes block builder to avoid copying during resizing
         return Math.max(INITIAL_SIZE_IN_BYTES, positionCount);
-    }
-
-    /**
-     * Returns a {@link BytesRef} pointing into the builder's current contents.
-     * The work buffer is always used with a small initial capacity (well below
-     * the 8 KB small-tail threshold) and is cleared between positions, so it
-     * never enters paged mode and all bytes live in a single contiguous array.
-     */
-    private static BytesRef viewAsBytesRef(PagedBytesBuilder builder) {
-        // TODO support `addBytesRef(PagedBytesBuilder)` and `addBytesRef(PagedBytes)`
-        int len = builder.length();
-        if (len == 0) {
-            return new BytesRef();
-        }
-        PagedBytes view = builder.view();
-        return new BytesRef(view.pages()[0], 0, len);
     }
 
     static BytesRefBlock packBytesValues(DriverContext driverContext, BytesRefBlock raw) {
@@ -77,7 +60,7 @@ final class InternalPacks {
                     raw.getBytesRef(i, scratch);
                     ENCODER.encodeBytesRef(scratch, work);
                 }
-                builder.appendBytesRef(viewAsBytesRef(work));
+                builder.appendBytesRef(work);
             }
             return builder.build();
         }
@@ -92,7 +75,7 @@ final class InternalPacks {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
                 ENCODER.encodeBytesRef(encode.getBytesRef(p, scratch), work);
-                builder.appendBytesRef(viewAsBytesRef(work));
+                builder.appendBytesRef(work);
                 work.clear();
             }
             return builder.build();
@@ -148,7 +131,7 @@ final class InternalPacks {
                         ENCODER.encodeLong(raw.getLong(i), work);
                     }
                 }
-                builder.appendBytesRef(viewAsBytesRef(work));
+                builder.appendBytesRef(work);
             }
             return builder.build();
         }
@@ -202,7 +185,7 @@ final class InternalPacks {
                         ENCODER.encodeInt(raw.getInt(i), work);
                     }
                 }
-                builder.appendBytesRef(viewAsBytesRef(work));
+                builder.appendBytesRef(work);
             }
             return builder.build();
         }
@@ -256,7 +239,7 @@ final class InternalPacks {
                         ENCODER.encodeBoolean(raw.getBoolean(i), work);
                     }
                 }
-                builder.appendBytesRef(viewAsBytesRef(work));
+                builder.appendBytesRef(work);
             }
             return builder.build();
         }

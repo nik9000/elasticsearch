@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -361,6 +363,18 @@ $endif$
         @Override
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends the bytes in {@code key} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytes key);
+
+        /**
+         * Appends the bytes written to a {@link PagedBytesBuilder} to the current entry.
+         */
+        Builder appendBytesRef(PagedBytesBuilder builder);
+
+$endif$
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
