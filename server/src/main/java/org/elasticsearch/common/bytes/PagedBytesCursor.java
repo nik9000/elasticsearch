@@ -28,7 +28,6 @@ public class PagedBytesCursor {
     private int pageOffset;
     private int remaining;
 
-    // NOCOMMIT rename to PagedBytesCursor
     PagedBytesCursor(PagedBytes ref) {
         this.pages = ref.pages();
         this.remaining = ref.length();

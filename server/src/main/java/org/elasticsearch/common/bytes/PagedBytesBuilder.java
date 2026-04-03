@@ -100,7 +100,6 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
 
     // NOCOMMIT javadoc
     // NOCOMMIT move recycler to first parameter
-    // NOCOMMIT rename to PagedBytesBuilder
     public PagedBytesBuilder(CircuitBreaker breaker, String label, int initialCapacity, PageCacheRecycler recycler) {
         this.recycler = recycler;
         this.breaker = breaker;
@@ -449,7 +448,6 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         breaker.addEstimateBytesAndMaybeBreak(pagesRamBytesUsed(newLength), label);
         pages = Arrays.copyOf(pages, newLength);
         breaker.addWithoutBreaking(-pagesRamBytesUsed(oldLength));
-        // NOCOMMIT this should fail a cranky
     }
 
     private void grabNextPageFromRecycler() {

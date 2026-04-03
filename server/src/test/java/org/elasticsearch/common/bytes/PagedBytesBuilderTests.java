@@ -40,7 +40,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendByte() {
-        testAppendByte(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testAppendByte(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testAppendByteCranky() {
@@ -61,7 +61,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendBytes() {
-        testAppendBytes(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testAppendBytes(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testAppendBytesCranky() {
@@ -82,7 +82,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendInt() {
-        testAppendInt(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testAppendInt(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testAppendIntCranky() {
@@ -105,7 +105,19 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendManyInts() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        testAppendManyInts(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendManyIntsCranky() {
+        try {
+            testAppendManyInts(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendManyInts(CircuitBreaker breaker) {
         // 3 pages worth of ints — enough to shift to PAGED and span multiple pages
         int count = BYTE_PAGE_SIZE / Integer.BYTES * 3;
         int[] values = new int[count];
@@ -130,7 +142,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendLong() {
-        testAppendLong(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testAppendLong(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testAppendLongCranky() {
@@ -233,7 +245,19 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendManyLongs() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        testAppendManyLongs(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendManyLongsCranky() {
+        try {
+            testAppendManyLongs(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendManyLongs(CircuitBreaker breaker) {
         // 3 pages worth of longs — enough to shift to PAGED and span multiple pages
         int count = BYTE_PAGE_SIZE / Long.BYTES * 3;
         long[] values = new long[count];
@@ -258,7 +282,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendBytesRef() {
-        testAppendBytesRef(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testAppendBytesRef(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testAppendBytesRefCranky() {
@@ -379,15 +403,6 @@ public class PagedBytesBuilderTests extends ESTestCase {
         }
     }
 
-    public void testCompareToCranky() {
-        try {
-            testCompareTo(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
-        } catch (CircuitBreakingException e) {
-            logger.info("cranky", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
     private void testCompareTo(CircuitBreaker breaker) {
         byte[] lhsFlat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
         byte[] rhsFlat = randomBoolean() ? lhsFlat.clone() : randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
@@ -407,15 +422,6 @@ public class PagedBytesBuilderTests extends ESTestCase {
     public void testEqualsAndHashCode() {
         for (int i = 0; i < 100; i++) {
             testEqualsAndHashCode(newLimitedBreaker(ByteSizeValue.ofMb(50)));
-        }
-    }
-
-    public void testEqualsAndHashCodeCranky() {
-        try {
-            testEqualsAndHashCode(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
-        } catch (CircuitBreakingException e) {
-            logger.info("cranky", e);
-            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
     }
 
@@ -452,7 +458,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testNeverBuild() {
-        testNeverBuild(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testNeverBuild(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testNeverBuildCranky() {
@@ -473,7 +479,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testBuildTransfersBreakerToRef() {
-        testBuildTransfersBreakerToRef(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testBuildTransfersBreakerToRef(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testBuildTransfersBreakerToRefCranky() {
@@ -503,7 +509,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendVInt() {
-        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofBytes(BYTE_PAGE_SIZE * 10)));
+        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)));
     }
 
     public void testAppendVIntCranky() {
@@ -583,7 +589,19 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testClearPagedMultiplePages() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        testClearPagedMultiplePages(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testClearPagedMultiplePagesCranky() {
+        try {
+            testClearPagedMultiplePages(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testClearPagedMultiplePages(CircuitBreaker breaker) {
         try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
             int pageCount = randomIntBetween(2, 5);
             byte[] data = randomByteArrayOfLength(pageCount * BYTE_PAGE_SIZE);

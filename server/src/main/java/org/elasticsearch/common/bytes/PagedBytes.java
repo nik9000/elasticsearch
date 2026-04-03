@@ -39,7 +39,6 @@ public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
 
     public static final PagedBytes EMPTY = new PagedBytes(new byte[0][], 0, () -> {});
 
-    // NOCOMMIT rename to PagedBytes
     PagedBytes(byte[][] pages, int length, Releasable onClose) {
         if (Assertions.ENABLED) {
             for (int i = 0; i < pages.length - 1; i++) {
