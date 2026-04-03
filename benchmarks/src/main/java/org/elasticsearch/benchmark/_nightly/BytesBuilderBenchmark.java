@@ -86,7 +86,7 @@ public class BytesBuilderBenchmark {
     @Param({ "write", "read" })
     public String operation;
 
-    @Param({ "1000_ints" })
+    @Param({ "1000_ints", "4000_ints" })
     public String data;
 
     // parsed from data param
@@ -260,7 +260,7 @@ public class BytesBuilderBenchmark {
     // ---- self-test -----------------------------------------------------------
 
     static void selfTest() {
-        for (String dataParam : new String[] { "1000_ints" }) {
+        for (String dataParam : new String[] { "1000_ints", "4000_ints" }) {
             for (String implParam : new String[] { "paged", "breaking", "plain", "stream" }) {
                 for (String opParam : new String[] { "write", "read" }) {
                     BytesBuilderBenchmark b = new BytesBuilderBenchmark();
