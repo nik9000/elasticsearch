@@ -106,8 +106,7 @@ public class GroupedTopNBenchmark {
     @Param({ "10", "100", "1000" })
     public int groupCount;
 
-    @Param({ LONGS, BYTES_REFS })
-    @Supported({ LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
+    @Param({ LONGS, BYTES_REFS, LONGS, BYTES_REFS, LONGS + AND + LONGS, BYTES_REFS + AND + BYTES_REFS, LONGS + AND + BYTES_REFS })
     public String groupKeys;
 
     private static Operator operator(String data, int topCount, String groupKeys) {
