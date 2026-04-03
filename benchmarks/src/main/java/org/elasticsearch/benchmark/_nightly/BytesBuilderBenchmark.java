@@ -61,6 +61,10 @@ import java.util.concurrent.TimeUnit;
  * iteration each builder has already grown to accommodate the data, so subsequent
  * {@code write} iterations measure steady-state append throughput without
  * allocation cost.
+ * <p>
+ * The {@link #selfTest()} runs before any benchmark iteration and exercises all
+ * four implementations, which primes the JIT with all the code paths it needs
+ * to compile efficiently.
  */
 @Fork(1)
 @Warmup(iterations = 5)
@@ -75,7 +79,8 @@ public class BytesBuilderBenchmark {
     static {
         Utils.configureBenchmarkLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
-            // Smoke test all the expected values and force loading subclasses more like prod
+            // Smoke test all the expected values and force loading subclasses more like prod.
+            // Also primes the JIT with all four implementations before JMH begins warmup.
             selfTest();
         }
     }
@@ -93,20 +98,20 @@ public class BytesBuilderBenchmark {
     private int count;
     private int[] ints;
 
-    private PagedBytesBuilder pagedBytesBuilder;
-    private BreakingBytesRefBuilder breakingBytesRefBuilder;
-    private BytesRefBuilder bytesRefBuilder;
-    private BytesStreamOutput bytesStreamOutput;
+    private Paged paged;
+    private Breaking breaking;
+    private Plain plain;
+    private Stream stream;
 
     @Setup
     public void setup() throws IOException {
         parseData();
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
         int byteSize = count * Integer.BYTES;
-        pagedBytesBuilder = new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, "benchmark", byteSize);
-        breakingBytesRefBuilder = new BreakingBytesRefBuilder(breaker, "benchmark", byteSize);
-        bytesRefBuilder = new BytesRefBuilder();
-        bytesStreamOutput = new BytesStreamOutput(byteSize);
+        paged = new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);
+        breaking = new Breaking(breaker, byteSize);
+        plain = new Plain();
+        stream = new Stream(byteSize);
 
         if (operation.equals("read")) {
             // Pre-populate the active builder so that read benchmarks measure only
@@ -116,16 +121,12 @@ public class BytesBuilderBenchmark {
     }
 
     private void parseData() {
-        // Format: "{count}_{type}", e.g. "1000_ints"
+        // Format: "{count}_ints", e.g. "1000_ints"
         int underscore = data.indexOf('_');
         if (underscore < 0) {
-            throw new IllegalArgumentException("data param must be '{count}_{type}', got: " + data);
+            throw new IllegalArgumentException("data param must be '{count}_ints', got: " + data);
         }
         count = Integer.parseInt(data.substring(0, underscore));
-        String type = data.substring(underscore + 1);
-        if (type.equals("ints") == false) {
-            throw new IllegalArgumentException("unsupported data type: " + type);
-        }
         ints = new int[count];
         Random rng = new Random(42);
         for (int i = 0; i < count; i++) {
@@ -135,8 +136,8 @@ public class BytesBuilderBenchmark {
 
     @TearDown
     public void teardown() {
-        pagedBytesBuilder.close();
-        breakingBytesRefBuilder.close();
+        paged.close();
+        breaking.close();
     }
 
     @Benchmark
@@ -148,116 +149,155 @@ public class BytesBuilderBenchmark {
         };
     }
 
-    // ---- write helpers -------------------------------------------------------
-
     private long write() throws IOException {
         return switch (impl) {
-            case "paged" -> writePaged();
-            case "breaking" -> writeBreaking();
-            case "plain" -> writePlain();
-            case "stream" -> writeStream();
+            case "paged" -> paged.writeInts(ints);
+            case "breaking" -> breaking.writeInts(ints);
+            case "plain" -> plain.writeInts(ints);
+            case "stream" -> stream.writeInts(ints);
             default -> throw new IllegalArgumentException("unknown impl: " + impl);
         };
     }
 
-    private long writePaged() {
-        pagedBytesBuilder.clear();
-        for (int i = 0; i < count; i++) {
-            pagedBytesBuilder.append(ints[i]);
-        }
-        return pagedBytesBuilder.length();
-    }
-
-    private long writeBreaking() {
-        breakingBytesRefBuilder.clear();
-        for (int i = 0; i < count; i++) {
-            breakingBytesRefBuilder.grow(breakingBytesRefBuilder.length() + Integer.BYTES);
-            INT_BIG_ENDIAN.set(breakingBytesRefBuilder.bytes(), breakingBytesRefBuilder.length(), ints[i]);
-            breakingBytesRefBuilder.setLength(breakingBytesRefBuilder.length() + Integer.BYTES);
-        }
-        return breakingBytesRefBuilder.length();
-    }
-
-    private long writePlain() {
-        bytesRefBuilder.clear();
-        for (int i = 0; i < count; i++) {
-            bytesRefBuilder.grow(bytesRefBuilder.length() + Integer.BYTES);
-            INT_BIG_ENDIAN.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), ints[i]);
-            bytesRefBuilder.setLength(bytesRefBuilder.length() + Integer.BYTES);
-        }
-        return bytesRefBuilder.length();
-    }
-
-    private long writeStream() throws IOException {
-        bytesStreamOutput.reset();
-        for (int i = 0; i < count; i++) {
-            bytesStreamOutput.writeInt(ints[i]);
-        }
-        return bytesStreamOutput.size();
-    }
-
-    // ---- read helpers --------------------------------------------------------
-
-    /**
-     * Reads back all integers from the pre-populated builder and returns their sum.
-     * Each impl reads from data written by its own {@code write} method in {@link #setup},
-     * so this measures the read-back cost of each builder's output format without write overhead.
-     */
     private long read() throws IOException {
         return switch (impl) {
-            case "paged" -> readPaged();
-            case "breaking" -> readBreaking();
-            case "plain" -> readPlain();
-            case "stream" -> readStream();
+            case "paged" -> paged.readInts();
+            case "breaking" -> breaking.readInts();
+            case "plain" -> plain.readInts();
+            case "stream" -> stream.readInts();
             default -> throw new IllegalArgumentException("unknown impl: " + impl);
         };
     }
 
-    private long readPaged() {
-        PagedBytes view = pagedBytesBuilder.view();
-        PagedBytesCursor cursor = view.cursor();
-        long sum = 0;
-        while (cursor.remaining() >= Integer.BYTES) {
-            sum += cursor.readInt();
-        }
-        return sum;
+    interface Destination {
+        long writeInts(int[] ints) throws IOException;
+
+        long readInts() throws IOException;
     }
 
-    private long readBreaking() {
-        BytesRef ref = breakingBytesRefBuilder.bytesRefView();
-        long sum = 0;
-        for (int i = ref.offset; i + Integer.BYTES <= ref.offset + ref.length; i += Integer.BYTES) {
-            sum += (int) INT_BIG_ENDIAN.get(ref.bytes, i);
+    static class Paged implements Destination {
+        private final PagedBytesBuilder builder;
+
+        Paged(PageCacheRecycler recycler, NoopCircuitBreaker breaker, int initialCapacity) {
+            builder = new PagedBytesBuilder(recycler, breaker, "benchmark", initialCapacity);
         }
-        return sum;
+
+        @Override
+        public long writeInts(int[] ints) {
+            builder.clear();
+            for (int v : ints) {
+                builder.append(v);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readInts() {
+            PagedBytes view = builder.view();
+            PagedBytesCursor cursor = view.cursor();
+            long sum = 0;
+            while (cursor.remaining() >= Integer.BYTES) {
+                sum += cursor.readInt();
+            }
+            return sum;
+        }
+
+        void close() {
+            builder.close();
+        }
     }
 
-    private long readPlain() {
-        BytesRef ref = bytesRefBuilder.get();
-        long sum = 0;
-        for (int i = ref.offset; i + Integer.BYTES <= ref.offset + ref.length; i += Integer.BYTES) {
-            sum += (int) INT_BIG_ENDIAN.get(ref.bytes, i);
+    static class Breaking implements Destination {
+        private final BreakingBytesRefBuilder builder;
+
+        Breaking(NoopCircuitBreaker breaker, int initialCapacity) {
+            builder = new BreakingBytesRefBuilder(breaker, "benchmark", initialCapacity);
         }
-        return sum;
+
+        @Override
+        public long writeInts(int[] ints) {
+            builder.clear();
+            for (int v : ints) {
+                builder.grow(builder.length() + Integer.BYTES);
+                INT_BIG_ENDIAN.set(builder.bytes(), builder.length(), v);
+                builder.setLength(builder.length() + Integer.BYTES);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readInts() {
+            BytesRef ref = builder.bytesRefView();
+            long sum = 0;
+            for (int i = ref.offset; i + Integer.BYTES <= ref.offset + ref.length; i += Integer.BYTES) {
+                sum += (int) INT_BIG_ENDIAN.get(ref.bytes, i);
+            }
+            return sum;
+        }
+
+        void close() {
+            builder.close();
+        }
     }
 
-    /**
-     * Note: {@link BytesStreamOutput#bytes()} returns a concrete {@link org.elasticsearch.common.bytes.BytesArray}
-     * for small outputs, so {@link org.elasticsearch.common.bytes.BytesReference#streamInput()} and
-     * {@link StreamInput#readInt()} here are likely monomorphic — giving this variant an inherent
-     * advantage over the others that may not appear in real workloads where multiple implementations
-     * are live.
-     */
-    private long readStream() throws IOException {
-        StreamInput in = bytesStreamOutput.bytes().streamInput();
-        long sum = 0;
-        while (in.available() >= Integer.BYTES) {
-            sum += in.readInt();
+    static class Plain implements Destination {
+        private final BytesRefBuilder builder = new BytesRefBuilder();
+
+        @Override
+        public long writeInts(int[] ints) {
+            builder.clear();
+            for (int v : ints) {
+                builder.grow(builder.length() + Integer.BYTES);
+                INT_BIG_ENDIAN.set(builder.bytes(), builder.length(), v);
+                builder.setLength(builder.length() + Integer.BYTES);
+            }
+            return builder.length();
         }
-        return sum;
+
+        @Override
+        public long readInts() {
+            BytesRef ref = builder.get();
+            long sum = 0;
+            for (int i = ref.offset; i + Integer.BYTES <= ref.offset + ref.length; i += Integer.BYTES) {
+                sum += (int) INT_BIG_ENDIAN.get(ref.bytes, i);
+            }
+            return sum;
+        }
     }
 
-    // ---- self-test -----------------------------------------------------------
+    static class Stream implements Destination {
+        private final BytesStreamOutput output;
+
+        Stream(int initialCapacity) {
+            output = new BytesStreamOutput(initialCapacity);
+        }
+
+        @Override
+        public long writeInts(int[] ints) throws IOException {
+            output.reset();
+            for (int v : ints) {
+                output.writeInt(v);
+            }
+            return output.size();
+        }
+
+        /**
+         * Note: {@link BytesStreamOutput#bytes()} returns a concrete {@link org.elasticsearch.common.bytes.BytesArray}
+         * for small outputs, so {@link org.elasticsearch.common.bytes.BytesReference#streamInput()} and
+         * {@link StreamInput#readInt()} here are likely monomorphic — giving this variant an inherent
+         * advantage over the others that may not appear in real workloads where multiple implementations
+         * are live.
+         */
+        @Override
+        public long readInts() throws IOException {
+            StreamInput in = output.bytes().streamInput();
+            long sum = 0;
+            while (in.available() >= Integer.BYTES) {
+                sum += in.readInt();
+            }
+            return sum;
+        }
+    }
 
     static void selfTest() {
         for (String dataParam : new String[] { "1000_ints", "4000_ints" }) {

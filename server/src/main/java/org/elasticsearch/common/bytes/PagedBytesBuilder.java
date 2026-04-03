@@ -141,9 +141,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     public void append(byte b) {
         if (growTail(1)) {
             appendToTail(b);
-            return;
+        } else {
+            appendPaged(b);
         }
-        appendPaged(b);
     }
 
     /**
@@ -152,9 +152,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     public void append(byte[] b, int off, int len) {
         if (growTail(len)) {
             appendToTail(b, off, len);
-            return;
+        } else {
+            appendPaged(b, off, len);
         }
-        appendPaged(b, off, len);
     }
 
     private void appendToTail(byte b) {
@@ -241,9 +241,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     public void appendNot(byte[] b, int off, int len) {
         if (growTail(len)) {
             appendNotToTail(b, off, len);
-            return;
+        } else {
+            appendNotPaged(b, off, len);
         }
-        appendNotPaged(b, off, len);
     }
 
     /**
@@ -283,9 +283,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     public void append(int v) {
         if (growTail(Integer.BYTES)) {
             appendToTail(v);
-            return;
+        } else {
+            appendPaged(v);
         }
-        appendPaged(v);
     }
 
     /**
@@ -294,9 +294,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     public void append(long v) {
         if (growTail(Long.BYTES)) {
             appendToTail(v);
-            return;
+        } else {
+            appendPaged(v);
         }
-        appendPaged(v);
     }
 
     /**
