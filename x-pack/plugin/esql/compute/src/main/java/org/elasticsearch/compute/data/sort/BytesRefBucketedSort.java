@@ -10,8 +10,8 @@ package org.elasticsearch.compute.data.sort;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.ObjectArray;
@@ -20,8 +20,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-
-import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -30,6 +28,8 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+
+import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
  * Aggregates the top N variable length {@link BytesRef} values per bucket.
@@ -154,7 +154,7 @@ public class BytesRefBucketedSort implements Releasable {
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>
      */
-    public void collect(PagedBytesRefBuilder value, int bucket) {
+    public void collect(PagedBytesBuilder value, int bucket) {
         long rootIndex = common.rootIndex(bucket);
         if (common.inHeapMode(bucket)) {
             if (betterThan(value.view(), values.get(rootIndex).bytesRefView())) {
@@ -296,11 +296,11 @@ public class BytesRefBucketedSort implements Releasable {
         return common.order.reverseMul() * lhs.compareTo(rhs) < 0;
     }
 
-    private boolean betterThan(PagedBytesRef lhs, BytesRef rhs) {
+    private boolean betterThan(PagedBytes lhs, BytesRef rhs) {
         return common.order.reverseMul() * lhs.compareTo(rhs) < 0;
     }
 
-    private static void copyInto(BreakingBytesRefBuilder dst, PagedBytesRef src) {
+    private static void copyInto(BreakingBytesRefBuilder dst, PagedBytes src) {
         byte[][] pages = src.pages();
         int remaining = src.length();
         for (int i = 0; remaining > 0; i++) {

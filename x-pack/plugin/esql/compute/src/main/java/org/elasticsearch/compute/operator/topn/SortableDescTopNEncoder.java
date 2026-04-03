@@ -8,60 +8,60 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 /**
  * A {@link TopNEncoder} that encodes values to byte arrays that may be sorted directly.
  */
 public abstract class SortableDescTopNEncoder implements TopNEncoder {
     @Override
-    public final void encodeLong(long value, PagedBytesRefBuilder builder) {
+    public final void encodeLong(long value, PagedBytesBuilder builder) {
         TopNEncoder.DEFAULT_SORTABLE.encodeLong(~value, builder);
     }
 
     @Override
-    public final long decodeLong(PagedBytesRefCursor bytes) {
+    public final long decodeLong(PagedBytesCursor bytes) {
         return ~TopNEncoder.DEFAULT_SORTABLE.decodeLong(bytes);
     }
 
     @Override
-    public final void encodeInt(int value, PagedBytesRefBuilder builder) {
+    public final void encodeInt(int value, PagedBytesBuilder builder) {
         TopNEncoder.DEFAULT_SORTABLE.encodeInt(~value, builder);
     }
 
     @Override
-    public final int decodeInt(PagedBytesRefCursor bytes) {
+    public final int decodeInt(PagedBytesCursor bytes) {
         return ~TopNEncoder.DEFAULT_SORTABLE.decodeInt(bytes);
     }
 
     @Override
-    public final void encodeFloat(float value, PagedBytesRefBuilder builder) {
+    public final void encodeFloat(float value, PagedBytesBuilder builder) {
         encodeInt(NumericUtils.floatToSortableInt(value), builder);
     }
 
     @Override
-    public final float decodeFloat(PagedBytesRefCursor bytes) {
+    public final float decodeFloat(PagedBytesCursor bytes) {
         return NumericUtils.sortableIntToFloat(decodeInt(bytes));
     }
 
     @Override
-    public final void encodeDouble(double value, PagedBytesRefBuilder builder) {
+    public final void encodeDouble(double value, PagedBytesBuilder builder) {
         encodeLong(NumericUtils.doubleToSortableLong(value), builder);
     }
 
     @Override
-    public final double decodeDouble(PagedBytesRefCursor bytes) {
+    public final double decodeDouble(PagedBytesCursor bytes) {
         return NumericUtils.sortableLongToDouble(decodeLong(bytes));
     }
 
     @Override
-    public final void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+    public final void encodeBoolean(boolean value, PagedBytesBuilder builder) {
         TopNEncoder.DEFAULT_SORTABLE.encodeBoolean(value == false, builder);
     }
 
     @Override
-    public final boolean decodeBoolean(PagedBytesRefCursor bytes) {
+    public final boolean decodeBoolean(PagedBytesCursor bytes) {
         return TopNEncoder.DEFAULT_SORTABLE.decodeBoolean(bytes) == false;
     }
 

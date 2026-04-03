@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import static org.hamcrest.Matchers.lessThan;
 
@@ -22,7 +22,7 @@ public class Utf8AscTopNEncoderTests extends AbstractUtf8TopNEncoderTests {
     }
 
     @Override
-    protected void assertMinMax(PagedBytesRefBuilder min, PagedBytesRefBuilder max) {
+    protected void assertMinMax(PagedBytesBuilder min, PagedBytesBuilder max) {
         assertThat(min, lessThan(max));
     }
 }

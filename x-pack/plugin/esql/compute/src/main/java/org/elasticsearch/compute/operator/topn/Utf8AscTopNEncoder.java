@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 import java.util.Arrays;
 
@@ -30,7 +30,7 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
     private final Utf8DescTopNEncoder descEncoder = new Utf8DescTopNEncoder(this);
 
     @Override
-    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+    public void encodeBytesRef(BytesRef value, PagedBytesBuilder builder) {
         int end = value.offset + value.length;
         for (int i = value.offset; i < end; i++) {
             byte b = value.bytes[i];
@@ -43,7 +43,7 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
+    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
         cursor.readTerminatedBytesRef(TERMINATOR, scratch);
         int i = 0;
         while (i < scratch.length) {

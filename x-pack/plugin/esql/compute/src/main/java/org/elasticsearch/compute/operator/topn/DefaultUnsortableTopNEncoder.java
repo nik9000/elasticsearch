@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 /**
  * A {@link TopNEncoder} that doesn't encode values so they are sortable but is
@@ -17,13 +17,13 @@ import org.elasticsearch.common.bytes.PagedBytesRefCursor;
  */
 public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     @Override
-    public void encodeLong(long value, PagedBytesRefBuilder builder) {
-        builder.appendNative(value);
+    public void encodeLong(long value, PagedBytesBuilder builder) {
+        builder.append(value);
     }
 
     @Override
-    public long decodeLong(PagedBytesRefCursor bytes) {
-        return bytes.readLongNative();
+    public long decodeLong(PagedBytesCursor bytes) {
+        return bytes.readLong();
     }
 
     /**
@@ -31,65 +31,65 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
      * five bytes. Smaller values take fewer bytes. Negative numbers
      * will always use all 5 bytes.
      */
-    public void encodeVInt(int value, PagedBytesRefBuilder builder) {
+    public void encodeVInt(int value, PagedBytesBuilder builder) {
         builder.appendVInt(value);
     }
 
     /**
      * Reads an int stored in variable-length format.
      */
-    public int decodeVInt(PagedBytesRefCursor cursor) {
+    public int decodeVInt(PagedBytesCursor cursor) {
         return cursor.readVInt();
     }
 
     @Override
-    public void encodeInt(int value, PagedBytesRefBuilder builder) {
-        builder.appendNative(value);
+    public void encodeInt(int value, PagedBytesBuilder builder) {
+        builder.append(value);
     }
 
     @Override
-    public int decodeInt(PagedBytesRefCursor bytes) {
-        return bytes.readIntNative();
+    public int decodeInt(PagedBytesCursor bytes) {
+        return bytes.readInt();
     }
 
     @Override
-    public void encodeFloat(float value, PagedBytesRefBuilder builder) {
-        builder.appendNative(Float.floatToRawIntBits(value));
+    public void encodeFloat(float value, PagedBytesBuilder builder) {
+        builder.append(Float.floatToRawIntBits(value));
     }
 
     @Override
-    public float decodeFloat(PagedBytesRefCursor bytes) {
-        return Float.intBitsToFloat(bytes.readIntNative());
+    public float decodeFloat(PagedBytesCursor bytes) {
+        return Float.intBitsToFloat(bytes.readInt());
     }
 
     @Override
-    public void encodeDouble(double value, PagedBytesRefBuilder builder) {
-        builder.appendNative(Double.doubleToRawLongBits(value));
+    public void encodeDouble(double value, PagedBytesBuilder builder) {
+        builder.append(Double.doubleToRawLongBits(value));
     }
 
     @Override
-    public double decodeDouble(PagedBytesRefCursor bytes) {
-        return Double.longBitsToDouble(bytes.readLongNative());
+    public double decodeDouble(PagedBytesCursor bytes) {
+        return Double.longBitsToDouble(bytes.readLong());
     }
 
     @Override
-    public void encodeBoolean(boolean value, PagedBytesRefBuilder builder) {
+    public void encodeBoolean(boolean value, PagedBytesBuilder builder) {
         builder.append(value ? (byte) 1 : (byte) 0);
     }
 
     @Override
-    public boolean decodeBoolean(PagedBytesRefCursor bytes) {
+    public boolean decodeBoolean(PagedBytesCursor bytes) {
         return bytes.readByte() == 1;
     }
 
     @Override
-    public void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder) {
+    public void encodeBytesRef(BytesRef value, PagedBytesBuilder builder) {
         builder.appendVInt(value.length);
         builder.append(value);
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch) {
+    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
         return cursor.readBytesRef(cursor.readVInt(), scratch);
     }
 

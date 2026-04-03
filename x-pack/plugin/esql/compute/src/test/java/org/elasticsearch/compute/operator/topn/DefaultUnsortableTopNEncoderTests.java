@@ -9,9 +9,9 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
@@ -46,11 +46,11 @@ public class DefaultUnsortableTopNEncoderTests extends ESTestCase {
     private void testVInt(int v, int expectedBytes) {
         var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         var recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
             assertThat(builder.length(), equalTo(expectedBytes));
-            try (PagedBytesRef ref = builder.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }

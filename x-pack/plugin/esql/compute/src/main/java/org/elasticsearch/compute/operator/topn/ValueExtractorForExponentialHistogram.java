@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 public class ValueExtractorForExponentialHistogram implements ValueExtractor {
     private final ExponentialHistogramBlock block;
@@ -23,7 +23,7 @@ public class ValueExtractorForExponentialHistogram implements ValueExtractor {
     }
 
     @Override
-    public void writeValue(PagedBytesRefBuilder values, int position) {
+    public void writeValue(PagedBytesBuilder values, int position) {
         // number of multi-values first for compatibility with ValueExtractorForNull
         if (block.isNull(position)) {
             values.appendVInt(0);
@@ -42,7 +42,7 @@ public class ValueExtractorForExponentialHistogram implements ValueExtractor {
     }
 
     private static final class PagedReusableTopNEncoderOutput implements ExponentialHistogramBlock.SerializedOutput {
-        PagedBytesRefBuilder target;
+        PagedBytesBuilder target;
 
         @Override
         public void appendDouble(double value) {

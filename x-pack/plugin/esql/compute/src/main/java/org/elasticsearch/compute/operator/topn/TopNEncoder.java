@@ -9,8 +9,8 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 /**
  * Encodes values for {@link TopNOperator}. Some encoders encode values so sorting
@@ -51,29 +51,29 @@ public interface TopNEncoder {
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
 
-    void encodeLong(long value, PagedBytesRefBuilder builder);
+    void encodeLong(long value, PagedBytesBuilder builder);
 
-    long decodeLong(PagedBytesRefCursor bytes);
+    long decodeLong(PagedBytesCursor bytes);
 
-    void encodeInt(int value, PagedBytesRefBuilder builder);
+    void encodeInt(int value, PagedBytesBuilder builder);
 
-    int decodeInt(PagedBytesRefCursor bytes);
+    int decodeInt(PagedBytesCursor bytes);
 
-    void encodeFloat(float value, PagedBytesRefBuilder builder);
+    void encodeFloat(float value, PagedBytesBuilder builder);
 
-    float decodeFloat(PagedBytesRefCursor bytes);
+    float decodeFloat(PagedBytesCursor bytes);
 
-    void encodeDouble(double value, PagedBytesRefBuilder builder);
+    void encodeDouble(double value, PagedBytesBuilder builder);
 
-    double decodeDouble(PagedBytesRefCursor bytes);
+    double decodeDouble(PagedBytesCursor bytes);
 
-    void encodeBoolean(boolean value, PagedBytesRefBuilder builder);
+    void encodeBoolean(boolean value, PagedBytesBuilder builder);
 
-    boolean decodeBoolean(PagedBytesRefCursor bytes);
+    boolean decodeBoolean(PagedBytesCursor bytes);
 
-    void encodeBytesRef(BytesRef value, PagedBytesRefBuilder builder);
+    void encodeBytesRef(BytesRef value, PagedBytesBuilder builder);
 
-    BytesRef decodeBytesRef(PagedBytesRefCursor cursor, BytesRef scratch);
+    BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch);
 
     /**
      * Get a version of this encoder that encodes values such that sorting

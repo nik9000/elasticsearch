@@ -58,7 +58,7 @@ public class TopNRowTests extends ESTestCase {
             row.keys.append(randomByte());
             row.values.append(randomByte());
         }
-        // PagedBytesRefBuilder in paged mode has a small per-page undercount: Recycler.V wrappers
+        // PagedBytesBuilder in paged mode has a small per-page undercount: Recycler.V wrappers
         // are counted by RamUsageTester but not by ramBytesUsed(). Accept small positive slack.
         assertThat(row.ramBytesUsed(), lessThanOrEqualTo(expectedRamBytesUsed(row)));
         assertThat(expectedRamBytesUsed(row) - row.ramBytesUsed(), lessThanOrEqualTo(100L));

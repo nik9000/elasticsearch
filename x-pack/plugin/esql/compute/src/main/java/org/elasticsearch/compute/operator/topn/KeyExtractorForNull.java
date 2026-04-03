@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 class KeyExtractorForNull implements KeyExtractor {
     private final byte nul;
@@ -17,7 +17,7 @@ class KeyExtractorForNull implements KeyExtractor {
     }
 
     @Override
-    public void writeKey(PagedBytesRefBuilder values, int position) {
+    public void writeKey(PagedBytesBuilder values, int position) {
         values.append(nul);
     }
 

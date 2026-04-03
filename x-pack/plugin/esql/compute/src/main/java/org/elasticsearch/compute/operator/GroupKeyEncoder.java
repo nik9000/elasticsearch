@@ -11,7 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
@@ -40,7 +40,7 @@ public class GroupKeyEncoder implements Accountable, Releasable {
 
     private final int[] groupChannels;
     private final ElementType[] elementTypes;
-    private final PagedBytesRefBuilder scratch;
+    private final PagedBytesBuilder scratch;
     private final BytesRef scratchBytesRef = new BytesRef();
 
     public GroupKeyEncoder(int[] groupChannels, List<ElementType> elementTypes, CircuitBreaker breaker, PageCacheRecycler recycler) {
@@ -49,7 +49,7 @@ public class GroupKeyEncoder implements Accountable, Releasable {
         for (int i = 0; i < groupChannels.length; i++) {
             this.elementTypes[i] = elementTypes.get(groupChannels[i]);
         }
-        this.scratch = new PagedBytesRefBuilder(breaker, "group-key-encoder", 0, recycler);
+        this.scratch = new PagedBytesBuilder(breaker, "group-key-encoder", 0, recycler);
     }
 
     /**

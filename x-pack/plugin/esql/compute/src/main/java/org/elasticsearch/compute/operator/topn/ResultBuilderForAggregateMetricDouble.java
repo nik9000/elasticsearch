@@ -7,8 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -25,12 +24,12 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 
     @Override
-    public void decodeValue(PagedBytesRefCursor cursor) {
+    public void decodeValue(PagedBytesCursor cursor) {
         int count = cursor.readVInt();
         if (count == 0) {
             builder.appendNull();

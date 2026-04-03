@@ -7,10 +7,10 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 import java.util.List;
 
@@ -23,7 +23,7 @@ public class ValueExtractorForAggregateMetricDouble implements ValueExtractor {
     }
 
     @Override
-    public void writeValue(PagedBytesRefBuilder values, int position) {
+    public void writeValue(PagedBytesBuilder values, int position) {
         values.appendVInt(1);
         for (DoubleBlock doubleBlock : List.of(block.minBlock(), block.maxBlock(), block.sumBlock())) {
             if (doubleBlock.isNull(position)) {

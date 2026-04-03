@@ -14,7 +14,7 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.bytes.PagedBytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -226,7 +226,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     @Override
-    public long find(PagedBytesRef key) {
+    public long find(PagedBytes key) {
         final long slot = slot(rehash(key.hashCode()), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
@@ -237,7 +237,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     @Override
-    public long add(PagedBytesRef key) {
+    public long add(PagedBytes key) {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();

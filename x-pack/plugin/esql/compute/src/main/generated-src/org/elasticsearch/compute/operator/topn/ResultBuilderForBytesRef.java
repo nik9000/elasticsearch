@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 
@@ -37,13 +37,13 @@ class ResultBuilderForBytesRef implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(PagedBytesRefCursor keys, boolean asc) {
+    public void decodeKey(PagedBytesCursor keys, boolean asc) {
         assert inKey;
         key = encoder.toSortable(asc).decodeBytesRef(keys, scratch);
     }
 
     @Override
-    public void decodeValue(PagedBytesRefCursor cursor) {
+    public void decodeValue(PagedBytesCursor cursor) {
         int count = cursor.readVInt();
         switch (count) {
             case 0 -> {
@@ -60,7 +60,7 @@ class ResultBuilderForBytesRef implements ResultBuilder {
         }
     }
 
-    private BytesRef readValueFromValues(PagedBytesRefCursor cursor) {
+    private BytesRef readValueFromValues(PagedBytesCursor cursor) {
         return encoder.toUnsortable().decodeBytesRef(cursor, scratch);
     }
 

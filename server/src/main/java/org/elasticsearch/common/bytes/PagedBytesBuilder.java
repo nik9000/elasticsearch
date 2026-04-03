@@ -24,7 +24,7 @@ import java.util.Arrays;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
- * Builder for {@link PagedBytesRef}. This <strong>feels</strong> quite like:
+ * Builder for {@link PagedBytes}. This <strong>feels</strong> quite like:
  * <ul>
  *     <li>
  *         {@code BreakingBytesRefBuilder}, but runs more slowly to make sure
@@ -53,7 +53,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  *     </li>
  *     <li>
  *         After {@link #build()} completes, the builder enters "built" mode. Ownership of all
- *         allocated memory is transferred to the returned {@link PagedBytesRef}. The builder is
+ *         allocated memory is transferred to the returned {@link PagedBytes}. The builder is
  *         invalid after this point.
  *     </li>
  * </ol>
@@ -63,10 +63,10 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  *     to paged mode instead.
  * </p>
  */
-public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable<PagedBytesRefBuilder> {
+public class PagedBytesBuilder implements Accountable, Releasable, Comparable<PagedBytesBuilder> {
     // TODO investigate all users for BreakingBytesRefBuilder for if they should use this
-    // TODO allow adding PagedBytesRef to BytesRefBlock
-    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesRefBuilder.class);
+    // TODO allow adding PagedBytes to BytesRefBlock
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesBuilder.class);
     static final int MIN_SIZE = 64;
     static final int MAX_SMALL_TAIL_SIZE = BYTE_PAGE_SIZE / 2;
 
@@ -101,7 +101,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     // NOCOMMIT javadoc
     // NOCOMMIT move recycler to first parameter
     // NOCOMMIT rename to PagedBytesBuilder
-    public PagedBytesRefBuilder(CircuitBreaker breaker, String label, int initialCapacity, PageCacheRecycler recycler) {
+    public PagedBytesBuilder(CircuitBreaker breaker, String label, int initialCapacity, PageCacheRecycler recycler) {
         this.recycler = recycler;
         this.breaker = breaker;
         this.label = label;
@@ -207,7 +207,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     /**
      * Append bytes.
      */
-    public void append(PagedBytesRefBuilder b) {
+    public void append(PagedBytesBuilder b) {
         for (int i = 0; i < b.usedPages - 1; i++) {
             append(b.pages[i].v(), 0, BYTE_PAGE_SIZE);
         }
@@ -219,7 +219,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     /**
      * Append bytes.
      */
-    public void append(PagedBytesRef b) {
+    public void append(PagedBytes b) {
         int remaining = b.length();
         for (byte[] page : b.pages()) {
             int toCopy = Math.min(page.length, remaining);
@@ -286,7 +286,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
      * NOCOMMIT keep pages when in paged mode
      */
     public void clear() {
-        assert mode() != Mode.BUILT : "clear() called on a built PagedBytesRefBuilder";
+        assert mode() != Mode.BUILT : "clear() called on a built PagedBytesBuilder";
         if (pages != null && usedPages > 1) {
             long released = (long) (usedPages - 1) * PAGE_RAM_BYTES_USED;
             for (int i = 1; i < usedPages; i++) {
@@ -301,37 +301,37 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     /**
-     * Returns a {@link PagedBytesRef} view into this builder's current contents.
+     * Returns a {@link PagedBytes} view into this builder's current contents.
      * The builder retains ownership of all memory; closing the returned ref does nothing.
      * Do not modify the builder while holding a reference to the returned view.
      */
-    public PagedBytesRef view() {
+    public PagedBytes view() {
         int len = length();
         if (len == 0) {
-            return PagedBytesRef.EMPTY;
+            return PagedBytes.EMPTY;
         }
         if (usedPages == 0) {
-            return new PagedBytesRef(new byte[][] { tail }, tailOffset, () -> {});
+            return new PagedBytes(new byte[][] { tail }, tailOffset, () -> {});
         }
         byte[][] bytePages = new byte[usedPages][];
         for (int i = 0; i < usedPages; i++) {
             bytePages[i] = pages[i].v();
         }
-        return new PagedBytesRef(bytePages, len, () -> {});
+        return new PagedBytes(bytePages, len, () -> {});
     }
 
     /**
-     * Build a {@link PagedBytesRef} from the bytes written so far. Transfers ownership
+     * Build a {@link PagedBytes} from the bytes written so far. Transfers ownership
      * of all allocated memory (either {@link #tail} in small-tail mode or {@link #pages}
      * in paged mode) to the result — this builder is invalid after this call.
      */
-    public PagedBytesRef build() {
+    public PagedBytes build() {
         if (length() == 0) {
-            return PagedBytesRef.EMPTY;
+            return PagedBytes.EMPTY;
         }
         if (usedPages == 0) {
             // Small case: only a small tail, no recycler pages.
-            PagedBytesRef result = new PagedBytesRef(new byte[][] { tail }, tailOffset, new Releasable() {
+            PagedBytes result = new PagedBytes(new byte[][] { tail }, tailOffset, new Releasable() {
                 private final long charge = ramBytesUsed();
 
                 @Override
@@ -346,7 +346,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         for (int i = 0; i < usedPages; i++) {
             bytePages[i] = pages[i].v();
         }
-        PagedBytesRef result = new PagedBytesRef(bytePages, length(), new Releasable() {
+        PagedBytes result = new PagedBytes(bytePages, length(), new Releasable() {
             private final Recycler.V<byte[]>[] recycledPages = pages;
             private final long charge = ramBytesUsed();
 
@@ -538,10 +538,10 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         if (this == obj) {
             return true;
         }
-        if (obj.getClass() != PagedBytesRefBuilder.class) {
+        if (obj.getClass() != PagedBytesBuilder.class) {
             return false;
         }
-        PagedBytesRefBuilder rhs = (PagedBytesRefBuilder) obj;
+        PagedBytesBuilder rhs = (PagedBytesBuilder) obj;
         if (this.length() != rhs.length()) {
             return false;
         }
@@ -557,7 +557,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
             // Small-tail mode: all bytes are in a single contiguous array.
             return StringHelper.murmurhash3_x86_32(tail, 0, tailOffset, StringHelper.GOOD_FAST_HASH_SEED);
         }
-        var hasher = new PagedBytesRef.MurmurHash3x86_32(StringHelper.GOOD_FAST_HASH_SEED);
+        var hasher = new PagedBytes.MurmurHash3x86_32(StringHelper.GOOD_FAST_HASH_SEED);
         for (int i = 0; i < usedPages - 1; i++) {
             hasher.fullPage(pages[i].v());
         }
@@ -565,7 +565,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
     }
 
     @Override
-    public int compareTo(PagedBytesRefBuilder rhs) {
+    public int compareTo(PagedBytesBuilder rhs) {
         int remaining = Math.min(this.length(), rhs.length());
         int fullPages = remaining / BYTE_PAGE_SIZE;
         int tailLen = remaining % BYTE_PAGE_SIZE;
@@ -597,7 +597,7 @@ public class PagedBytesRefBuilder implements Accountable, Releasable, Comparable
         PAGED,
         /**
          * {@link #build()} has been called; ownership of all memory was transferred
-         * to the returned {@link PagedBytesRef}.
+         * to the returned {@link PagedBytes}.
          */
         BUILT,
     }

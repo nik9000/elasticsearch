@@ -50,12 +50,7 @@ public class GroupedLimitOperator implements Operator, Accountable {
         @Override
         public GroupedLimitOperator get(DriverContext driverContext) {
             BlockFactory blockFactory = driverContext.blockFactory();
-            var keyEncoder = new GroupKeyEncoder(
-                groupChannels,
-                elementTypes,
-                blockFactory.breaker(),
-                blockFactory.bigArrays().recycler()
-            );
+            var keyEncoder = new GroupKeyEncoder(groupChannels, elementTypes, blockFactory.breaker(), blockFactory.bigArrays().recycler());
             return new GroupedLimitOperator(limitPerGroup, keyEncoder, blockFactory);
         }
 

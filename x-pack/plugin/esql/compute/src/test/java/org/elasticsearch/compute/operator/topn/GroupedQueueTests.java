@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -109,11 +109,11 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static void assertRowValues(TopNRow row, int expectedSortKey, int expectedValue) {
-        PagedBytesRefCursor keysCursor = row.keys.view().cursor();
+        PagedBytesCursor keysCursor = row.keys.view().cursor();
         keysCursor.readByte(); // skip null sentinel
         assertThat(TopNEncoder.DEFAULT_SORTABLE.decodeInt(keysCursor), equalTo(expectedSortKey));
 
-        PagedBytesRefCursor cursor = row.values.view().cursor();
+        PagedBytesCursor cursor = row.values.view().cursor();
         assertThat(cursor.readVInt(), equalTo(1));
         TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor);
         assertThat(cursor.readVInt(), equalTo(1));

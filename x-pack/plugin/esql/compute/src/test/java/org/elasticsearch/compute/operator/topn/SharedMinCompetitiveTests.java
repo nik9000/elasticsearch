@@ -7,15 +7,15 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.test.ComputeTestCase;
 
 import java.util.ArrayList;
@@ -109,13 +109,16 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
             so.asc(),
             so.nullsFirst()
         );
-        return new SharedMinCompetitive.Supplier(new MockPageCacheRecycler(Settings.EMPTY), blockFactory().breaker(), List.of(keyConfig)).get();
+        return new SharedMinCompetitive.Supplier(new MockPageCacheRecycler(Settings.EMPTY), blockFactory().breaker(), List.of(keyConfig))
+            .get();
     }
 
     private void offerLong(BlockFactory blockFactory, SharedMinCompetitive minCompetitive, long l) {
         try (Block block = blockFactory.newConstantLongBlockWith(l, 1)) {
             KeyExtractor extractor = longExtractor(block);
-            try (PagedBytesRefBuilder b = new PagedBytesRefBuilder(blockFactory.breaker(), "work", 0, new MockPageCacheRecycler(Settings.EMPTY))) {
+            try (
+                PagedBytesBuilder b = new PagedBytesBuilder(blockFactory.breaker(), "work", 0, new MockPageCacheRecycler(Settings.EMPTY))
+            ) {
                 extractor.writeKey(b, 0);
                 minCompetitive.offer(b);
             }

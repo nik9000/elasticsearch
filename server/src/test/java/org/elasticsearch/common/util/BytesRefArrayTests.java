@@ -12,8 +12,8 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.PagedBytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefTests;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -184,14 +184,14 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
-    public void testAppendPagedBytesRef() {
+    public void testAppendPagedBytes() {
         int size = randomIntBetween(1, 100);
         try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
             BytesRef[] expected = new BytesRef[size];
             for (int i = 0; i < size; i++) {
                 byte[] flat = randomByteArrayOfLength(randomIntBetween(0, BYTE_PAGE_SIZE * 3));
                 expected[i] = new BytesRef(flat);
-                PagedBytesRef paged = PagedBytesRefTests.newPagedBytesRef(flat);
+                PagedBytes paged = PagedBytesTests.newPagedBytes(flat);
                 array.append(paged);
             }
             assertThat(array.size(), equalTo((long) size));
@@ -202,7 +202,7 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
-    public void testAppendPagedBytesRefMultiPage() {
+    public void testAppendPagedBytesMultiPage() {
         // Force multi-page inputs: length is always greater than one page
         int size = randomIntBetween(1, 10);
         try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
@@ -210,7 +210,7 @@ public class BytesRefArrayTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 byte[] flat = randomByteArrayOfLength(randomIntBetween(BYTE_PAGE_SIZE + 1, BYTE_PAGE_SIZE * 3));
                 expected[i] = new BytesRef(flat);
-                array.append(PagedBytesRefTests.newPagedBytesRef(flat));
+                array.append(PagedBytesTests.newPagedBytes(flat));
             }
             assertThat(array.size(), equalTo((long) size));
             BytesRef scratch = new BytesRef();
@@ -220,7 +220,7 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
-    public void testAppendMixedBytesRefAndPagedBytesRef() {
+    public void testAppendMixedBytesRefAndPagedBytes() {
         int size = randomIntBetween(2, 100);
         try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
             BytesRef[] expected = new BytesRef[size];
@@ -230,7 +230,7 @@ public class BytesRefArrayTests extends ESTestCase {
                 if (randomBoolean()) {
                     array.append(new BytesRef(flat));
                 } else {
-                    array.append(PagedBytesRefTests.newPagedBytesRef(flat));
+                    array.append(PagedBytesTests.newPagedBytes(flat));
                 }
             }
             assertThat(array.size(), equalTo((long) size));

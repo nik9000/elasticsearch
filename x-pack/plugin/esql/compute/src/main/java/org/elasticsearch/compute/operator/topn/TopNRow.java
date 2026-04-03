@@ -10,7 +10,7 @@ package org.elasticsearch.compute.operator.topn;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -31,14 +31,14 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
     /**
      * The sort keys, encoded into bytes so we can sort by calling {@link Arrays#compareUnsigned}.
      */
-    final PagedBytesRefBuilder keys;
+    final PagedBytesBuilder keys;
 
     /**
      * Values to reconstruct the row. When we reconstruct the row we read
      * from both the {@link #keys} and the {@link #values}. So this only contains
      * what is required to reconstruct the row that isn't already stored in {@link #keys}.
      */
-    final PagedBytesRefBuilder values;
+    final PagedBytesBuilder values;
 
     /**
      * Reference counter for the shard this row belongs to, used for rows containing a
@@ -52,8 +52,8 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
         this.breaker = breaker;
         boolean success = false;
         try {
-            keys = new PagedBytesRefBuilder(breaker, "topn", preAllocatedKeysSize, recycler);
-            values = new PagedBytesRefBuilder(breaker, "topn", 0, recycler);
+            keys = new PagedBytesBuilder(breaker, "topn", preAllocatedKeysSize, recycler);
+            values = new PagedBytesBuilder(breaker, "topn", 0, recycler);
             success = true;
         } finally {
             if (success == false) {

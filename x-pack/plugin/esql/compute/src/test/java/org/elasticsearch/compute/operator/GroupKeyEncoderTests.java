@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
@@ -34,8 +33,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testSameIntValuesSameKey() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newIntArrayVector(new int[] { 7, 7 }, 2).asBlock());
-        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.INT));
-            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+        try (
+            GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.INT));
+            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+        ) {
             assertEquals(group(encoder, table, page, 0), group(encoder, table, page, 1));
         } finally {
             page.releaseBlocks();
@@ -45,8 +46,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testDifferentIntValuesDifferentKeys() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newIntArrayVector(new int[] { 1, 2 }, 2).asBlock());
-        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.INT));
-            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+        try (
+            GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.INT));
+            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+        ) {
             assertNotEquals(group(encoder, table, page, 0), group(encoder, table, page, 1));
         } finally {
             page.releaseBlocks();
@@ -56,8 +59,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testLongType() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newLongArrayVector(new long[] { 100, 200, 100 }, 3).asBlock());
-        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
-            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+        try (
+            GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
+            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+        ) {
             long g0 = group(encoder, table, page, 0);
             long g1 = group(encoder, table, page, 1);
             long g2 = group(encoder, table, page, 2);
@@ -71,8 +76,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testDoubleType() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newDoubleArrayVector(new double[] { 1.5, 2.5, 1.5 }, 3).asBlock());
-        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE));
-            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+        try (
+            GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE));
+            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+        ) {
             long g0 = group(encoder, table, page, 0);
             long g1 = group(encoder, table, page, 1);
             long g2 = group(encoder, table, page, 2);
@@ -86,8 +93,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
     public void testFloatType() {
         BlockFactory bf = blockFactory();
         Page page = new Page(bf.newFloatArrayVector(new float[] { 1.5f, 2.5f, 1.5f }, 3).asBlock());
-        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.FLOAT));
-            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+        try (
+            GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.FLOAT));
+            BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+        ) {
             long g0 = group(encoder, table, page, 0);
             long g1 = group(encoder, table, page, 1);
             long g2 = group(encoder, table, page, 2);
@@ -105,8 +114,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendBoolean(false);
             builder.appendBoolean(true);
             Page page = new Page(builder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.BOOLEAN));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.BOOLEAN));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 long gTrue = group(encoder, table, page, 0);
                 long gFalse = group(encoder, table, page, 1);
                 long gTrue2 = group(encoder, table, page, 2);
@@ -125,8 +136,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendBytesRef(new BytesRef("world"));
             builder.appendBytesRef(new BytesRef("hello"));
             Page page = new Page(builder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.BYTES_REF));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.BYTES_REF));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 long g0 = group(encoder, table, page, 0);
                 long g1 = group(encoder, table, page, 1);
                 long g2 = group(encoder, table, page, 2);
@@ -148,8 +161,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendNull();
             builder.appendLong(0);
             Page page = new Page(builder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 assertNotEquals(group(encoder, table, page, 0), group(encoder, table, page, 1));
             } finally {
                 page.releaseBlocks();
@@ -173,8 +188,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendLong(1);
             builder.endPositionEntry();
             Page page = new Page(builder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 assertNotEquals(group(encoder, table, page, 0), group(encoder, table, page, 1));
             } finally {
                 page.releaseBlocks();
@@ -198,8 +215,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendLong(2);
             builder.endPositionEntry();
             Page page = new Page(builder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 assertEquals(group(encoder, table, page, 0), group(encoder, table, page, 1));
             } finally {
                 page.releaseBlocks();
@@ -220,8 +239,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             bytesBuilder.appendBytesRef(new BytesRef("b"));
             bytesBuilder.appendBytesRef(new BytesRef("a"));
             Page page = new Page(longBuilder.build(), bytesBuilder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.BYTES_REF));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0, 1 }, List.of(ElementType.LONG, ElementType.BYTES_REF));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 long g0 = group(encoder, table, page, 0);
                 long g1 = group(encoder, table, page, 1);
                 long g2 = group(encoder, table, page, 2);
@@ -246,8 +267,10 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
             builder.appendLong(42);
             builder.endPositionEntry();
             Page page = new Page(builder.build());
-            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
-                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)) {
+            try (
+                GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.LONG));
+                BytesRefHashTable table = HashImplFactory.newBytesRefHash(bf)
+            ) {
                 assertEquals(group(encoder, table, page, 0), group(encoder, table, page, 1));
             } finally {
                 page.releaseBlocks();

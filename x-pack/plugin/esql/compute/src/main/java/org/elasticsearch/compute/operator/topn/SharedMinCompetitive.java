@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -53,12 +53,12 @@ public class SharedMinCompetitive extends SideChannel {
         }
     }
 
-    private final PagedBytesRefBuilder value;
+    private final PagedBytesBuilder value;
     private final List<KeyConfig> keyConfig;
 
     private SharedMinCompetitive(PageCacheRecycler recycler, CircuitBreaker breaker, List<KeyConfig> keyConfig, Supplier supplier) {
         super(supplier);
-        this.value = new PagedBytesRefBuilder(breaker, "min_competitive", 0, recycler);
+        this.value = new PagedBytesBuilder(breaker, "min_competitive", 0, recycler);
         this.keyConfig = keyConfig;
     }
 
@@ -73,7 +73,7 @@ public class SharedMinCompetitive extends SideChannel {
      *         value in the local top n is greater than or equal to the minimum
      *         competitive value already recorded
      */
-    public boolean offer(PagedBytesRefBuilder minCompetitive) {
+    public boolean offer(PagedBytesBuilder minCompetitive) {
         synchronized (value) {
             if (value.length() > 0 && value.compareTo(minCompetitive) <= 0) {
                 return false;
@@ -96,7 +96,7 @@ public class SharedMinCompetitive extends SideChannel {
             return null;
         }
         PageCacheRecycler recycler = blockFactory.bigArrays().recycler();
-        try (PagedBytesRefBuilder copy = new PagedBytesRefBuilder(blockFactory.breaker(), "min_competitive_copy", length, recycler);) {
+        try (PagedBytesBuilder copy = new PagedBytesBuilder(blockFactory.breaker(), "min_competitive_copy", length, recycler);) {
             synchronized (value) {
                 if (value.length() == 0) {
                     // Not assigned anything yet
@@ -105,8 +105,8 @@ public class SharedMinCompetitive extends SideChannel {
                 copy.append(value);
             }
             ResultBuilder[] builders = new ResultBuilder[keyConfig.size()];
-            try (PagedBytesRef ref = copy.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = copy.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 for (int i = 0; i < builders.length; i++) {
                     KeyConfig config = keyConfig.get(i);
                     ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, config.elementType, config.encoder, true, 1);

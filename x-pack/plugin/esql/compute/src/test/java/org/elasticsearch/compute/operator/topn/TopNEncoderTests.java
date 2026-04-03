@@ -13,9 +13,9 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -50,10 +50,10 @@ public class TopNEncoderTests extends ESTestCase {
 
     public void testLong() {
         long v = randomLong();
-        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+        try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeLong(v, builder);
-            try (PagedBytesRef ref = builder.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 assertThat(encoder.decodeLong(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -62,10 +62,10 @@ public class TopNEncoderTests extends ESTestCase {
 
     public void testInt() {
         int v = randomInt();
-        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+        try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeInt(v, builder);
-            try (PagedBytesRef ref = builder.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 assertThat(encoder.decodeInt(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -74,10 +74,10 @@ public class TopNEncoderTests extends ESTestCase {
 
     public void testDouble() {
         double v = randomDouble();
-        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+        try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeDouble(v, builder);
-            try (PagedBytesRef ref = builder.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 assertThat(encoder.decodeDouble(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -86,10 +86,10 @@ public class TopNEncoderTests extends ESTestCase {
 
     public void testBoolean() {
         boolean v = randomBoolean();
-        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+        try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeBoolean(v, builder);
-            try (PagedBytesRef ref = builder.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 assertThat(encoder.decodeBoolean(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -138,23 +138,18 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     private void roundTripBytesRef(BytesRef v) {
-        try (PagedBytesRefBuilder builder = newPagedBuilder()) {
+        try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeBytesRef(v, builder);
-            try (PagedBytesRef ref = builder.build()) {
-                PagedBytesRefCursor cursor = ref.cursor();
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor();
                 assertThat(encoder.decodeBytesRef(cursor, new BytesRef()), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
         }
     }
 
-    static PagedBytesRefBuilder newPagedBuilder() {
-        return new PagedBytesRefBuilder(
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            "topn",
-            0,
-            new MockPageCacheRecycler(Settings.EMPTY)
-        );
+    static PagedBytesBuilder newPagedBuilder() {
+        return new PagedBytesBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn", 0, new MockPageCacheRecycler(Settings.EMPTY));
     }
 
     static Version randomVersion() {

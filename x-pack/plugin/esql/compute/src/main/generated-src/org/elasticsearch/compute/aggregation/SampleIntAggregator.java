@@ -10,8 +10,8 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -109,7 +109,7 @@ class SampleIntAggregator {
                     int start = bytesRefBlock.getFirstValueIndex(position);
                     int end = start + valueCount;
                     for (int i = start; i < end; i++) {
-                        PagedBytesRefCursor cursor = PagedBytesRefCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
+                        PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
                         ENCODER.decodeLong(cursor);
                         intBlock.appendInt(ENCODER.decodeInt(cursor));
                     }
@@ -124,14 +124,14 @@ class SampleIntAggregator {
 
     public static class GroupingState implements GroupingAggregatorState {
         private final BytesRefBucketedSort sort;
-        private final PagedBytesRefBuilder keyBuilder;
+        private final PagedBytesBuilder keyBuilder;
 
         private GroupingState(BigArrays bigArrays, int limit) {
             CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
             boolean success = false;
             try {
-                this.keyBuilder = new PagedBytesRefBuilder(breaker, "sample", 0, bigArrays.recycler());
+                this.keyBuilder = new PagedBytesBuilder(breaker, "sample", 0, bigArrays.recycler());
                 success = true;
             } finally {
                 if (success == false) {

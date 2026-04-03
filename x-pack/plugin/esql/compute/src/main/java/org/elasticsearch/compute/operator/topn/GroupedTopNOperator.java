@@ -8,11 +8,10 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRef;
-import org.elasticsearch.common.bytes.PagedBytesRefCursor;
+import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
@@ -199,7 +198,12 @@ public class GroupedTopNOperator implements Operator, Accountable {
 
     private void processRow(TopNOperator.RowFiller rowFiller, int position, long groupId) {
         if (spare == null) {
-            spare = new TopNRow(breaker, blockFactory.bigArrays().recycler(), rowFiller.preAllocatedKeysSize(), rowFiller.preAllocatedValueSize());
+            spare = new TopNRow(
+                breaker,
+                blockFactory.bigArrays().recycler(),
+                rowFiller.preAllocatedKeysSize(),
+                rowFiller.preAllocatedValueSize()
+            );
         } else {
             spare.clear();
         }
@@ -360,10 +364,10 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 int rEnd = r + size;
                 while (r < rEnd) {
                     try (TopNRow row = rows.set(r++, null)) {
-                        try (PagedBytesRef keysRef = row.keys.build()) {
+                        try (PagedBytes keysRef = row.keys.build()) {
                             readKeys(builders, keysRef);
                         }
-                        try (PagedBytesRef valuesRef = row.values.build()) {
+                        try (PagedBytes valuesRef = row.values.build()) {
                             readValues(builders, valuesRef.cursor());
                         }
                     }
@@ -392,8 +396,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
             Releasables.close(rows);
         }
 
-        private void readKeys(ResultBuilder[] builders, PagedBytesRef keysRef) {
-            PagedBytesRefCursor cursor = keysRef.cursor();
+        private void readKeys(ResultBuilder[] builders, PagedBytes keysRef) {
+            PagedBytesCursor cursor = keysRef.cursor();
             for (TopNOperator.SortOrder so : sortOrders) {
                 if (cursor.readByte() == so.nul()) {
                     continue;
@@ -405,7 +409,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             }
         }
 
-        private void readValues(ResultBuilder[] builders, PagedBytesRefCursor cursor) {
+        private void readValues(ResultBuilder[] builders, PagedBytesCursor cursor) {
             for (ResultBuilder builder : builders) {
                 builder.decodeValue(cursor);
             }

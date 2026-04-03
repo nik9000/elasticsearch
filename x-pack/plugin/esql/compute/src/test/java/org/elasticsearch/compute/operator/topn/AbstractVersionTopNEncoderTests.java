@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
     public void testContainingNul() {
         BytesRef v = (BytesRef) testCase.randomValue().get();
         insertNul(v);
-        try (PagedBytesRefBuilder builder = new PagedBytesRefBuilder(new NoopCircuitBreaker("test"), "bytes", 0, recycler())) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(new NoopCircuitBreaker("test"), "bytes", 0, recycler())) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> encoder().encodeBytesRef(v, builder));
             assertThat(e.getMessage(), equalTo("Can't sort versions containing nul"));
         }

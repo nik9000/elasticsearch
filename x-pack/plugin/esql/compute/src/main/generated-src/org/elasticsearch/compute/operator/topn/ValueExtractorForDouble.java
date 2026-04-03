@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 /**
  * Extracts non-sort-key values for top-n from their {@link DoubleBlock}s.
@@ -31,11 +31,11 @@ abstract class ValueExtractorForDouble implements ValueExtractor {
         this.inKey = inKey;
     }
 
-    protected final void writeCount(PagedBytesRefBuilder values, int count) {
+    protected final void writeCount(PagedBytesBuilder values, int count) {
         values.appendVInt(count);
     }
 
-    protected final void actualWriteValue(PagedBytesRefBuilder values, double value) {
+    protected final void actualWriteValue(PagedBytesBuilder values, double value) {
         TopNEncoder.DEFAULT_UNSORTABLE.encodeDouble(value, values);
     }
 
@@ -48,7 +48,7 @@ abstract class ValueExtractorForDouble implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(PagedBytesRefBuilder values, int position) {
+        public void writeValue(PagedBytesBuilder values, int position) {
             writeCount(values, 1);
             if (inKey) {
                 // will read results from the key
@@ -67,7 +67,7 @@ abstract class ValueExtractorForDouble implements ValueExtractor {
         }
 
         @Override
-        public void writeValue(PagedBytesRefBuilder values, int position) {
+        public void writeValue(PagedBytesBuilder values, int position) {
             int size = block.getValueCount(position);
             writeCount(values, size);
             if (size == 1 && inKey) {

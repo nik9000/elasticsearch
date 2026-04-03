@@ -22,7 +22,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * except the last have exactly {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
  * {@link #length} tracks how many of those bytes are valid.
  */
-public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasable {
+public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
     /**
      * The actual data. All entries have {@link PageCacheRecycler#BYTE_PAGE_SIZE} bytes;
      * only the first {@link #length} bytes across all pages are valid.
@@ -37,10 +37,10 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
      */
     private final Releasable onClose;
 
-    public static final PagedBytesRef EMPTY = new PagedBytesRef(new byte[0][], 0, () -> {});
+    public static final PagedBytes EMPTY = new PagedBytes(new byte[0][], 0, () -> {});
 
     // NOCOMMIT rename to PagedBytes
-    PagedBytesRef(byte[][] pages, int length, Releasable onClose) {
+    PagedBytes(byte[][] pages, int length, Releasable onClose) {
         if (Assertions.ENABLED) {
             for (int i = 0; i < pages.length - 1; i++) {
                 if (pages[i].length != BYTE_PAGE_SIZE) {
@@ -112,10 +112,10 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
         if (this == obj) {
             return true;
         }
-        if (obj.getClass() != PagedBytesRef.class) {
+        if (obj.getClass() != PagedBytes.class) {
             return false;
         }
-        PagedBytesRef rhs = (PagedBytesRef) obj;
+        PagedBytes rhs = (PagedBytes) obj;
         if (this.length != rhs.length) {
             return false;
         }
@@ -212,7 +212,7 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
     }
 
     @Override
-    public int compareTo(PagedBytesRef rhs) {
+    public int compareTo(PagedBytes rhs) {
         int remaining = Math.min(this.length, rhs.length);
         int fullPages = remaining / BYTE_PAGE_SIZE;
         int tail = remaining % BYTE_PAGE_SIZE;
@@ -282,8 +282,8 @@ public final class PagedBytesRef implements Comparable<PagedBytesRef>, Releasabl
     /**
      * Returns a new cursor positioned at the start of this ref.
      */
-    public PagedBytesRefCursor cursor() {
-        return new PagedBytesRefCursor(this);
+    public PagedBytesCursor cursor() {
+        return new PagedBytesCursor(this);
     }
 
     @Override

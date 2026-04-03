@@ -16,7 +16,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRef;
+import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
@@ -172,7 +172,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     @Override
-    public long find(PagedBytesRef key) {
+    public long find(PagedBytes key) {
         final int hash = hash(key);
         if (smallCore != null) {
             return smallCore.find(key, hash);
@@ -182,7 +182,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     @Override
-    public long add(PagedBytesRef key) {
+    public long add(PagedBytes key) {
         final int hash = hash(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
@@ -193,11 +193,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return bigCore.add(key, hash);
     }
 
-    private int hash(PagedBytesRef v) {
+    private int hash(PagedBytes v) {
         return BitMixer.mix32(v.hashCode());
     }
 
-    private boolean matches(PagedBytesRef key, int id) {
+    private boolean matches(PagedBytes key, int id) {
         return key.bytesEquals(bytesRefs.get(id, scratch));
     }
 
@@ -286,7 +286,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        int find(final PagedBytesRef key, final int hash) {
+        int find(final PagedBytes key, final int hash) {
             int slot = slot(hash);
             for (;; slot = slot(slot + 1)) {
                 long value = (long) LONG_HANDLE.get(idAndHashPage, idAndHashOffset(slot));
@@ -316,7 +316,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        int add(final PagedBytesRef key, final int hash) {
+        int add(final PagedBytes key, final int hash) {
             int slot = slot(hash);
             for (;; slot = slot(slot + 1)) {
                 final int offset = idAndHashOffset(slot);
@@ -460,7 +460,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        private int find(final PagedBytesRef key, final int hash, final byte control) {
+        private int find(final PagedBytes key, final int hash, final byte control) {
             int group = hash & mask;
             for (;;) {
                 ByteVector vec = ByteVector.fromArray(BS, controlData, group);
@@ -488,7 +488,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             return bigCore.addImpl(key, hash);
         }
 
-        private int add(final PagedBytesRef key, final int hash) {
+        private int add(final PagedBytes key, final int hash) {
             maybeGrow();
             return bigCore.addImpl(key, hash);
         }
@@ -521,7 +521,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        private int addImpl(final PagedBytesRef key, final int hash) {
+        private int addImpl(final PagedBytes key, final int hash) {
             final byte control = control(hash);
             int group = hash & mask;
             for (;;) {

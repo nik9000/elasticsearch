@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data.sort;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -84,9 +84,9 @@ public class BytesRefBucketedSortTests extends BucketedSortTestCase<BytesRefBuck
         var values = threeSortedValues();
         try (
             BytesRefBucketedSort sort = build(SortOrder.DESC, 3);
-            PagedBytesRefBuilder b0 = new PagedBytesRefBuilder(breaker, "test", values.get(0).length, bigArrays.recycler());
-            PagedBytesRefBuilder b1 = new PagedBytesRefBuilder(breaker, "test", values.get(1).length, bigArrays.recycler());
-            PagedBytesRefBuilder b2 = new PagedBytesRefBuilder(breaker, "test", values.get(2).length, bigArrays.recycler())
+            PagedBytesBuilder b0 = new PagedBytesBuilder(breaker, "test", values.get(0).length, bigArrays.recycler());
+            PagedBytesBuilder b1 = new PagedBytesBuilder(breaker, "test", values.get(1).length, bigArrays.recycler());
+            PagedBytesBuilder b2 = new PagedBytesBuilder(breaker, "test", values.get(2).length, bigArrays.recycler())
         ) {
             b0.append(values.get(0).bytes, values.get(0).offset, values.get(0).length);
             b1.append(values.get(1).bytes, values.get(1).offset, values.get(1).length);
@@ -104,8 +104,8 @@ public class BytesRefBucketedSortTests extends BucketedSortTestCase<BytesRefBuck
         var values = threeSortedValues();
         try (
             BytesRefBucketedSort sort = build(SortOrder.DESC, 1);
-            PagedBytesRefBuilder small = new PagedBytesRefBuilder(breaker, "test", values.get(0).length, bigArrays.recycler());
-            PagedBytesRefBuilder large = new PagedBytesRefBuilder(breaker, "test", values.get(2).length, bigArrays.recycler())
+            PagedBytesBuilder small = new PagedBytesBuilder(breaker, "test", values.get(0).length, bigArrays.recycler());
+            PagedBytesBuilder large = new PagedBytesBuilder(breaker, "test", values.get(2).length, bigArrays.recycler())
         ) {
             small.append(values.get(0).bytes, values.get(0).offset, values.get(0).length);
             large.append(values.get(2).bytes, values.get(2).offset, values.get(2).length);

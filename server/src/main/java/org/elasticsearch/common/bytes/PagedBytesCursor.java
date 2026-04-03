@@ -14,14 +14,12 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
-import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
-
 /**
- * A sequential-read cursor over a {@link PagedBytesRef}. Tracks the current page
+ * A sequential-read cursor over a {@link PagedBytes}. Tracks the current page
  * index and offset within that page. Callers advance the cursor by calling the
  * {@code read*} methods.
  */
-public class PagedBytesRefCursor {
+public class PagedBytesCursor {
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
@@ -31,7 +29,7 @@ public class PagedBytesRefCursor {
     private int remaining;
 
     // NOCOMMIT rename to PagedBytesCursor
-    PagedBytesRefCursor(PagedBytesRef ref) {
+    PagedBytesCursor(PagedBytes ref) {
         this.pages = ref.pages();
         this.remaining = ref.length();
     }
@@ -39,11 +37,11 @@ public class PagedBytesRefCursor {
     /**
      * Wrap a flat {@link BytesRef} as a single-page cursor. No copy is made.
      */
-    public static PagedBytesRefCursor fromBytesRef(BytesRef ref) {
-        return new PagedBytesRefCursor(ref);
+    public static PagedBytesCursor fromBytesRef(BytesRef ref) {
+        return new PagedBytesCursor(ref);
     }
 
-    private PagedBytesRefCursor(BytesRef ref) {
+    private PagedBytesCursor(BytesRef ref) {
         this.pages = new byte[][] { ref.bytes };
         this.pageIndex = 0;
         this.pageOffset = ref.offset;
@@ -90,10 +88,7 @@ public class PagedBytesRefCursor {
             }
             return v;
         }
-        return ((readByte() & 0xFF) << 24)
-            | ((readByte() & 0xFF) << 16)
-            | ((readByte() & 0xFF) << 8)
-            |  (readByte() & 0xFF);
+        return ((readByte() & 0xFF) << 24) | ((readByte() & 0xFF) << 16) | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
     }
 
     /**
@@ -113,14 +108,9 @@ public class PagedBytesRefCursor {
             }
             return v;
         }
-        return ((long)(readByte() & 0xFF) << 56)
-            | ((long)(readByte() & 0xFF) << 48)
-            | ((long)(readByte() & 0xFF) << 40)
-            | ((long)(readByte() & 0xFF) << 32)
-            | ((long)(readByte() & 0xFF) << 24)
-            | ((long)(readByte() & 0xFF) << 16)
-            | ((long)(readByte() & 0xFF) << 8)
-            |  (long)(readByte() & 0xFF);
+        return ((long) (readByte() & 0xFF) << 56) | ((long) (readByte() & 0xFF) << 48) | ((long) (readByte() & 0xFF) << 40)
+            | ((long) (readByte() & 0xFF) << 32) | ((long) (readByte() & 0xFF) << 24) | ((long) (readByte() & 0xFF) << 16)
+            | ((long) (readByte() & 0xFF) << 8) | (long) (readByte() & 0xFF);
     }
 
     /**
@@ -154,7 +144,7 @@ public class PagedBytesRefCursor {
      * {@code scratch} when they span a page boundary.
      * <p>
      * TODO: callers that mutate the result or hold it past the lifetime of the
-     * {@link PagedBytesRef} must copy — migrate them to do so explicitly.
+     * {@link PagedBytes} must copy — migrate them to do so explicitly.
      * </p>
      */
     public BytesRef readBytesRef(int len, BytesRef scratch) {

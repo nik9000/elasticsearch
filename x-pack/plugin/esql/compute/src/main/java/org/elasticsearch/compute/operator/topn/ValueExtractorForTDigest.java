@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.TDigestBlock;
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
 
 public class ValueExtractorForTDigest implements ValueExtractor {
     private final TDigestBlock block;
@@ -23,7 +23,7 @@ public class ValueExtractorForTDigest implements ValueExtractor {
     }
 
     @Override
-    public void writeValue(PagedBytesRefBuilder values, int position) {
+    public void writeValue(PagedBytesBuilder values, int position) {
         // number of multi-values first for compatibility with ValueExtractorForNull
         if (block.isNull(position)) {
             values.appendVInt(0);
@@ -42,7 +42,7 @@ public class ValueExtractorForTDigest implements ValueExtractor {
     }
 
     private static final class PagedReusableTopNEncoderOutput implements TDigestBlock.SerializedTDigestOutput {
-        PagedBytesRefBuilder target;
+        PagedBytesBuilder target;
 
         @Override
         public void appendDouble(double value) {

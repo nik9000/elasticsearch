@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -22,7 +22,7 @@ public class FixedLengthDescTopNEncoderTests extends AbstractFixedTopNEncoderTes
     }
 
     @Override
-    protected void assertMinMax(PagedBytesRefBuilder min, PagedBytesRefBuilder max) {
+    protected void assertMinMax(PagedBytesBuilder min, PagedBytesBuilder max) {
         assertThat(min, greaterThan(max));
     }
 }

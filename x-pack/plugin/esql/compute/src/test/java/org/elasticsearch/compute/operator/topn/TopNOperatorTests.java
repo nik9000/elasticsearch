@@ -196,7 +196,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false));
         SharedMinCompetitive.Supplier minCompetitive = randomBoolean()
             ? null
-            : new SharedMinCompetitive.Supplier(blockFactory().bigArrays().recycler(), blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders));
+            : new SharedMinCompetitive.Supplier(
+                blockFactory().bigArrays().recycler(),
+                blockFactory().breaker(),
+                keyConfigs(elementTypes, encoders, sortOrders)
+            );
         return new TopNOperator.TopNOperatorFactory(
             4,
             elementTypes,
@@ -2100,7 +2104,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            // Most are from the objects - PagedBytesRefBuilder makes more breaker calls than
+            // Most are from the objects - PagedBytesBuilder makes more breaker calls than
             // BreakingBytesRefBuilder due to exponential tail growth before switching to paged mode.
             // 1 is for the min-heap itself.
             // Ascending encodes fewer values (sort key stored separately from value columns).
@@ -2700,7 +2704,11 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
         NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
         SharedMinCompetitive.Supplier minCompetitiveSupplier = randomBoolean()
-            ? new SharedMinCompetitive.Supplier(blockFactory().bigArrays().recycler(), blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders))
+            ? new SharedMinCompetitive.Supplier(
+                blockFactory().bigArrays().recycler(),
+                blockFactory().breaker(),
+                keyConfigs(elementTypes, encoders, sortOrders)
+            )
             : null;
         SharedMinCompetitive minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
 

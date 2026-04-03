@@ -7,11 +7,11 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesRefBuilder;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 class ValueExtractorForNull implements ValueExtractor {
     @Override
-    public void writeValue(PagedBytesRefBuilder values, int position) {
+    public void writeValue(PagedBytesBuilder values, int position) {
         /*
          * Write 0 values which can be read by *any* result builder and will always
          * make a null value.
