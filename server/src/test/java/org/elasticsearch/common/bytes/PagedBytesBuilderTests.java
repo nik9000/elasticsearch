@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -124,16 +125,18 @@ public class PagedBytesBuilderTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             values[i] = randomInt();
         }
+        byte[] leading = randomBoolean() ? randomByteArrayOfLength(randomIntBetween(1, 100)) : new byte[0];
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
-            assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.SMALL_TAIL));
+            builder.append(leading, 0, leading.length);
             for (int v : values) {
                 builder.append(v);
             }
             assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.PAGED));
-            assertThat(builder.length(), equalTo(count * Integer.BYTES));
-            byte[] expected = new byte[count * Integer.BYTES];
+            assertThat(builder.length(), equalTo(leading.length + count * Integer.BYTES));
+            byte[] expected = new byte[leading.length + count * Integer.BYTES];
+            System.arraycopy(leading, 0, expected, 0, leading.length);
             for (int i = 0; i < count; i++) {
-                INT.set(expected, i * Integer.BYTES, values[i]);
+                INT.set(expected, leading.length + i * Integer.BYTES, values[i]);
             }
             try (PagedBytes ref = builder.build()) {
                 assertThat(toFlat(ref), equalTo(expected));
@@ -264,16 +267,18 @@ public class PagedBytesBuilderTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             values[i] = randomLong();
         }
+        byte[] leading = randomBoolean() ? randomByteArrayOfLength(randomIntBetween(1, 100)) : new byte[0];
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
-            assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.SMALL_TAIL));
+            builder.append(leading, 0, leading.length);
             for (long v : values) {
                 builder.append(v);
             }
             assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.PAGED));
-            assertThat(builder.length(), equalTo(count * Long.BYTES));
-            byte[] expected = new byte[count * Long.BYTES];
+            assertThat(builder.length(), equalTo(leading.length + count * Long.BYTES));
+            byte[] expected = new byte[leading.length + count * Long.BYTES];
+            System.arraycopy(leading, 0, expected, 0, leading.length);
             for (int i = 0; i < count; i++) {
-                LONG.set(expected, i * Long.BYTES, values[i]);
+                LONG.set(expected, leading.length + i * Long.BYTES, values[i]);
             }
             try (PagedBytes ref = builder.build()) {
                 assertThat(toFlat(ref), equalTo(expected));
@@ -530,14 +535,13 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     private static byte[] vIntBytes(int value) {
-        byte[] buf = new byte[5];
-        int i = 0;
-        while ((value & ~0x7F) != 0) {
-            buf[i++] = (byte) ((value & 0x7f) | 0x80);
-            value >>>= 7;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(value);
+            BytesRef ref = out.bytes().toBytesRef();
+            return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        buf[i++] = (byte) value;
-        return Arrays.copyOf(buf, i);
     }
 
     public void testClearSmallTail() {

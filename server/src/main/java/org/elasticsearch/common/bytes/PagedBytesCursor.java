@@ -72,6 +72,7 @@ public class PagedBytesCursor {
 
     /**
      * Read an {@code int} and advance.
+     * NOCOMMIT optimize the cross-page path
      */
     public int readInt() {
         if (remaining < Integer.BYTES) {

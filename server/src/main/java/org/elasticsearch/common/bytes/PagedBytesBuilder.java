@@ -19,6 +19,9 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -71,6 +74,8 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 public class PagedBytesBuilder implements Accountable, Releasable, Comparable<PagedBytesBuilder> {
     // TODO investigate all users for BreakingBytesRefBuilder for if they should use this
     // TODO allow adding PagedBytes to BytesRefBlock
+    private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesBuilder.class);
     static final int MIN_SIZE = 64;
     static final int MAX_SMALL_TAIL_SIZE = BYTE_PAGE_SIZE / 2;
@@ -135,13 +140,10 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      */
     public void append(byte b) {
         if (growTail(1)) {
-            tail[tailOffset++] = b;
+            appendToTail(b);
             return;
         }
-        if (tailOffset == tail.length) {
-            nextPage();
-        }
-        tail[tailOffset++] = b;
+        appendPaged(b);
     }
 
     /**
@@ -155,9 +157,36 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         appendPaged(b, off, len);
     }
 
+    private void appendToTail(byte b) {
+        tail[tailOffset++] = b;
+    }
+
     private void appendToTail(byte[] b, int off, int len) {
         System.arraycopy(b, off, tail, tailOffset, len);
         tailOffset += len;
+    }
+
+    private void appendToTail(int v) {
+        INT.set(tail, tailOffset, v);
+        tailOffset += Integer.BYTES;
+    }
+
+    private void appendToTail(long v) {
+        LONG.set(tail, tailOffset, v);
+        tailOffset += Long.BYTES;
+    }
+
+    private void appendNotToTail(byte[] b, int off, int len) {
+        for (int i = 0; i < len; i++) {
+            appendToTail((byte) ~b[off + i]);
+        }
+    }
+
+    private void appendPaged(byte b) {
+        if (tailOffset == tail.length) {
+            nextPage();
+        }
+        appendToTail(b);
     }
 
     private void appendPaged(byte[] b, int off, int len) {
@@ -173,6 +202,38 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         }
     }
 
+    private void appendPaged(int v) {
+        appendPaged((byte) (v >> 24));
+        appendPaged((byte) (v >> 16));
+        appendPaged((byte) (v >> 8));
+        appendPaged((byte) v);
+    }
+
+    private void appendPaged(long v) {
+        appendPaged((byte) (v >> 56));
+        appendPaged((byte) (v >> 48));
+        appendPaged((byte) (v >> 40));
+        appendPaged((byte) (v >> 32));
+        appendPaged((byte) (v >> 24));
+        appendPaged((byte) (v >> 16));
+        appendPaged((byte) (v >> 8));
+        appendPaged((byte) v);
+    }
+
+    private void appendNotPaged(byte[] b, int off, int len) {
+        while (len > 0) {
+            if (tailOffset == tail.length) {
+                nextPage();
+            }
+            int toCopy = Math.min(tail.length - tailOffset, len);
+            for (int i = 0; i < toCopy; i++) {
+                appendToTail((byte) ~b[off + i]);
+            }
+            off += toCopy;
+            len -= toCopy;
+        }
+    }
+
     /**
      * Append the bitwise NOT of bytes.
      * NOCOMMIT optimize
@@ -183,26 +244,6 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
             return;
         }
         appendNotPaged(b, off, len);
-    }
-
-    private void appendNotToTail(byte[] b, int off, int len) {
-        for (int i = 0; i < len; i++) {
-            tail[tailOffset++] = (byte) ~b[off + i];
-        }
-    }
-
-    private void appendNotPaged(byte[] b, int off, int len) {
-        while (len > 0) {
-            if (tailOffset == tail.length) {
-                nextPage();
-            }
-            int toCopy = Math.min(tail.length - tailOffset, len);
-            for (int i = 0; i < toCopy; i++) {
-                tail[tailOffset++] = (byte) ~b[off + i];
-            }
-            off += toCopy;
-            len -= toCopy;
-        }
     }
 
     /**
@@ -238,28 +279,24 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
 
     /**
      * Append an int in big-endian order.
-     * NOCOMMIT optimize
      */
     public void append(int v) {
-        append((byte) (v >> 24));
-        append((byte) (v >> 16));
-        append((byte) (v >> 8));
-        append((byte) v);
+        if (growTail(Integer.BYTES)) {
+            appendToTail(v);
+            return;
+        }
+        appendPaged(v);
     }
 
     /**
      * Append a long in big-endian order.
-     * NOCOMMIT optimize
      */
     public void append(long v) {
-        append((byte) (v >> 56));
-        append((byte) (v >> 48));
-        append((byte) (v >> 40));
-        append((byte) (v >> 32));
-        append((byte) (v >> 24));
-        append((byte) (v >> 16));
-        append((byte) (v >> 8));
-        append((byte) v);
+        if (growTail(Long.BYTES)) {
+            appendToTail(v);
+            return;
+        }
+        appendPaged(v);
     }
 
     /**
@@ -423,7 +460,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      */
     private boolean growTail(int needed) {
         int end = tailOffset + needed;
-        if (end < tail.length) {
+        if (end <= tail.length) {
             // Fits in the tail
             return true;
         }
