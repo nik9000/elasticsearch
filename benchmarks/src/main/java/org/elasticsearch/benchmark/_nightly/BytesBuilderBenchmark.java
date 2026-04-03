@@ -91,11 +91,12 @@ public class BytesBuilderBenchmark {
     @Param({ "write", "read" })
     public String operation;
 
-    @Param({ "1000_ints", "4000_ints" })
+    @Param({ "1000_ints", "4000_ints", "1000_vints" })
     public String data;
 
     // parsed from data param
     private int count;
+    private String dataType;
     private int[] ints;
 
     private Paged paged;
@@ -121,12 +122,13 @@ public class BytesBuilderBenchmark {
     }
 
     private void parseData() {
-        // Format: "{count}_ints", e.g. "1000_ints"
+        // Format: "{count}_{type}", e.g. "1000_ints" or "1000_vints"
         int underscore = data.indexOf('_');
         if (underscore < 0) {
-            throw new IllegalArgumentException("data param must be '{count}_ints', got: " + data);
+            throw new IllegalArgumentException("data param must be '{count}_{type}', got: " + data);
         }
         count = Integer.parseInt(data.substring(0, underscore));
+        dataType = data.substring(underscore + 1);
         ints = new int[count];
         Random rng = new Random(42);
         for (int i = 0; i < count; i++) {
@@ -150,22 +152,42 @@ public class BytesBuilderBenchmark {
     }
 
     private long write() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.writeInts(ints);
-            case "breaking" -> breaking.writeInts(ints);
-            case "plain" -> plain.writeInts(ints);
-            case "stream" -> stream.writeInts(ints);
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        return switch (dataType) {
+            case "ints" -> switch (impl) {
+                case "paged" -> paged.writeInts(ints);
+                case "breaking" -> breaking.writeInts(ints);
+                case "plain" -> plain.writeInts(ints);
+                case "stream" -> stream.writeInts(ints);
+                default -> throw new IllegalArgumentException("unknown impl: " + impl);
+            };
+            case "vints" -> switch (impl) {
+                case "paged" -> paged.writeVInts(ints);
+                case "breaking" -> breaking.writeVInts(ints);
+                case "plain" -> plain.writeVInts(ints);
+                case "stream" -> stream.writeVInts(ints);
+                default -> throw new IllegalArgumentException("unknown impl: " + impl);
+            };
+            default -> throw new IllegalArgumentException("unknown data type: " + dataType);
         };
     }
 
     private long read() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.readInts();
-            case "breaking" -> breaking.readInts();
-            case "plain" -> plain.readInts();
-            case "stream" -> stream.readInts();
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        return switch (dataType) {
+            case "ints" -> switch (impl) {
+                case "paged" -> paged.readInts();
+                case "breaking" -> breaking.readInts();
+                case "plain" -> plain.readInts();
+                case "stream" -> stream.readInts();
+                default -> throw new IllegalArgumentException("unknown impl: " + impl);
+            };
+            case "vints" -> switch (impl) {
+                case "paged" -> paged.readVInts();
+                case "breaking" -> breaking.readVInts();
+                case "plain" -> plain.readVInts();
+                case "stream" -> stream.readVInts();
+                default -> throw new IllegalArgumentException("unknown impl: " + impl);
+            };
+            default -> throw new IllegalArgumentException("unknown data type: " + dataType);
         };
     }
 
@@ -173,6 +195,10 @@ public class BytesBuilderBenchmark {
         long writeInts(int[] ints) throws IOException;
 
         long readInts() throws IOException;
+
+        long writeVInts(int[] ints) throws IOException;
+
+        long readVInts() throws IOException;
     }
 
     static class Paged implements Destination {
@@ -198,6 +224,26 @@ public class BytesBuilderBenchmark {
             long sum = 0;
             while (cursor.remaining() >= Integer.BYTES) {
                 sum += cursor.readInt();
+            }
+            return sum;
+        }
+
+        @Override
+        public long writeVInts(int[] ints) {
+            builder.clear();
+            for (int v : ints) {
+                builder.appendVInt(v);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readVInts() {
+            PagedBytes view = builder.view();
+            PagedBytesCursor cursor = view.cursor();
+            long sum = 0;
+            while (cursor.remaining() > 0) {
+                sum += cursor.readVInt();
             }
             return sum;
         }
@@ -235,6 +281,22 @@ public class BytesBuilderBenchmark {
             return sum;
         }
 
+        @Override
+        public long writeVInts(int[] ints) {
+            builder.clear();
+            for (int v : ints) {
+                builder.grow(builder.length() + 5);
+                builder.setLength(appendVInt(builder.bytes(), builder.length(), v));
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readVInts() {
+            BytesRef ref = builder.bytesRefView();
+            return sumVInts(ref.bytes, ref.offset, ref.offset + ref.length);
+        }
+
         void close() {
             builder.close();
         }
@@ -262,6 +324,22 @@ public class BytesBuilderBenchmark {
                 sum += (int) INT_BIG_ENDIAN.get(ref.bytes, i);
             }
             return sum;
+        }
+
+        @Override
+        public long writeVInts(int[] ints) {
+            builder.clear();
+            for (int v : ints) {
+                builder.grow(builder.length() + 5);
+                builder.setLength(appendVInt(builder.bytes(), builder.length(), v));
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readVInts() {
+            BytesRef ref = builder.get();
+            return sumVInts(ref.bytes, ref.offset, ref.offset + ref.length);
         }
     }
 
@@ -297,10 +375,64 @@ public class BytesBuilderBenchmark {
             }
             return sum;
         }
+
+        @Override
+        public long writeVInts(int[] ints) throws IOException {
+            output.reset();
+            for (int v : ints) {
+                output.writeVInt(v);
+            }
+            return output.size();
+        }
+
+        @Override
+        public long readVInts() throws IOException {
+            StreamInput in = output.bytes().streamInput();
+            long sum = 0;
+            while (in.available() > 0) {
+                sum += in.readVInt();
+            }
+            return sum;
+        }
+    }
+
+    private static int appendVInt(byte[] bytes, int offset, int v) {
+        while ((v & ~0x7F) != 0) {
+            bytes[offset++] = (byte) ((v & 0x7F) | 0x80);
+            v >>>= 7;
+        }
+        bytes[offset++] = (byte) v;
+        return offset;
+    }
+
+    private static long sumVInts(byte[] bytes, int offset, int end) {
+        long sum = 0;
+        while (offset < end) {
+            byte b = bytes[offset++];
+            int v = b & 0x7F;
+            if (b < 0) {
+                b = bytes[offset++];
+                v |= (b & 0x7F) << 7;
+                if (b < 0) {
+                    b = bytes[offset++];
+                    v |= (b & 0x7F) << 14;
+                    if (b < 0) {
+                        b = bytes[offset++];
+                        v |= (b & 0x7F) << 21;
+                        if (b < 0) {
+                            b = bytes[offset++];
+                            v |= (b & 0x0F) << 28;
+                        }
+                    }
+                }
+            }
+            sum += v;
+        }
+        return sum;
     }
 
     static void selfTest() {
-        for (String dataParam : new String[] { "1000_ints", "4000_ints" }) {
+        for (String dataParam : new String[] { "1000_ints", "4000_ints", "1000_vints" }) {
             for (String implParam : new String[] { "paged", "breaking", "plain", "stream" }) {
                 for (String opParam : new String[] { "write", "read" }) {
                     BytesBuilderBenchmark b = new BytesBuilderBenchmark();
@@ -319,8 +451,11 @@ public class BytesBuilderBenchmark {
                     }
                     try {
                         long result = b.run();
+                        boolean ok = opParam.equals("write")
+                            ? (b.dataType.equals("vints") ? result >= (long) b.count : result == expectedLength)
+                            : result == expectedSum;
                         long expected = opParam.equals("write") ? expectedLength : expectedSum;
-                        if (result != expected) {
+                        if (!ok) {
                             throw new AssertionError(
                                 "[" + implParam + "/" + opParam + "/" + dataParam + "] expected " + expected + " but got " + result
                             );

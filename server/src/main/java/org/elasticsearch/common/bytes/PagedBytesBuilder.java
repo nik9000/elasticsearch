@@ -73,7 +73,6 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  */
 public class PagedBytesBuilder implements Accountable, Releasable, Comparable<PagedBytesBuilder> {
     // TODO investigate all users for BreakingBytesRefBuilder for if they should use this
-    // TODO allow adding PagedBytes to BytesRefBlock
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesBuilder.class);
