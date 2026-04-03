@@ -70,6 +70,8 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class BytesBuilderBenchmark {
 
+    private static final VarHandle INT_BIG_ENDIAN = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+
     static {
         Utils.configureBenchmarkLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
@@ -77,8 +79,6 @@ public class BytesBuilderBenchmark {
             selfTest();
         }
     }
-
-    private static final VarHandle INT_BIG_ENDIAN = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
     @Param({ "paged", "breaking", "plain", "stream" })
     public String impl;
@@ -203,7 +203,7 @@ public class BytesBuilderBenchmark {
      * Each impl reads from data written by its own {@code write} method in {@link #setup},
      * so this measures the read-back cost of each builder's output format without write overhead.
      */
-    private long read() {
+    private long read() throws IOException {
         return switch (impl) {
             case "paged" -> readPaged();
             case "breaking" -> readBreaking();
