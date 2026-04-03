@@ -46,8 +46,8 @@ public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
                 max = tmp;
             }
             try (
-                PagedBytesBuilder minBytes = new PagedBytesBuilder(breaker, "min", 0, recycler);
-                PagedBytesBuilder maxBytes = new PagedBytesBuilder(breaker, "max", 0, recycler)
+                PagedBytesBuilder minBytes = new PagedBytesBuilder(recycler, breaker, "min", 0);
+                PagedBytesBuilder maxBytes = new PagedBytesBuilder(recycler, breaker, "max", 0)
             ) {
                 encode.apply(encoder, min, minBytes);
                 encode.apply(encoder, max, maxBytes);
@@ -58,7 +58,7 @@ public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
         public void testEncodeDecode(TopNEncoder encoder, PageCacheRecycler recycler) {
             var breaker = new NoopCircuitBreaker("test");
             T v = randomValue.get();
-            try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "bytes", 0, recycler)) {
+            try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "bytes", 0)) {
                 encode.apply(encoder, v, builder);
                 try (PagedBytes ref = builder.build()) {
                     PagedBytesCursor cursor = ref.cursor();

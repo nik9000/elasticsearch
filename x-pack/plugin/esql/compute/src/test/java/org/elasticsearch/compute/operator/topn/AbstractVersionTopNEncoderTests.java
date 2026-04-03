@@ -45,7 +45,7 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
     public void testContainingNul() {
         BytesRef v = (BytesRef) testCase.randomValue().get();
         insertNul(v);
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(new NoopCircuitBreaker("test"), "bytes", 0, recycler())) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler(), new NoopCircuitBreaker("test"), "bytes", 0)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> encoder().encodeBytesRef(v, builder));
             assertThat(e.getMessage(), equalTo("Can't sort versions containing nul"));
         }

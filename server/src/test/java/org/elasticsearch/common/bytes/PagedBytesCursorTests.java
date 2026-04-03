@@ -24,7 +24,7 @@ public class PagedBytesCursorTests extends ESTestCase {
     public void testReadByte() {
         var breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE * 3));
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(bytes, 0, bytes.length);
             try (PagedBytes ref = builder.build()) {
                 var cursor = new PagedBytesCursor(ref);
@@ -43,7 +43,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         for (int i = 0; i < values.length; i++) {
             values[i] = randomInt();
         }
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             for (int v : values) {
                 builder.append(v);
             }
@@ -63,7 +63,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         int value = randomInt();
         // Padding puts the int starting 2 bytes before the page boundary
         byte[] padding = new byte[BYTE_PAGE_SIZE - 2];
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(padding, 0, padding.length);
             builder.append(value);
             try (PagedBytes ref = builder.build()) {
@@ -83,7 +83,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         for (int i = 0; i < values.length; i++) {
             values[i] = randomLong();
         }
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             for (long v : values) {
                 builder.append(v);
             }
@@ -104,7 +104,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         for (int i = 0; i < values.length; i++) {
             values[i] = randomInt();
         }
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             for (int v : values) {
                 builder.appendVInt(v);
             }
@@ -125,7 +125,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         // Padding puts the 5-byte VInt starting 2 bytes before the page boundary
         byte[] padding = new byte[BYTE_PAGE_SIZE - 2];
         int value = Integer.MAX_VALUE; // always encodes as 5 bytes
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(padding, 0, padding.length);
             builder.appendVInt(value);
             try (PagedBytes ref = builder.build()) {
@@ -141,7 +141,7 @@ public class PagedBytesCursorTests extends ESTestCase {
     public void testReadBytesRefWithLen() {
         var breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         byte[] expected = randomByteArrayOfLength(randomIntBetween(1, 200));
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(expected, 0, expected.length);
             try (PagedBytes ref = builder.build()) {
                 var cursor = new PagedBytesCursor(ref);
@@ -161,7 +161,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         // Position 2 bytes before a page boundary so the read spans it
         byte[] padding = new byte[BYTE_PAGE_SIZE - 2];
         byte[] expected = randomByteArrayOfLength(randomIntBetween(3, 100));
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(padding, 0, padding.length);
             builder.append(expected, 0, expected.length);
             try (PagedBytes ref = builder.build()) {
@@ -188,7 +188,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         for (int i = 0; i < expected.length; i++) {
             if (expected[i] == 0) expected[i] = 1;
         }
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(expected, 0, expected.length);
             builder.append((byte) 0x00);
             try (PagedBytes ref = builder.build()) {
@@ -209,7 +209,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         // Position the terminator just past the page boundary
         byte[] padding = new byte[BYTE_PAGE_SIZE - 2];
         byte[] payload = new byte[] { 1, 2, 3, 4 };  // no 0x00 bytes
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(padding, 0, padding.length);
             builder.append(payload, 0, payload.length);
             builder.append((byte) 0x00);
@@ -233,7 +233,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         long value = randomLong();
         // Padding puts the long starting 4 bytes before the page boundary
         byte[] padding = new byte[BYTE_PAGE_SIZE - 4];
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(padding, 0, padding.length);
             builder.append(value);
             try (PagedBytes ref = builder.build()) {

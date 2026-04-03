@@ -52,8 +52,8 @@ final class TopNRow implements Accountable, Comparable<TopNRow>, Releasable {
         this.breaker = breaker;
         boolean success = false;
         try {
-            keys = new PagedBytesBuilder(breaker, "topn", preAllocatedKeysSize, recycler);
-            values = new PagedBytesBuilder(breaker, "topn", 0, recycler);
+            keys = new PagedBytesBuilder(recycler, breaker, "topn", preAllocatedKeysSize);
+            values = new PagedBytesBuilder(recycler, breaker, "topn", 0);
             success = true;
         } finally {
             if (success == false) {

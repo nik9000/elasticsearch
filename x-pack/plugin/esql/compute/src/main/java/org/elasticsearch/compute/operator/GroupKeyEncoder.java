@@ -49,7 +49,7 @@ public class GroupKeyEncoder implements Accountable, Releasable {
         for (int i = 0; i < groupChannels.length; i++) {
             this.elementTypes[i] = elementTypes.get(groupChannels[i]);
         }
-        this.scratch = new PagedBytesBuilder(breaker, "group-key-encoder", 0, recycler);
+        this.scratch = new PagedBytesBuilder(recycler, breaker, "group-key-encoder", 0);
     }
 
     /**

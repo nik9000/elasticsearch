@@ -117,7 +117,7 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         try (Block block = blockFactory.newConstantLongBlockWith(l, 1)) {
             KeyExtractor extractor = longExtractor(block);
             try (
-                PagedBytesBuilder b = new PagedBytesBuilder(blockFactory.breaker(), "work", 0, new MockPageCacheRecycler(Settings.EMPTY))
+                PagedBytesBuilder b = new PagedBytesBuilder(new MockPageCacheRecycler(Settings.EMPTY), blockFactory.breaker(), "work", 0)
             ) {
                 extractor.writeKey(b, 0);
                 minCompetitive.offer(b);

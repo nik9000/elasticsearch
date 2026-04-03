@@ -58,7 +58,7 @@ public class SharedMinCompetitive extends SideChannel {
 
     private SharedMinCompetitive(PageCacheRecycler recycler, CircuitBreaker breaker, List<KeyConfig> keyConfig, Supplier supplier) {
         super(supplier);
-        this.value = new PagedBytesBuilder(breaker, "min_competitive", 0, recycler);
+        this.value = new PagedBytesBuilder(recycler, breaker, "min_competitive", 0);
         this.keyConfig = keyConfig;
     }
 
@@ -96,7 +96,7 @@ public class SharedMinCompetitive extends SideChannel {
             return null;
         }
         PageCacheRecycler recycler = blockFactory.bigArrays().recycler();
-        try (PagedBytesBuilder copy = new PagedBytesBuilder(blockFactory.breaker(), "min_competitive_copy", length, recycler);) {
+        try (PagedBytesBuilder copy = new PagedBytesBuilder(recycler, blockFactory.breaker(), "min_competitive_copy", length);) {
             synchronized (value) {
                 if (value.length() == 0) {
                     // Not assigned anything yet

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 /**
  * Extracts non-sort-key values for top-n from their {@link BooleanBlock}s.

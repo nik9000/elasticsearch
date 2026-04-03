@@ -99,8 +99,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     private int tailOffset;
 
     // NOCOMMIT javadoc
-    // NOCOMMIT move recycler to first parameter
-    public PagedBytesBuilder(CircuitBreaker breaker, String label, int initialCapacity, PageCacheRecycler recycler) {
+    public PagedBytesBuilder(PageCacheRecycler recycler, CircuitBreaker breaker, String label, int initialCapacity) {
         this.recycler = recycler;
         this.breaker = breaker;
         this.label = label;

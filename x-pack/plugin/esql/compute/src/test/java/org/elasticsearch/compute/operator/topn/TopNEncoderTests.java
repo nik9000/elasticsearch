@@ -149,7 +149,7 @@ public class TopNEncoderTests extends ESTestCase {
     }
 
     static PagedBytesBuilder newPagedBuilder() {
-        return new PagedBytesBuilder(new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn", 0, new MockPageCacheRecycler(Settings.EMPTY));
+        return new PagedBytesBuilder(new MockPageCacheRecycler(Settings.EMPTY), new NoopCircuitBreaker(CircuitBreaker.REQUEST), "topn", 0);
     }
 
     static Version randomVersion() {

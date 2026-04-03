@@ -131,7 +131,7 @@ class SampleBooleanAggregator {
             this.sort = new BytesRefBucketedSort(breaker, "sample", bigArrays, SortOrder.ASC, limit);
             boolean success = false;
             try {
-                this.keyBuilder = new PagedBytesBuilder(breaker, "sample", 0, bigArrays.recycler());
+                this.keyBuilder = new PagedBytesBuilder(bigArrays.recycler(), breaker, "sample", 0);
                 success = true;
             } finally {
                 if (success == false) {

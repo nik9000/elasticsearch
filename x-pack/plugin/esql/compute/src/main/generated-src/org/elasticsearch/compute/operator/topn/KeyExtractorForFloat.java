@@ -7,9 +7,9 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import java.util.Locale;
 

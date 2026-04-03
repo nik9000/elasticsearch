@@ -46,7 +46,7 @@ public class DefaultUnsortableTopNEncoderTests extends ESTestCase {
     private void testVInt(int v, int expectedBytes) {
         var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         var recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
             assertThat(builder.length(), equalTo(expectedBytes));
             try (PagedBytes ref = builder.build()) {

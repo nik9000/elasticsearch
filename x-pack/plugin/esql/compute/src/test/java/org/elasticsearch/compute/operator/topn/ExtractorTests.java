@@ -258,7 +258,7 @@ public class ExtractorTests extends ESTestCase {
             false,
             1
         );
-        try (PagedBytesBuilder valuesBuilder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder valuesBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
             assertThat(valuesBuilder.length(), greaterThan(0));
             try (PagedBytes ref = valuesBuilder.build()) {
@@ -275,7 +275,7 @@ public class ExtractorTests extends ESTestCase {
 
         var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         var recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(pagedBuilder, 0);
             assertThat(pagedBuilder.length(), greaterThan(0));
             try (PagedBytes ref = pagedBuilder.build()) {
@@ -305,7 +305,7 @@ public class ExtractorTests extends ESTestCase {
             true,
             1
         );
-        try (PagedBytesBuilder keysBuilder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder keysBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, nul, nonNul, value).writeKey(keysBuilder, 0);
             assertThat(keysBuilder.length(), greaterThan(0));
             try (PagedBytes keysRef = keysBuilder.build()) {
@@ -320,7 +320,7 @@ public class ExtractorTests extends ESTestCase {
                 }
             }
         }
-        try (PagedBytesBuilder valuesBuilder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder valuesBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
             assertThat(valuesBuilder.length(), greaterThan(0));
             try (PagedBytes ref = valuesBuilder.build()) {
@@ -339,7 +339,7 @@ public class ExtractorTests extends ESTestCase {
 
         var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         var recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(pagedBuilder, 0);
             assertThat(pagedBuilder.length(), greaterThan(0));
             try (PagedBytes ref = pagedBuilder.build()) {
@@ -361,7 +361,7 @@ public class ExtractorTests extends ESTestCase {
 
         var breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         var recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(breaker, "topn", 0, recycler)) {
+        try (PagedBytesBuilder pagedBuilder = new PagedBytesBuilder(recycler, breaker, "topn", 0)) {
             KeyExtractor.extractorFor(testCase.type, testCase.encoder, asc, nul, nonNul, value).writeKey(pagedBuilder, 0);
             assertThat(pagedBuilder.length(), greaterThan(0));
         }

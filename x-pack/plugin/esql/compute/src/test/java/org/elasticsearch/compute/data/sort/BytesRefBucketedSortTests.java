@@ -84,9 +84,9 @@ public class BytesRefBucketedSortTests extends BucketedSortTestCase<BytesRefBuck
         var values = threeSortedValues();
         try (
             BytesRefBucketedSort sort = build(SortOrder.DESC, 3);
-            PagedBytesBuilder b0 = new PagedBytesBuilder(breaker, "test", values.get(0).length, bigArrays.recycler());
-            PagedBytesBuilder b1 = new PagedBytesBuilder(breaker, "test", values.get(1).length, bigArrays.recycler());
-            PagedBytesBuilder b2 = new PagedBytesBuilder(breaker, "test", values.get(2).length, bigArrays.recycler())
+            PagedBytesBuilder b0 = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(0).length);
+            PagedBytesBuilder b1 = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(1).length);
+            PagedBytesBuilder b2 = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(2).length)
         ) {
             b0.append(values.get(0).bytes, values.get(0).offset, values.get(0).length);
             b1.append(values.get(1).bytes, values.get(1).offset, values.get(1).length);
@@ -104,8 +104,8 @@ public class BytesRefBucketedSortTests extends BucketedSortTestCase<BytesRefBuck
         var values = threeSortedValues();
         try (
             BytesRefBucketedSort sort = build(SortOrder.DESC, 1);
-            PagedBytesBuilder small = new PagedBytesBuilder(breaker, "test", values.get(0).length, bigArrays.recycler());
-            PagedBytesBuilder large = new PagedBytesBuilder(breaker, "test", values.get(2).length, bigArrays.recycler())
+            PagedBytesBuilder small = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(0).length);
+            PagedBytesBuilder large = new PagedBytesBuilder(bigArrays.recycler(), breaker, "test", values.get(2).length)
         ) {
             small.append(values.get(0).bytes, values.get(0).offset, values.get(0).length);
             large.append(values.get(2).bytes, values.get(2).offset, values.get(2).length);

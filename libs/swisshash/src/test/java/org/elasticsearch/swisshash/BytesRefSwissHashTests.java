@@ -264,7 +264,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
 
         try (
             BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays);
-            PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", len, recycler)
+            PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", len)
         ) {
             builder.append(flat, 0, len);
             PagedBytes paged = builder.view();
@@ -299,7 +299,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
     private static PagedBytes newPagedBytes(BytesRef ref, CircuitBreaker breaker, PageCacheRecycler recycler) {
         assert ref.length <= PageCacheRecycler.BYTE_PAGE_SIZE : "input too long for single-page helper: " + ref.length;
         if (ref.length == 0) return PagedBytes.EMPTY;
-        try (PagedBytesBuilder builder = new PagedBytesBuilder(breaker, "test", ref.length, recycler)) {
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", ref.length)) {
             builder.append(ref.bytes, ref.offset, ref.length);
             return builder.build();
         }
