@@ -24,7 +24,33 @@ import java.util.Arrays;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
 
 /**
- * Builder for {@link PagedBytes}. This <strong>feels</strong> quite like:
+ * Builder for {@link PagedBytes}. Runs in one of three modes:
+ * <ol>
+ *     <li>
+ *         When the bytes sequence is {@code <= BYTE_PAGE_SIZE / 2}
+ *         it allocates an array on the heap. We call this {@link Mode#SMALL_TAIL} mode because
+ *         {@code tail} is the name of the variable that holds the heap allocated array.
+ *         And it is "small" while we're in this mode. And because it's cute.
+ *     </li>
+ *     <li>
+ *         Otherwise run in {@link Mode#PAGED} mode and allocate pages of
+ *         {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
+ *     </li>
+ *     <li>
+ *         After {@link #build()} completes, the builder enters {@link Mode#BUILT} mode.
+ *         Ownership of all allocated memory is transferred to the returned {@link PagedBytes}.
+ *         The only valid operation on the builder while in this mode is {@link #close},
+ *         which is a noop.
+ *     </li>
+ * </ol>
+ * <p>
+ *     "Small tail" mode grows exponentially starting at 64 bytes. Then 128, then 256, on and on
+ *     until 8kb. When the next growth would exceed {@link #MAX_SMALL_TAIL_SIZE} (8kb) we shift
+ *     to paged mode instead.
+ * </p>
+ * <p>
+ *     This <strong>feels</strong> quite like:
+ * </p>
  * <ul>
  *     <li>
  *         {@code BreakingBytesRefBuilder}, but runs more slowly to make sure
@@ -41,27 +67,6 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  *         a lot fewer "layers".
  *     </li>
  * </ul>
- * Runs in one of three modes:
- * <ol>
- *     <li>
- *         When the bytes sequence is {@code <= BYTE_PAGE_SIZE / 2}
- *         it allocates an array on the heap. We call this "small tail" mode because {@code tail}
- *         is the name of the variable that holds the heap allocated array. And because it's cute.
- *     </li>
- *     <li>
- *         Otherwise run in "paged" mode and allocate pages {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
- *     </li>
- *     <li>
- *         After {@link #build()} completes, the builder enters "built" mode. Ownership of all
- *         allocated memory is transferred to the returned {@link PagedBytes}. The builder is
- *         invalid after this point.
- *     </li>
- * </ol>
- * <p>
- *     "Small tail" mode grows exponentially starting at 64 bytes. Then 128, then 256, on and on
- *     until 8kb. When the next growth would exceed {@link #MAX_SMALL_TAIL_SIZE} (8kb) we shift
- *     to paged mode instead.
- * </p>
  */
 public class PagedBytesBuilder implements Accountable, Releasable, Comparable<PagedBytesBuilder> {
     // TODO investigate all users for BreakingBytesRefBuilder for if they should use this
@@ -70,9 +75,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     static final int MIN_SIZE = 64;
     static final int MAX_SMALL_TAIL_SIZE = BYTE_PAGE_SIZE / 2;
 
+    private final PageCacheRecycler recycler;
     private final CircuitBreaker breaker;
     private final String label;
-    private final PageCacheRecycler recycler;
 
     /**
      * Recycler pages. If this is {@code null} then we're in "small tail"
@@ -98,25 +103,30 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      */
     private int tailOffset;
 
-    // NOCOMMIT javadoc
+    /**
+     * Build the builder.
+     * <p>
+     *     The way we use {@code initialCapacity} is a bit complex. First, read the class
+     *     javadoc for an explanation of {@link Mode}. If the {@code initialCapacity} puts
+     *     the builder in {@link Mode#SMALL_TAIL} mode then we do what you'd expect: we
+     *     allocate an oversize array for the data. If the {@code initialCapacity} puts
+     *     the builder in {@link Mode#PAGED} then we'll allocate an array large enough
+     *     to hold all the pages required for that many bytes. It does <strong>not</strong>
+     *     pre-allocate all the pages because it doesn't really save any time.
+     * </p>
+     * @param recycler source of recycled pages
+     * @param breaker breaker used for accounting size
+     * @param label the label to add to any circuit breaker failures
+     */
     public PagedBytesBuilder(PageCacheRecycler recycler, CircuitBreaker breaker, String label, int initialCapacity) {
         this.recycler = recycler;
         this.breaker = breaker;
         this.label = label;
-        initialCapacity = initialCapacity <= MIN_SIZE ? MIN_SIZE : nextPowerOfTwo(initialCapacity);
-        if (initialCapacity < MAX_SMALL_TAIL_SIZE) {
-            initSmallTailMode(initialCapacity);
+        int expandedCapacity = initialCapacity <= MIN_SIZE ? MIN_SIZE : nextPowerOfTwo(initialCapacity);
+        if (expandedCapacity < MAX_SMALL_TAIL_SIZE) {
+            initSmallTailMode(expandedCapacity);
         } else {
-            boolean success = false;
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, label);
-                allocatePages(initialCapacity);
-                success = true;
-            } finally {
-                if (success == false) {
-                    breaker.addEstimateBytesAndMaybeBreak(-SHALLOW_SIZE, label);
-                }
-            }
+            allocatePages(initialCapacity, SHALLOW_SIZE);
         }
     }
 
@@ -463,16 +473,16 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         assert mode() == Mode.SMALL_TAIL;
 
         byte[] oldTail = tail;
-        allocatePages(length);
+        allocatePages(length, 0);
         System.arraycopy(oldTail, 0, tail, 0, tailOffset);
         breaker.addWithoutBreaking(-smallTailRamBytesUsed(oldTail.length));
     }
 
     @SuppressWarnings("unchecked")
-    private void allocatePages(int needed) {
+    private void allocatePages(int needed, long extraBytesToReserve) {
         int size = (needed + BYTE_PAGE_SIZE - 1) / BYTE_PAGE_SIZE;
         assert size > 0;
-        breaker.addEstimateBytesAndMaybeBreak(pagesRamBytesUsed(size), label);
+        breaker.addEstimateBytesAndMaybeBreak(extraBytesToReserve + pagesRamBytesUsed(size), label);
         boolean success = false;
         try {
             pages = new Recycler.V[size];
@@ -481,7 +491,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         } finally {
             if (success == false) {
                 pages = null;
-                breaker.addEstimateBytesAndMaybeBreak(-pagesRamBytesUsed(size), label);
+                breaker.addWithoutBreaking(-extraBytesToReserve - pagesRamBytesUsed(size));
             }
         }
     }
@@ -494,7 +504,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         breaker.addEstimateBytesAndMaybeBreak(smallTailRamBytesUsed(length), label);
         int oldLength = tail.length;
         tail = Arrays.copyOf(tail, length);
-        breaker.addEstimateBytesAndMaybeBreak(-smallTailRamBytesUsed(oldLength), label);
+        breaker.addWithoutBreaking(-smallTailRamBytesUsed(oldLength));
     }
 
     private void initSmallTailMode(int length) {
