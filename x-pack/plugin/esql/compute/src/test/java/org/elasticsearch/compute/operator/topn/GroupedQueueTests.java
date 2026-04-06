@@ -109,11 +109,11 @@ public class GroupedQueueTests extends ESTestCase {
     }
 
     private static void assertRowValues(TopNRow row, int expectedSortKey, int expectedValue) {
-        PagedBytesCursor keysCursor = row.keys.view().cursor();
+        PagedBytesCursor keysCursor = row.keys.view().cursor(new PagedBytesCursor());
         keysCursor.readByte(); // skip null sentinel
         assertThat(TopNEncoder.DEFAULT_SORTABLE.decodeInt(keysCursor), equalTo(expectedSortKey));
 
-        PagedBytesCursor cursor = row.values.view().cursor();
+        PagedBytesCursor cursor = row.values.view().cursor(new PagedBytesCursor());
         assertThat(cursor.readVInt(), equalTo(1));
         TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(cursor);
         assertThat(cursor.readVInt(), equalTo(1));

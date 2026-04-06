@@ -339,6 +339,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
     private class Result implements ReleasableIterator<Page> {
         private final List<TopNRow> rows;
         private int r;
+        private final PagedBytesCursor scratch = new PagedBytesCursor();
 
         private Result(List<TopNRow> rows) {
             this.rows = rows;
@@ -368,7 +369,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
                             readKeys(builders, keysRef);
                         }
                         try (PagedBytes valuesRef = row.values.build()) {
-                            readValues(builders, valuesRef.cursor());
+                            readValues(builders, valuesRef.cursor(scratch));
                         }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
@@ -397,7 +398,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         }
 
         private void readKeys(ResultBuilder[] builders, PagedBytes keysRef) {
-            PagedBytesCursor cursor = keysRef.cursor();
+            PagedBytesCursor cursor = keysRef.cursor(scratch);
             for (TopNOperator.SortOrder so : sortOrders) {
                 if (cursor.readByte() == so.nul()) {
                     continue;

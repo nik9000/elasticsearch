@@ -285,10 +285,11 @@ public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
     }
 
     /**
-     * Returns a new cursor positioned at the start of this ref.
+     * Reset {@code scratch} to point at the start of this ref and return it.
      */
-    public PagedBytesCursor cursor() {
-        return new PagedBytesCursor(this);
+    public PagedBytesCursor cursor(PagedBytesCursor scratch) {
+        scratch.init(this);
+        return scratch;
     }
 
     @Override

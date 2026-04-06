@@ -513,6 +513,7 @@ public class TopNOperator implements Operator, Accountable {
     private class Result implements ReleasableIterator<Page> {
         private final List<TopNRow> rows;
         private int r;
+        private final PagedBytesCursor scratch = new PagedBytesCursor();
 
         private Result(List<TopNRow> rows) {
             this.rows = rows;
@@ -542,7 +543,7 @@ public class TopNOperator implements Operator, Accountable {
                             readKeys(builders, keysRef);
                         }
                         try (PagedBytes valuesRef = row.values.build()) {
-                            readValues(builders, valuesRef.cursor());
+                            readValues(builders, valuesRef.cursor(scratch));
                         }
                     }
                     if (totalSize(builders) > jumboPageBytes) {
@@ -573,7 +574,7 @@ public class TopNOperator implements Operator, Accountable {
          * Read keys into the results. See {@link KeyExtractor} for the key layout.
          */
         private void readKeys(ResultBuilder[] builders, PagedBytes keysRef) {
-            PagedBytesCursor cursor = keysRef.cursor();
+            PagedBytesCursor cursor = keysRef.cursor(scratch);
             for (SortOrder so : sortOrders) {
                 if (cursor.readByte() == so.nul()) {
                     continue;

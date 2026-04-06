@@ -50,7 +50,7 @@ public class DefaultUnsortableTopNEncoderTests extends ESTestCase {
             TopNEncoder.DEFAULT_UNSORTABLE.encodeVInt(v, builder);
             assertThat(builder.length(), equalTo(expectedBytes));
             try (PagedBytes ref = builder.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(TopNEncoder.DEFAULT_UNSORTABLE.decodeVInt(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }

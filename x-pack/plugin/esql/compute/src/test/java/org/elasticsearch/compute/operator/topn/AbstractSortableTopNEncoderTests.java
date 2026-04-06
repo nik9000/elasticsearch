@@ -61,7 +61,7 @@ public abstract class AbstractSortableTopNEncoderTests extends ESTestCase {
             try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "bytes", 0)) {
                 encode.apply(encoder, v, builder);
                 try (PagedBytes ref = builder.build()) {
-                    PagedBytesCursor cursor = ref.cursor();
+                    PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                     assertThat(decode.apply(encoder, cursor), equalTo(v));
                     assertThat(cursor.remaining(), equalTo(0));
                 }

@@ -173,6 +173,7 @@ public class BytesBuilderBenchmark {
     static class Paged implements Destination {
 
         private final PagedBytesBuilder builder;
+        private final PagedBytesCursor scratch = new PagedBytesCursor();
 
         Paged(PageCacheRecycler recycler, NoopCircuitBreaker breaker, int initialCapacity) {
             builder = new PagedBytesBuilder(recycler, breaker, "benchmark", initialCapacity);
@@ -190,7 +191,7 @@ public class BytesBuilderBenchmark {
         @Override
         public long readInts() {
             PagedBytes view = builder.view();
-            PagedBytesCursor cursor = view.cursor();
+            PagedBytesCursor cursor = view.cursor(scratch);
             long sum = 0;
             while (cursor.remaining() >= Integer.BYTES) {
                 sum += cursor.readInt();
@@ -210,7 +211,7 @@ public class BytesBuilderBenchmark {
         @Override
         public long readVInts() {
             PagedBytes view = builder.view();
-            PagedBytesCursor cursor = view.cursor();
+            PagedBytesCursor cursor = view.cursor(scratch);
             long sum = 0;
             while (cursor.remaining() > 0) {
                 sum += cursor.readVInt();
@@ -230,7 +231,7 @@ public class BytesBuilderBenchmark {
         @Override
         public long readBytes() {
             PagedBytes view = builder.view();
-            PagedBytesCursor cursor = view.cursor();
+            PagedBytesCursor cursor = view.cursor(scratch);
             BytesRef scratch = new BytesRef();
             long sum = 0;
             while (cursor.remaining() > 0) {

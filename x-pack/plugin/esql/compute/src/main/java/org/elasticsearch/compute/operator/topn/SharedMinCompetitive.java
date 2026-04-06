@@ -55,6 +55,7 @@ public class SharedMinCompetitive extends SideChannel {
 
     private final PagedBytesBuilder value;
     private final List<KeyConfig> keyConfig;
+    private final PagedBytesCursor scratch = new PagedBytesCursor();
 
     private SharedMinCompetitive(PageCacheRecycler recycler, CircuitBreaker breaker, List<KeyConfig> keyConfig, Supplier supplier) {
         super(supplier);
@@ -106,7 +107,7 @@ public class SharedMinCompetitive extends SideChannel {
             }
             ResultBuilder[] builders = new ResultBuilder[keyConfig.size()];
             try (PagedBytes ref = copy.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(scratch);
                 for (int i = 0; i < builders.length; i++) {
                     KeyConfig config = keyConfig.get(i);
                     ResultBuilder builder = ResultBuilder.resultBuilderFor(blockFactory, config.elementType, config.encoder, true, 1);

@@ -53,7 +53,7 @@ public class TopNEncoderTests extends ESTestCase {
         try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeLong(v, builder);
             try (PagedBytes ref = builder.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(encoder.decodeLong(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -65,7 +65,7 @@ public class TopNEncoderTests extends ESTestCase {
         try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeInt(v, builder);
             try (PagedBytes ref = builder.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(encoder.decodeInt(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -77,7 +77,7 @@ public class TopNEncoderTests extends ESTestCase {
         try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeDouble(v, builder);
             try (PagedBytes ref = builder.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(encoder.decodeDouble(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -89,7 +89,7 @@ public class TopNEncoderTests extends ESTestCase {
         try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeBoolean(v, builder);
             try (PagedBytes ref = builder.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(encoder.decodeBoolean(cursor), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }
@@ -141,7 +141,7 @@ public class TopNEncoderTests extends ESTestCase {
         try (PagedBytesBuilder builder = newPagedBuilder()) {
             encoder.encodeBytesRef(v, builder);
             try (PagedBytes ref = builder.build()) {
-                PagedBytesCursor cursor = ref.cursor();
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(encoder.decodeBytesRef(cursor, new BytesRef()), equalTo(v));
                 assertThat(cursor.remaining(), equalTo(0));
             }

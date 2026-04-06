@@ -27,7 +27,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(bytes, 0, bytes.length);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(cursor.remaining(), equalTo(bytes.length));
                 for (byte b : bytes) {
                     assertThat(cursor.readByte(), equalTo(b));
@@ -48,7 +48,7 @@ public class PagedBytesCursorTests extends ESTestCase {
                 builder.append(v);
             }
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(cursor.remaining(), equalTo(values.length * Integer.BYTES));
                 for (int v : values) {
                     assertThat(cursor.readInt(), equalTo(v));
@@ -67,7 +67,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             builder.append(padding, 0, padding.length);
             builder.append(value);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 for (int i = 0; i < padding.length; i++) {
                     cursor.readByte();
                 }
@@ -88,7 +88,7 @@ public class PagedBytesCursorTests extends ESTestCase {
                 builder.append(v);
             }
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(cursor.remaining(), equalTo(values.length * Long.BYTES));
                 for (long v : values) {
                     assertThat(cursor.readLong(), equalTo(v));
@@ -110,7 +110,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             }
             int totalBytes = builder.length();
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 assertThat(cursor.remaining(), equalTo(totalBytes));
                 for (int v : values) {
                     assertThat(cursor.readVInt(), equalTo(v));
@@ -129,7 +129,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             builder.append(padding, 0, padding.length);
             builder.appendVInt(value);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 for (int i = 0; i < padding.length; i++)
                     cursor.readByte();
                 assertThat(cursor.readVInt(), equalTo(value));
@@ -144,7 +144,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(expected, 0, expected.length);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 var scratch = new BytesRef();
                 BytesRef result = cursor.readBytesRef(expected.length, scratch);
                 assertThat(result.length, equalTo(expected.length));
@@ -165,7 +165,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             builder.append(padding, 0, padding.length);
             builder.append(expected, 0, expected.length);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 for (int i = 0; i < padding.length; i++)
                     cursor.readByte();
                 var scratch = new BytesRef();
@@ -192,7 +192,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             builder.append(expected, 0, expected.length);
             builder.append((byte) 0x00);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 var scratch = new BytesRef(new byte[expected.length]);
                 BytesRef result = cursor.readTerminatedBytesRef((byte) 0x00, scratch);
                 assertThat(result.length, equalTo(expected.length));
@@ -214,7 +214,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             builder.append(payload, 0, payload.length);
             builder.append((byte) 0x00);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 for (int i = 0; i < padding.length; i++)
                     cursor.readByte();
                 var scratch = new BytesRef(new byte[payload.length]);
@@ -234,7 +234,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(bytes, 0, bytes.length);
             try (PagedBytes ref = builder.build()) {
-                var cursor = ref.cursor();
+                var cursor = ref.cursor(new PagedBytesCursor());
                 cursor.bitwiseNot();
                 assertThat(cursor.remaining(), equalTo(bytes.length));
                 for (byte b : bytes) {
@@ -251,7 +251,7 @@ public class PagedBytesCursorTests extends ESTestCase {
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(bytes, 0, bytes.length);
             try (PagedBytes ref = builder.build()) {
-                var cursor = ref.cursor();
+                var cursor = ref.cursor(new PagedBytesCursor());
                 for (int i = 0; i < skip; i++) {
                     cursor.readByte();
                 }
@@ -273,7 +273,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             builder.append(padding, 0, padding.length);
             builder.append(value);
             try (PagedBytes ref = builder.build()) {
-                var cursor = new PagedBytesCursor(ref);
+                var cursor = ref.cursor(new PagedBytesCursor());
                 for (int i = 0; i < padding.length; i++) {
                     cursor.readByte();
                 }

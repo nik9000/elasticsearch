@@ -23,13 +23,23 @@ public class PagedBytesCursor {
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
-    private final byte[][] pages;
+    private byte[][] pages;
     private int pageIndex;
     private int pageOffset;
     private int remaining;
 
-    PagedBytesCursor(PagedBytes ref) {
+    /**
+     * Make an empty cursor, pointing at nothing.
+     */
+    public PagedBytesCursor() {}
+
+    /**
+     * Reset this cursor to point at the start of {@code ref}.
+     */
+    void init(PagedBytes ref) {
         this.pages = ref.pages();
+        this.pageIndex = 0;
+        this.pageOffset = 0;
         this.remaining = ref.length();
     }
 
