@@ -25,7 +25,7 @@ class UnsupportedTypesTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
         throw new UnsupportedOperationException("Encountered a bug; trying to decode an unsupported data type value for TopN");
     }
 

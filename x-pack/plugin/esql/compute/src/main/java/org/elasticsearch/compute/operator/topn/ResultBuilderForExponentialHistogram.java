@@ -85,7 +85,7 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
 
         @Override
         public BytesRef readBytesRef(BytesRef scratch) {
-            return TopNEncoder.DEFAULT_UNSORTABLE.decodeBytesRef(cursor, scratch);
+            return cursor.readBytesRef(cursor.readVInt(), scratch);
         }
     }
 }

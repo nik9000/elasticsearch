@@ -270,6 +270,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
         /**
          * Appends the bytes remaining in {@code value} to the current entry.
+         * NOCOMMIT rename to append
          */
         Builder appendBytesRef(PagedBytesCursor value);
 

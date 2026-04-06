@@ -98,6 +98,9 @@ class Sample$Type$Aggregator {
             $Type$Block.Builder $type$Block = driverContext.blockFactory().new$Type$BlockBuilder(bytesRefBlock.getPositionCount())
         ) {
             BytesRef scratch = new BytesRef();
+$if(BytesRef)$
+            PagedBytesCursor cursorScratch = new PagedBytesCursor();
+$endif$
             for (int position = 0; position < block.getPositionCount(); position++) {
                 if (bytesRefBlock.isNull(position)) {
                     $type$Block.appendNull();
@@ -111,7 +114,7 @@ class Sample$Type$Aggregator {
                     for (int i = start; i < end; i++) {
                         PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
                         ENCODER.decodeLong(cursor);
-                        $type$Block.append$Type$(ENCODER.decode$Type$(cursor$if(BytesRef)$, scratch$endif$));
+                        $type$Block.append$Type$(ENCODER.decode$Type$(cursor$if(BytesRef)$, cursorScratch$endif$));
                     }
                     if (valueCount > 1) {
                         $type$Block.endPositionEntry();

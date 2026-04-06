@@ -31,6 +31,12 @@ public class PagedBytesCursor {
     private int remaining;
 
     /**
+     * Scratch space for encoders that need to copy-and-mutate bytes. Access via {@link #init(BytesRef)}.
+     */
+    public final BytesRef scratchBytes = new BytesRef();
+    private final byte[][] singlePageHolder = new byte[1][];
+
+    /**
      * Make an empty cursor, pointing at nothing.
      */
     public PagedBytesCursor() {}
@@ -43,6 +49,19 @@ public class PagedBytesCursor {
         this.pageIndex = 0;
         this.pageOffset = 0;
         this.remaining = ref.length();
+    }
+
+    /**
+     * Reset this cursor to point at all bytes in {@code ref}. Used by encoders
+     * that copy-and-mutate via {@link #scratchBytes} and then make the result
+     * readable through the cursor.
+     */
+    public void init(BytesRef ref) {
+        singlePageHolder[0] = ref.bytes;
+        this.pages = singlePageHolder;
+        this.pageIndex = 0;
+        this.pageOffset = ref.offset;
+        this.remaining = ref.length;
     }
 
     /**
@@ -204,25 +223,6 @@ public class PagedBytesCursor {
     }
 
     /**
-     * Read {@code len} bytes and advance, always copying into {@code scratch}.
-     * Use when the caller will mutate the returned bytes in-place.
-     * NOCOMMIT optimize: use arraycopy for the within-page case
-     */
-    public BytesRef readBytesRefMutable(int len, BytesRef scratch) {
-        // NOCOMMIT this shouldn't exist. callers should clone the bytes on their own if needed
-        if (remaining < len) {
-            throw new IllegalArgumentException("not enough bytes");
-        }
-        scratch.bytes = ArrayUtil.grow(scratch.bytes, len);
-        scratch.offset = 0;
-        scratch.length = len;
-        for (int i = 0; i < len; i++) {
-            scratch.bytes[i] = readByte();
-        }
-        return scratch;
-    }
-
-    /**
      * Read bytes up to the end of the current page without crossing a page boundary,
      * returning a zero-copy {@link BytesRef} into the backing page. Advances the cursor.
      */
@@ -270,7 +270,12 @@ public class PagedBytesCursor {
      */
     public BytesRef readTerminatedBytesRef(byte terminator, BytesRef scratch) {
         int len = findTerminator(terminator);
-        readBytesRefMutable(len, scratch);
+        scratch.bytes = ArrayUtil.grow(scratch.bytes, len);
+        scratch.offset = 0;
+        scratch.length = len;
+        for (int i = 0; i < len; i++) {
+            scratch.bytes[i] = readByte();
+        }
         readByte(); // consume the terminator
         return scratch;
     }

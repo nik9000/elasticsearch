@@ -29,9 +29,11 @@ class VersionDescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        cursor.readTerminatedBytesRef((byte) ~Utf8AscTopNEncoder.TERMINATOR, scratch);
-        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + scratch.length);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef((byte) ~Utf8AscTopNEncoder.TERMINATOR, scratch.scratchBytes);
+        BytesRef sb = scratch.scratchBytes;
+        bitwiseNot(sb.bytes, sb.offset, sb.offset + sb.length);
+        scratch.init(sb);
         return scratch;
     }
 

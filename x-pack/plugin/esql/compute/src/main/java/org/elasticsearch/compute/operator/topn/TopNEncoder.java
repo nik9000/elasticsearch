@@ -73,7 +73,7 @@ public interface TopNEncoder {
 
     void encodeBytesRef(BytesRef value, PagedBytesBuilder builder);
 
-    BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch);
+    PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch);
 
     /**
      * Get a version of this encoder that encodes values such that sorting

@@ -86,14 +86,14 @@ final class InternalPacks {
         int positionCount = encoded.getPositionCount();
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             BytesRef inScratch = new BytesRef();
-            BytesRef outScratch = new BytesRef();
+            PagedBytesCursor outScratch = new PagedBytesCursor();
             for (int p = 0; p < positionCount; p++) {
                 if (encoded.isNull(p)) {
                     builder.appendNull();
                     continue;
                 }
                 PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(encoded.getBytesRef(p, inScratch));
-                BytesRef v = ENCODER.decodeBytesRef(cursor, outScratch);
+                PagedBytesCursor v = ENCODER.decodeBytesRef(cursor, outScratch);
                 if (cursor.remaining() == 0) {
                     builder.appendBytesRef(v);
                 } else {

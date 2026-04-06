@@ -20,7 +20,7 @@ class DefaultSortableAscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
         throw new IllegalStateException("Cannot find encoder for BytesRef value");
     }
 

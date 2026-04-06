@@ -39,21 +39,23 @@ final class Utf8DescTopNEncoder extends SortableDescTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        cursor.readTerminatedBytesRef((byte) ~TERMINATOR, scratch);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef((byte) ~TERMINATOR, scratch.scratchBytes);
+        BytesRef sb = scratch.scratchBytes;
         int i = 0;
-        while (i < scratch.length) {
-            int leadByte = ~scratch.bytes[i] & 0xff;
+        while (i < sb.length) {
+            int leadByte = ~sb.bytes[i] & 0xff;
             int numBytes = utf8CodeLength[leadByte];
             if (numBytes == 1) {
-                scratch.bytes[i] = (byte) (~scratch.bytes[i] - 1);
+                sb.bytes[i] = (byte) (~sb.bytes[i] - 1);
             } else {
                 for (int j = i; j < i + numBytes; j++) {
-                    scratch.bytes[j] = (byte) ~scratch.bytes[j];
+                    sb.bytes[j] = (byte) ~sb.bytes[j];
                 }
             }
             i += numBytes;
         }
+        scratch.init(sb);
         return scratch;
     }
 

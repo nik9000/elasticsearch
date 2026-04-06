@@ -29,8 +29,8 @@ class FixedLengthAscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        return cursor.readBytesRef(length, scratch);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        return cursor.slice(length, scratch);
     }
 
     @Override

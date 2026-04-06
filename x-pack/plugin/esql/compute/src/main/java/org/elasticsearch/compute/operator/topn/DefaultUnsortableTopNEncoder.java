@@ -89,8 +89,8 @@ public class DefaultUnsortableTopNEncoder implements TopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        return cursor.readBytesRef(cursor.readVInt(), scratch);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        return cursor.slice(cursor.readVInt(), scratch);
     }
 
     @Override

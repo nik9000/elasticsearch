@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,10 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
             randomValue,
             BytesRef::compareTo,
             TopNEncoder::encodeBytesRef,
-            (encoder, cursor) -> encoder.decodeBytesRef(cursor, new BytesRef())
+            (encoder, cursor) -> {
+                PagedBytesCursor decoded = encoder.decodeBytesRef(cursor, new PagedBytesCursor());
+                return decoded.readBytesRef(decoded.remaining(), new BytesRef());
+            }
         );
     }
 

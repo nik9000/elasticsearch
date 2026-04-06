@@ -32,8 +32,10 @@ class VersionAscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        return cursor.readTerminatedBytesRef(Utf8AscTopNEncoder.TERMINATOR, scratch);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef(Utf8AscTopNEncoder.TERMINATOR, scratch.scratchBytes);
+        scratch.init(scratch.scratchBytes);
+        return scratch;
     }
 
     @Override

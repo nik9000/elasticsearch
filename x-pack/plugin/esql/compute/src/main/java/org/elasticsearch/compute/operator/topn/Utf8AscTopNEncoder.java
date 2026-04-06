@@ -43,17 +43,19 @@ final class Utf8AscTopNEncoder extends SortableAscTopNEncoder {
     }
 
     @Override
-    public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        cursor.readTerminatedBytesRef(TERMINATOR, scratch);
+    public PagedBytesCursor decodeBytesRef(PagedBytesCursor cursor, PagedBytesCursor scratch) {
+        cursor.readTerminatedBytesRef(TERMINATOR, scratch.scratchBytes);
+        BytesRef sb = scratch.scratchBytes;
         int i = 0;
-        while (i < scratch.length) {
-            int leadByte = scratch.bytes[i] & 0xff;
+        while (i < sb.length) {
+            int leadByte = sb.bytes[i] & 0xff;
             int numBytes = utf8CodeLength[leadByte];
             if (numBytes == 1) {
-                scratch.bytes[i]--;
+                sb.bytes[i]--;
             }
             i += numBytes;
         }
+        scratch.init(sb);
         return scratch;
     }
 
