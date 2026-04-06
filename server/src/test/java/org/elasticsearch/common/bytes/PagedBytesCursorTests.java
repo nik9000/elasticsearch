@@ -264,6 +264,46 @@ public class PagedBytesCursorTests extends ESTestCase {
         }
     }
 
+    public void testSlice() {
+        byte[] bytes = randomByteArrayOfLength(randomIntBetween(2, BYTE_PAGE_SIZE * 3));
+        int sliceStart = randomIntBetween(0, bytes.length - 1);
+        int sliceLen = randomIntBetween(1, bytes.length - sliceStart);
+        assertSlice(bytes, sliceStart, sliceLen);
+    }
+
+    public void testSliceExactlyToPageBoundary() {
+        // Fill exactly two pages; slice the first page, then read from the second.
+        byte[] firstPage = randomByteArrayOfLength(BYTE_PAGE_SIZE);
+        byte[] secondPage = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE));
+        byte[] bytes = new byte[firstPage.length + secondPage.length];
+        System.arraycopy(firstPage, 0, bytes, 0, firstPage.length);
+        System.arraycopy(secondPage, 0, bytes, firstPage.length, secondPage.length);
+        assertSlice(bytes, 0, BYTE_PAGE_SIZE);
+    }
+
+    private void assertSlice(byte[] bytes, int sliceStart, int sliceLen) {
+        var breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            builder.append(bytes, 0, bytes.length);
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
+                for (int i = 0; i < sliceStart; i++) {
+                    cursor.readByte();
+                }
+                PagedBytesCursor sliceCursor = cursor.slice(sliceLen, new PagedBytesCursor());
+                assertThat(cursor.remaining(), equalTo(bytes.length - sliceStart - sliceLen));
+                assertThat(sliceCursor.remaining(), equalTo(sliceLen));
+                for (int i = sliceStart; i < sliceStart + sliceLen; i++) {
+                    assertThat(sliceCursor.readByte(), equalTo(bytes[i]));
+                }
+                assertThat(sliceCursor.remaining(), equalTo(0));
+                for (int i = sliceStart + sliceLen; i < bytes.length; i++) {
+                    assertThat(cursor.readByte(), equalTo(bytes[i]));
+                }
+            }
+        }
+    }
+
     public void testReadLongCrossPage() {
         var breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         long value = randomLong();

@@ -14,6 +14,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
+import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
+
 /**
  * A sequential-read cursor over a {@link PagedBytes}. Tracks the current page
  * index and offset within that page. Callers advance the cursor by calling the
@@ -55,6 +57,26 @@ public class PagedBytesCursor {
         this.pageIndex = 0;
         this.pageOffset = ref.offset;
         this.remaining = ref.length;
+    }
+
+    /**
+     * Point {@code scratch} at the next {@code len} bytes and advance this cursor past them.
+     * The returned cursor shares the same backing pages — no copy is made.
+     */
+    public PagedBytesCursor slice(int len, PagedBytesCursor scratch) {
+        if (remaining < len) {
+            throw new IllegalArgumentException("not enough bytes");
+        }
+        scratch.pages = pages;
+        scratch.pageIndex = pageIndex;
+        scratch.pageOffset = pageOffset;
+        scratch.remaining = len;
+        // All pages except the last are exactly BYTE_PAGE_SIZE, so advance arithmetically.
+        int abs = pageOffset + len;
+        pageIndex += abs / BYTE_PAGE_SIZE;
+        pageOffset = abs % BYTE_PAGE_SIZE;
+        remaining -= len;
+        return scratch;
     }
 
     /**
