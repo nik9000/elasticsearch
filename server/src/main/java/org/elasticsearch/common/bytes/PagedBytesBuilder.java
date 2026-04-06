@@ -95,6 +95,13 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     private int usedPages;
 
     /**
+     * High-water mark for recycler pages allocated. May exceed {@link #usedPages} after
+     * {@link #clear()} so that previously-allocated pages can be reused without going
+     * back to the recycler.
+     */
+    private int allocatedPages;
+
+    /**
      * The page currently being filled. When {@code pages == null} then we're
      * in "small tail" mode and this is a heap allocated array. Otherwise, we're in
      * "paged" mode and this is {@code pages[usedPages - 1].v()}.
@@ -300,14 +307,29 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     /**
      * Append an int in variable-length format. Writes between one and five bytes.
      * Smaller values take fewer bytes. Negative numbers always use all 5 bytes.
-     * NOCOMMIT optimize
      */
     public void appendVInt(int value) {
+        if (growTail(Integer.BYTES + 1)) {
+            appendVIntToTail(value);
+        } else {
+            appendVIntPaged(value);
+        }
+    }
+
+    private void appendVIntToTail(int value) {
         while ((value & ~0x7F) != 0) {
-            append((byte) ((value & 0x7f) | 0x80));
+            appendToTail((byte) ((value & 0x7f) | 0x80));
             value >>>= 7;
         }
-        append((byte) value);
+        appendToTail((byte) value);
+    }
+
+    private void appendVIntPaged(int value) {
+        while ((value & ~0x7F) != 0) {
+            appendPaged((byte) ((value & 0x7f) | 0x80));
+            value >>>= 7;
+        }
+        appendPaged((byte) value);
     }
 
     /**
@@ -323,22 +345,14 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
 
     /**
      * Reset to zero length without changing mode. In small-tail mode the heap array
-     * is kept at its current capacity. In paged mode all pages beyond the first are
-     * released back to the recycler; the first page is kept so the next write does
-     * not immediately allocate.
-     * NOCOMMIT keep pages when in paged mode
+     * is kept at its current capacity. In paged mode all allocated pages are kept
+     * for reuse on the next append.
      */
     public void clear() {
         assert mode() != Mode.BUILT : "clear() called on a built PagedBytesBuilder";
         if (pages != null && usedPages > 1) {
-            long released = (long) (usedPages - 1) * PAGE_RAM_BYTES_USED;
-            for (int i = 1; i < usedPages; i++) {
-                pages[i].close();
-                pages[i] = null;
-            }
             usedPages = 1;
             tail = pages[0].v();
-            breaker.addWithoutBreaking(-released);
         }
         tailOffset = 0;
     }
@@ -405,6 +419,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
     private void moveToBuilt() {
         pages = null;
         usedPages = 0;
+        allocatedPages = 0;
         tail = null;
         tailOffset = 0;
         assert mode() == Mode.BUILT;
@@ -479,7 +494,11 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
 
     private void nextPage() {
         maybeGrowPagesArray();
-        grabNextPageFromRecycler();
+        if (usedPages < allocatedPages) {
+            tail = pages[usedPages++].v();
+        } else {
+            grabNextPageFromRecycler();
+        }
         tailOffset = 0;
     }
 
@@ -498,6 +517,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         breaker.addEstimateBytesAndMaybeBreak(PAGE_RAM_BYTES_USED, label);
         Recycler.V<byte[]> v = recycler.bytePage(false);
         pages[usedPages++] = v;
+        allocatedPages = usedPages;
         tail = v.v();
     }
 
@@ -659,7 +679,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         return switch (mode()) {
             case BUILT -> 0;
             case SMALL_TAIL -> SHALLOW_SIZE + smallTailRamBytesUsed(tail.length);
-            case PAGED -> SHALLOW_SIZE + pagesRamBytesUsed(pages.length) + (long) usedPages * PAGE_RAM_BYTES_USED;
+            case PAGED -> SHALLOW_SIZE + pagesRamBytesUsed(pages.length) + (long) allocatedPages * PAGE_RAM_BYTES_USED;
         };
     }
 

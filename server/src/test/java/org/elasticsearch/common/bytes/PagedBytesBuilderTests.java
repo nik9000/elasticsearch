@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
@@ -514,34 +515,53 @@ public class PagedBytesBuilderTests extends ESTestCase {
     }
 
     public void testAppendVInt() {
-        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)), 1);
     }
 
     public void testAppendVIntCranky() {
         try {
-            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker(), 1);
         } catch (CircuitBreakingException e) {
             logger.info("cranky", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
     }
 
-    private void testAppendVInt(CircuitBreaker breaker) {
-        testAgainstOracle(breaker, builder -> {
-            int v = randomInt();
-            builder.appendVInt(v);
-            return vIntBytes(v);
-        });
+    public void testAppendVInts() {
+        testAppendVInt(newLimitedBreaker(ByteSizeValue.ofMb(50)), between(2, 100_000));
     }
 
-    private static byte[] vIntBytes(int value) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(value);
-            BytesRef ref = out.bytes().toBytesRef();
-            return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+    public void testAppendVIntsCranky() {
+        try {
+            testAppendVInt(new CrankyCircuitBreakerService.CrankyCircuitBreaker(), between(2, 100_000));
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
+    }
+
+    private void testAppendVInt(CircuitBreaker breaker, int count) {
+        testAgainstOracle(breaker, builder -> {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                for (int i = 0; i < count; i++) {
+                    int v = switch (between(0, 4)) {
+                        case 0 -> between(0x00, 0x7F);                      // 1 byte
+                        case 1 -> between(0x80, 0x3FFF);                    // 2 bytes
+                        case 2 -> between(0x4000, 0x1FFFFF);                // 3 bytes
+                        case 3 -> between(0x200000, 0xFFFFFFF);             // 4 bytes
+                        default -> randomBoolean()                          // 5 bytes
+                            ? between(0x10000000, Integer.MAX_VALUE)
+                            : between(Integer.MIN_VALUE, -1);
+                    };
+                    builder.appendVInt(v);
+                    out.writeVInt(v);
+                }
+                BytesRef ref = out.bytes().toBytesRef();
+                return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     public void testClearSmallTail() {
@@ -616,7 +636,7 @@ public class PagedBytesBuilderTests extends ESTestCase {
 
             assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.PAGED));
             assertThat(builder.length(), equalTo(0));
-            // breaker should reflect only one page remaining (plus shallow + pages array)
+            // breaker should reflect all allocated pages kept for reuse (plus shallow + pages array)
             assertThat(breaker.getUsed(), equalTo(builder.ramBytesUsed()));
 
             // can still append after clear
