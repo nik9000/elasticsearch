@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
@@ -30,9 +31,9 @@ class FixedLengthDescTopNEncoder extends SortableDescTopNEncoder {
 
     @Override
     public BytesRef decodeBytesRef(PagedBytesCursor cursor, BytesRef scratch) {
-        cursor.readBytesRefMutable(length, scratch);
-        bitwiseNot(scratch.bytes, scratch.offset, scratch.offset + length);
-        return scratch;
+        BytesRef r = cursor.readBytesRef(length, scratch);
+        bitwiseNot(r.bytes, r.offset, r.offset + length);
+        return r;
     }
 
     @Override

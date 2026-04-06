@@ -142,8 +142,8 @@ public class PagedBytesCursor {
      * into the current page when the bytes fit within it (zero-copy), or copies into
      * {@code scratch} when they span a page boundary.
      * <p>
-     * TODO: callers that mutate the result or hold it past the lifetime of the
-     * {@link PagedBytes} must copy — migrate them to do so explicitly.
+     *     NOCOMMIT swap this to returning PagedBytesRef - and have that have an offset.
+     *     NOCOMMIT rewrite javadocs after
      * </p>
      */
     public BytesRef readBytesRef(int len, BytesRef scratch) {

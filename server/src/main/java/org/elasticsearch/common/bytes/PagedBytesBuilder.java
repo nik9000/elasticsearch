@@ -240,7 +240,6 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
 
     /**
      * Append the bitwise NOT of bytes.
-     * NOCOMMIT optimize
      */
     public void appendNot(byte[] b, int off, int len) {
         if (growTail(len)) {
