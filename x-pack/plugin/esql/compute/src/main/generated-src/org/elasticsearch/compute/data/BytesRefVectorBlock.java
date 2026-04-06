@@ -55,7 +55,6 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
         return vector.get(valueIndex, scratch);
     }
 
-
     @Override
     public int getPositionCount() {
         return vector.getPositionCount();

@@ -28,6 +28,7 @@ class ResultBuilderForBytesRef implements ResultBuilder {
      * The value previously set by {@link #decodeKey}.
      */
     private PagedBytesCursor key;
+
     ResultBuilderForBytesRef(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         this.encoder = encoder;
         this.inKey = inKey;

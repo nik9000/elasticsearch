@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.internal;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -44,7 +44,12 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            PagedBytesBuilder work = new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, driverContext.breaker(), "pack_dimensions", 1024)
+            PagedBytesBuilder work = new PagedBytesBuilder(
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                driverContext.breaker(),
+                "pack_dimensions",
+                1024
+            )
         ) {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
@@ -70,7 +75,12 @@ final class InternalPacks {
         int positionCount = encode.getPositionCount();
         try (
             BytesRefVector.Builder builder = driverContext.blockFactory().newBytesRefVectorBuilder(estimateForBytesBuilder(positionCount));
-            PagedBytesBuilder work = new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, driverContext.breaker(), "pack_values", 1024)
+            PagedBytesBuilder work = new PagedBytesBuilder(
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                driverContext.breaker(),
+                "pack_values",
+                1024
+            )
         ) {
             BytesRef scratch = new BytesRef();
             for (int p = 0; p < positionCount; p++) {
@@ -113,7 +123,12 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            PagedBytesBuilder work = new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, driverContext.breaker(), "pack_values", 32)
+            PagedBytesBuilder work = new PagedBytesBuilder(
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                driverContext.breaker(),
+                "pack_values",
+                32
+            )
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = raw.getValueCount(p);
@@ -167,7 +182,12 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(estimateForBytesBuilder(positionCount));
-            PagedBytesBuilder work = new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, driverContext.breaker(), "pack_values", 32)
+            PagedBytesBuilder work = new PagedBytesBuilder(
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                driverContext.breaker(),
+                "pack_values",
+                32
+            )
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int valueCount = raw.getValueCount(p);
@@ -221,7 +241,12 @@ final class InternalPacks {
         int positionCount = raw.getPositionCount();
         try (
             BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount);
-            PagedBytesBuilder work = new PagedBytesBuilder(PageCacheRecycler.NON_RECYCLING_INSTANCE, driverContext.breaker(), "pack_values", 32)
+            PagedBytesBuilder work = new PagedBytesBuilder(
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                driverContext.breaker(),
+                "pack_values",
+                32
+            )
         ) {
             for (int p = 0; p < positionCount; p++) {
                 work.clear();

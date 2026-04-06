@@ -7,13 +7,6 @@
 
 package org.elasticsearch.benchmark._nightly;
 
-import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.util.concurrent.Callable;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.benchmark.Utils;
@@ -21,11 +14,11 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytes;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -40,6 +33,14 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Compares the throughput of four byte-buffer builders for writing and reading

@@ -8,9 +8,9 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
 
 import java.util.Locale;
 

@@ -34,16 +34,10 @@ public abstract class AbstractVersionTopNEncoderTests extends AbstractSortableTo
     }
 
     private static TestCase<BytesRef> testCase(String name, Supplier<BytesRef> randomValue) {
-        return new TestCase<>(
-            name,
-            randomValue,
-            BytesRef::compareTo,
-            TopNEncoder::encodeBytesRef,
-            (encoder, cursor) -> {
-                PagedBytesCursor decoded = encoder.decodeBytesRef(cursor, new PagedBytesCursor());
-                return decoded.readBytesRef(decoded.remaining(), new BytesRef());
-            }
-        );
+        return new TestCase<>(name, randomValue, BytesRef::compareTo, TopNEncoder::encodeBytesRef, (encoder, cursor) -> {
+            PagedBytesCursor decoded = encoder.decodeBytesRef(cursor, new PagedBytesCursor());
+            return decoded.readBytesRef(decoded.remaining(), new BytesRef());
+        });
     }
 
     public void testContainingNul() {

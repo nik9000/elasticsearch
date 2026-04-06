@@ -9,7 +9,6 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.ByteArray;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;

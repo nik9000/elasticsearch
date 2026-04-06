@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
