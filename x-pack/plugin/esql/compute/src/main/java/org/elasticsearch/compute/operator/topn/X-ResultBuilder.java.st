@@ -58,11 +58,11 @@ $endif$
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.append$Type$(inKey ? key : readValueFromValues(cursor));
+            case 1 -> builder.$if(BytesRef)$append$else$append$Type$$endif$(inKey ? key : readValueFromValues(cursor));
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.append$Type$(readValueFromValues(cursor));
+                    builder.$if(BytesRef)$append$else$append$Type$$endif$(readValueFromValues(cursor));
                 }
                 builder.endPositionEntry();
             }
@@ -88,7 +88,7 @@ $endif$
 
     @Override
     public void appendFromKey() {
-        builder.append$Type$(key);
+        builder.$if(BytesRef)$append$else$append$Type$$endif$(key);
     }
 
     @Override

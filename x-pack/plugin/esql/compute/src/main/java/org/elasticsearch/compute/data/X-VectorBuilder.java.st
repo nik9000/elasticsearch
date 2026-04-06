@@ -79,7 +79,7 @@ $if(BytesRef)$
     }
 
     @Override
-    public BytesRefVectorBuilder appendBytesRef(PagedBytesCursor value) {
+    public BytesRefVectorBuilder append(PagedBytesCursor value) {
         ensureCapacity();
         values.append(value);
         valueCount++;

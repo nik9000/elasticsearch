@@ -57,7 +57,7 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     }
 
     @Override
-    public BytesRefVectorBuilder appendBytesRef(PagedBytesCursor value) {
+    public BytesRefVectorBuilder append(PagedBytesCursor value) {
         ensureCapacity();
         values.append(value);
         valueCount++;

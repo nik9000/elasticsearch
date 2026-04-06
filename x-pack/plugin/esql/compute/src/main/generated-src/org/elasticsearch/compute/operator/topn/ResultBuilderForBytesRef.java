@@ -47,11 +47,11 @@ class ResultBuilderForBytesRef implements ResultBuilder {
             case 0 -> {
                 builder.appendNull();
             }
-            case 1 -> builder.appendBytesRef(inKey ? key : readValueFromValues(cursor));
+            case 1 -> builder.append(inKey ? key : readValueFromValues(cursor));
             default -> {
                 builder.beginPositionEntry();
                 for (int i = 0; i < count; i++) {
-                    builder.appendBytesRef(readValueFromValues(cursor));
+                    builder.append(readValueFromValues(cursor));
                 }
                 builder.endPositionEntry();
             }
@@ -69,7 +69,7 @@ class ResultBuilderForBytesRef implements ResultBuilder {
 
     @Override
     public void appendFromKey() {
-        builder.appendBytesRef(key);
+        builder.append(key);
     }
 
     @Override

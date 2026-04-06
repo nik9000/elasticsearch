@@ -114,7 +114,7 @@ $endif$
                     for (int i = start; i < end; i++) {
                         PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
                         ENCODER.decodeLong(cursor);
-                        $type$Block.append$Type$(ENCODER.decode$Type$(cursor$if(BytesRef)$, cursorScratch$endif$));
+                        $type$Block.$if(BytesRef)$append$else$append$Type$$endif$(ENCODER.decode$Type$(cursor$if(BytesRef)$, cursorScratch$endif$));
                     }
                     if (valueCount > 1) {
                         $type$Block.endPositionEntry();

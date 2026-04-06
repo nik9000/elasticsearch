@@ -168,7 +168,7 @@ public final class ExponentialHistogramBlockBuilder implements ExponentialHistog
             minimaBuilder.appendNull();
             maximaBuilder.appendNull();
         }
-        encodedHistogramsBuilder.appendBytesRef(input.readBytesRef(scratch));
+        encodedHistogramsBuilder.append(input.readBytesRef(scratch));
     }
 
     @Override

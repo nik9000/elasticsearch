@@ -65,7 +65,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
-    public BytesRefBlockBuilder appendBytesRef(PagedBytesCursor value) {
+    public BytesRefBlockBuilder append(PagedBytesCursor value) {
         ensureCapacity();
         values.append(value);
         hasNonNullValue = true;

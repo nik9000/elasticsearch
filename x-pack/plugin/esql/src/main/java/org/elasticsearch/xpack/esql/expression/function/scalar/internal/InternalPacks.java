@@ -95,12 +95,12 @@ final class InternalPacks {
                 PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(encoded.getBytesRef(p, inScratch));
                 PagedBytesCursor v = ENCODER.decodeBytesRef(cursor, outScratch);
                 if (cursor.remaining() == 0) {
-                    builder.appendBytesRef(v);
+                    builder.append(v);
                 } else {
                     builder.beginPositionEntry();
-                    builder.appendBytesRef(v);
+                    builder.append(v);
                     while (cursor.remaining() > 0) {
-                        builder.appendBytesRef(ENCODER.decodeBytesRef(cursor, outScratch));
+                        builder.append(ENCODER.decodeBytesRef(cursor, outScratch));
                     }
                     builder.endPositionEntry();
                 }

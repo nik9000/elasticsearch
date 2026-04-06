@@ -112,7 +112,7 @@ class SampleBytesRefAggregator {
                     for (int i = start; i < end; i++) {
                         PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
                         ENCODER.decodeLong(cursor);
-                        BytesRefBlock.appendBytesRef(ENCODER.decodeBytesRef(cursor, cursorScratch));
+                        BytesRefBlock.append(ENCODER.decodeBytesRef(cursor, cursorScratch));
                     }
                     if (valueCount > 1) {
                         BytesRefBlock.endPositionEntry();

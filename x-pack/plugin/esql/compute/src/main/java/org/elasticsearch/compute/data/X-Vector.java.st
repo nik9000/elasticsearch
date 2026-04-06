@@ -288,7 +288,7 @@ $if(BytesRef)$
         /**
          * Appends the bytes remaining in {@code value} to the current entry.
          */
-        Builder appendBytesRef(PagedBytesCursor value);
+        Builder append(PagedBytesCursor value);
 
 $endif$
         @Override

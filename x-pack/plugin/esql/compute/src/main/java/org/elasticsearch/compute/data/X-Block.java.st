@@ -389,9 +389,8 @@ $if(BytesRef)$
 
         /**
          * Appends the bytes remaining in {@code value} to the current entry.
-         * NOCOMMIT rename to append
          */
-        Builder appendBytesRef(PagedBytesCursor value);
+        Builder append(PagedBytesCursor value);
 
 $endif$
         /**
