@@ -183,8 +183,9 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
 
     private void appendNotToTail(byte[] b, int off, int len) {
         for (int i = 0; i < len; i++) {
-            appendToTail((byte) ~b[off + i]);
+            tail[tailOffset + i] = (byte) ~b[off + i];
         }
+        tailOffset += len;
     }
 
     private void appendPaged(byte b) {
@@ -231,9 +232,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
                 nextPage();
             }
             int toCopy = Math.min(tail.length - tailOffset, len);
-            for (int i = 0; i < toCopy; i++) {
-                appendToTail((byte) ~b[off + i]);
-            }
+            appendNotToTail(b, off, toCopy);
             off += toCopy;
             len -= toCopy;
         }
