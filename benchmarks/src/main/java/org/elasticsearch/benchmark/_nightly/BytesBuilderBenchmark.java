@@ -111,6 +111,7 @@ public class BytesBuilderBenchmark {
     private Breaking breaking;
     private Plain plain;
     private Stream stream;
+    private Destination selected;
 
     @Setup
     public void setup() throws IOException {
@@ -171,6 +172,13 @@ public class BytesBuilderBenchmark {
         breaking = new Breaking(breaker, byteSize);
         plain = new Plain();
         stream = new Stream(0);
+        selected = switch (impl) {
+            case "paged" -> paged;
+            case "breaking" -> breaking;
+            case "plain" -> plain;
+            case "stream" -> stream;
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
 
         if (operation.equals("read")) {
             // Pre-populate the active builder so that read benchmarks measure only
@@ -249,83 +257,35 @@ public class BytesBuilderBenchmark {
     }
 
     private long writeInts() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.writeInts(ints);
-            case "breaking" -> breaking.writeInts(ints);
-            case "plain" -> plain.writeInts(ints);
-            case "stream" -> stream.writeInts(ints);
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.writeInts(ints);
     }
 
     private long writeVInts() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.writeVInts(ints);
-            case "breaking" -> breaking.writeVInts(ints);
-            case "plain" -> plain.writeVInts(ints);
-            case "stream" -> stream.writeVInts(ints);
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.writeVInts(ints);
     }
 
     private long readInts() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.readInts();
-            case "breaking" -> breaking.readInts();
-            case "plain" -> plain.readInts();
-            case "stream" -> stream.readInts();
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.readInts();
     }
 
     private long readVInts() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.readVInts();
-            case "breaking" -> breaking.readVInts();
-            case "plain" -> plain.readVInts();
-            case "stream" -> stream.readVInts();
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.readVInts();
     }
 
     private long readBytes() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.readBytes();
-            case "breaking" -> breaking.readBytes();
-            case "plain" -> plain.readBytes();
-            case "stream" -> stream.readBytes();
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.readBytes();
     }
 
     private long readNotBytes() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.readNotBytes();
-            case "breaking" -> breaking.readNotBytes();
-            case "plain" -> plain.readNotBytes();
-            case "stream" -> stream.readNotBytes();
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.readNotBytes();
     }
 
     private long writeBytes() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.writeBytes(chunks);
-            case "breaking" -> breaking.writeBytes(chunks);
-            case "plain" -> plain.writeBytes(chunks);
-            case "stream" -> stream.writeBytes(chunks);
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.writeBytes(chunks);
     }
 
     private long writeNotBytes() throws IOException {
-        return switch (impl) {
-            case "paged" -> paged.writeNot(chunks);
-            case "breaking" -> breaking.writeNot(chunks);
-            case "plain" -> plain.writeNot(chunks);
-            case "stream" -> stream.writeNot(chunks);
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
+        return selected.writeNot(chunks);
     }
 
     interface Destination {
