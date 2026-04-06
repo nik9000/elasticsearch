@@ -621,7 +621,7 @@ public class BytesBuilderBenchmark {
         }
 
         @Override
-        public long writeNot(byte[][] chunks) throws IOException {
+        public long writeNot(byte[][] chunks) {
             output.reset();
             for (byte[] chunk : chunks) {
                 for (byte b : chunk) {
