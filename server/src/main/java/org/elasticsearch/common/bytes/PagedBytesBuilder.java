@@ -57,8 +57,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * <ul>
  *     <li>
  *         {@code BreakingBytesRefBuilder}, but runs more slowly to make sure
- *         it never allocated any single array bigger than 16kb. It's a list
- *         of them.
+ *         it never allocated any single array bigger than 16kb.
  *     </li>
  *     <li>
  *         {@link BytesReference}, but there isn't all of the invokeinterface

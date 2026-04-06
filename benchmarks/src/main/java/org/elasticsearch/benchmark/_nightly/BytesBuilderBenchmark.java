@@ -7,13 +7,19 @@
 
 package org.elasticsearch.benchmark._nightly;
 
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytes;
-import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -31,13 +37,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-
 /**
  * Compares the throughput of four byte-buffer builders for writing and reading
  * back integer data:
@@ -48,23 +47,28 @@ import java.util.concurrent.TimeUnit;
  *   <li>{@code stream} – {@link BytesStreamOutput}, BigArrays-backed stream, no breaker</li>
  * </ul>
  * <p>
- * The {@code data} parameter controls what is written per invocation, e.g.
- * {@code 1000_ints} writes 1000 big-endian {@code int} values (4,000 bytes total).
+ *   The {@code data} parameter controls what is written per invocation, e.g.
+ *   {@code 1000_ints} writes 1000 big-endian {@code int} values (4,000 bytes total).
+ * </p>
  * <p>
- * The {@code operation} parameter selects:
+ *   The {@code operation} parameter selects:
+ * </p>
  * <ul>
  *   <li>{@code write} – clear the builder then write all data items from scratch</li>
  *   <li>{@code read} – iterate over the pre-written bytes and sum them (no write cost)</li>
  * </ul>
  * <p>
- * The builders are intentionally not pre-sized per invocation: after the first
- * iteration each builder has already grown to accommodate the data, so subsequent
- * {@code write} iterations measure steady-state append throughput without
- * allocation cost.
+ *   The builders are intentionally not pre-sized per invocation: after the first
+ *   iteration each builder has already grown to accommodate the data, so subsequent
+ *   {@code write} iterations measure steady-state append throughput without
+ *   allocation cost.
+ * </p>
  * <p>
- * The {@link #selfTest()} runs before any benchmark iteration and exercises all
- * four implementations, which primes the JIT with all the code paths it needs
- * to compile efficiently.
+ *   The {@link #selfTest()} runs before any benchmark iteration and exercises all
+ *   four implementations. This "poisons" operations that are {@code invokevirtual}
+ *   but that only use one invocation in each path, forcing the JVM to invoke them
+ *   a more prod-like way.
+ * </p>
  */
 @Fork(1)
 @Warmup(iterations = 5)
@@ -98,6 +102,7 @@ public class BytesBuilderBenchmark {
     private int count;
     private String dataType;
     private int[] ints;
+    private long expected;
 
     private Paged paged;
     private Breaking breaking;
@@ -107,6 +112,23 @@ public class BytesBuilderBenchmark {
     @Setup
     public void setup() throws IOException {
         parseData();
+        if (operation.equals("write")) {
+            if (dataType.equals("vints")) {
+                long bytes = 0;
+                for (int v : ints) {
+                    bytes += vIntSize(v);
+                }
+                expected = bytes;
+            } else {
+                expected = (long) count * Integer.BYTES;
+            }
+        } else {
+            long sum = 0;
+            for (int v : ints) {
+                sum += v;
+            }
+            expected = sum;
+        }
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
         int byteSize = count * Integer.BYTES;
         paged = new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);
@@ -117,7 +139,11 @@ public class BytesBuilderBenchmark {
         if (operation.equals("read")) {
             // Pre-populate the active builder so that read benchmarks measure only
             // the read path, not write cost.
-            write();
+            if (dataType.equals("vints")) {
+                writeVInts();
+            } else {
+                write();
+            }
         }
     }
 
@@ -132,7 +158,8 @@ public class BytesBuilderBenchmark {
         ints = new int[count];
         Random rng = new Random(42);
         for (int i = 0; i < count; i++) {
-            ints[i] = rng.nextInt();
+            // vints are typically small positive values in production (counts, lengths, ordinals)
+            ints[i] = dataType.equals("vints") ? rng.nextInt(1 << 14) : rng.nextInt();
         }
     }
 
@@ -145,49 +172,57 @@ public class BytesBuilderBenchmark {
     @Benchmark
     public long run() throws IOException {
         return switch (operation) {
-            case "write" -> write();
-            case "read" -> read();
+            case "write" -> switch (dataType) {
+                case "ints" -> write();
+                case "vints" -> writeVInts();
+                default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+            };
+            case "read" -> switch (dataType) {
+                case "ints" -> read();
+                case "vints" -> readVInts();
+                default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+            };
             default -> throw new IllegalArgumentException("unknown operation: " + operation);
         };
     }
 
     private long write() throws IOException {
-        return switch (dataType) {
-            case "ints" -> switch (impl) {
-                case "paged" -> paged.writeInts(ints);
-                case "breaking" -> breaking.writeInts(ints);
-                case "plain" -> plain.writeInts(ints);
-                case "stream" -> stream.writeInts(ints);
-                default -> throw new IllegalArgumentException("unknown impl: " + impl);
-            };
-            case "vints" -> switch (impl) {
-                case "paged" -> paged.writeVInts(ints);
-                case "breaking" -> breaking.writeVInts(ints);
-                case "plain" -> plain.writeVInts(ints);
-                case "stream" -> stream.writeVInts(ints);
-                default -> throw new IllegalArgumentException("unknown impl: " + impl);
-            };
-            default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+        return switch (impl) {
+            case "paged" -> paged.writeInts(ints);
+            case "breaking" -> breaking.writeInts(ints);
+            case "plain" -> plain.writeInts(ints);
+            case "stream" -> stream.writeInts(ints);
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+    }
+
+    private long writeVInts() throws IOException {
+        return switch (impl) {
+            case "paged" -> paged.writeVInts(ints);
+            case "breaking" -> breaking.writeVInts(ints);
+            case "plain" -> plain.writeVInts(ints);
+            case "stream" -> stream.writeVInts(ints);
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
         };
     }
 
     private long read() throws IOException {
-        return switch (dataType) {
-            case "ints" -> switch (impl) {
-                case "paged" -> paged.readInts();
-                case "breaking" -> breaking.readInts();
-                case "plain" -> plain.readInts();
-                case "stream" -> stream.readInts();
-                default -> throw new IllegalArgumentException("unknown impl: " + impl);
-            };
-            case "vints" -> switch (impl) {
-                case "paged" -> paged.readVInts();
-                case "breaking" -> breaking.readVInts();
-                case "plain" -> plain.readVInts();
-                case "stream" -> stream.readVInts();
-                default -> throw new IllegalArgumentException("unknown impl: " + impl);
-            };
-            default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+        return switch (impl) {
+            case "paged" -> paged.readInts();
+            case "breaking" -> breaking.readInts();
+            case "plain" -> plain.readInts();
+            case "stream" -> stream.readInts();
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+    }
+
+    private long readVInts() throws IOException {
+        return switch (impl) {
+            case "paged" -> paged.readVInts();
+            case "breaking" -> breaking.readVInts();
+            case "plain" -> plain.readVInts();
+            case "stream" -> stream.readVInts();
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
         };
     }
 
@@ -202,6 +237,7 @@ public class BytesBuilderBenchmark {
     }
 
     static class Paged implements Destination {
+
         private final PagedBytesBuilder builder;
 
         Paged(PageCacheRecycler recycler, NoopCircuitBreaker breaker, int initialCapacity) {
@@ -254,6 +290,7 @@ public class BytesBuilderBenchmark {
     }
 
     static class Breaking implements Destination {
+
         private final BreakingBytesRefBuilder builder;
 
         Breaking(NoopCircuitBreaker breaker, int initialCapacity) {
@@ -303,6 +340,7 @@ public class BytesBuilderBenchmark {
     }
 
     static class Plain implements Destination {
+
         private final BytesRefBuilder builder = new BytesRefBuilder();
 
         @Override
@@ -344,6 +382,7 @@ public class BytesBuilderBenchmark {
     }
 
     static class Stream implements Destination {
+
         private final BytesStreamOutput output;
 
         Stream(int initialCapacity) {
@@ -396,6 +435,21 @@ public class BytesBuilderBenchmark {
         }
     }
 
+    void assertResult(String label, long result) {
+        if (result != expected) {
+            throw new AssertionError("[" + label + "] expected " + expected + " but got " + result);
+        }
+    }
+
+    private static int vIntSize(int v) {
+        int size = 1;
+        while ((v & ~0x7F) != 0) {
+            size++;
+            v >>>= 7;
+        }
+        return size;
+    }
+
     private static int appendVInt(byte[] bytes, int offset, int v) {
         while ((v & ~0x7F) != 0) {
             bytes[offset++] = (byte) ((v & 0x7F) | 0x80);
@@ -432,43 +486,31 @@ public class BytesBuilderBenchmark {
     }
 
     static void selfTest() {
-        for (String dataParam : new String[] { "1000_ints", "4000_ints", "1000_vints" }) {
-            for (String implParam : new String[] { "paged", "breaking", "plain", "stream" }) {
-                for (String opParam : new String[] { "write", "read" }) {
-                    BytesBuilderBenchmark b = new BytesBuilderBenchmark();
-                    b.data = dataParam;
-                    b.impl = implParam;
-                    b.operation = opParam;
-                    try {
-                        b.setup();
-                    } catch (Exception e) {
-                        throw new AssertionError("error setting up [" + implParam + "/" + opParam + "/" + dataParam + "]", e);
-                    }
-                    long expectedLength = (long) b.count * Integer.BYTES;
-                    long expectedSum = 0;
-                    for (int v : b.ints) {
-                        expectedSum += v;
-                    }
-                    try {
-                        long result = b.run();
-                        boolean ok = opParam.equals("write")
-                            ? (b.dataType.equals("vints") ? result >= (long) b.count : result == expectedLength)
-                            : result == expectedSum;
-                        long expected = opParam.equals("write") ? expectedLength : expectedSum;
-                        if (!ok) {
-                            throw new AssertionError(
-                                "[" + implParam + "/" + opParam + "/" + dataParam + "] expected " + expected + " but got " + result
-                            );
+        try {
+            for (String dataParam : BytesBuilderBenchmark.class.getField("data").getAnnotation(Param.class).value()) {
+                for (String implParam : BytesBuilderBenchmark.class.getField("impl").getAnnotation(Param.class).value()) {
+                    for (String opParam : BytesBuilderBenchmark.class.getField("operation").getAnnotation(Param.class).value()) {
+                        BytesBuilderBenchmark b = new BytesBuilderBenchmark();
+                        b.data = dataParam;
+                        b.impl = implParam;
+                        b.operation = opParam;
+                        try {
+                            b.setup();
+                        } catch (Exception e) {
+                            throw new AssertionError("error setting up [" + implParam + "/" + opParam + "/" + dataParam + "]", e);
                         }
-                    } catch (AssertionError ae) {
-                        throw ae;
-                    } catch (Exception e) {
-                        throw new AssertionError("error running [" + implParam + "/" + opParam + "/" + dataParam + "]", e);
-                    } finally {
-                        b.teardown();
+                        try {
+                            b.assertResult(implParam + "/" + opParam + "/" + dataParam, b.run());
+                        } catch (Exception e) {
+                            throw new AssertionError("error running [" + implParam + "/" + opParam + "/" + dataParam + "]", e);
+                        } finally {
+                            b.teardown();
+                        }
                     }
                 }
             }
+        } catch (NoSuchFieldException e) {
+            throw new AssertionError(e);
         }
     }
 }

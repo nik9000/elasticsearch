@@ -21,6 +21,12 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * Represents a slice of pages spread across multiple {@code byte[]}. All pages
  * except the last have exactly {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
  * {@link #length} tracks how many of those bytes are valid.
+ * <p>
+ *     This is quite like {@link PagedBytesReference} but with stronger constraints
+ *     that should make it faster. It's also accessed directly using
+ *     {@link PagedBytesCursor} or {@link #pages()}, avoiding lots of
+ *     {@code invokevirtual}.
+ * </p>
  */
 public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
     /**
