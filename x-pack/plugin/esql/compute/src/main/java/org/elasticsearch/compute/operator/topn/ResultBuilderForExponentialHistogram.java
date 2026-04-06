@@ -87,5 +87,10 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
         public BytesRef readBytesRef(BytesRef scratch) {
             return cursor.readBytesRef(cursor.readVInt(), scratch);
         }
+
+        @Override
+        public PagedBytesCursor readBytesRef(PagedBytesCursor scratch) {
+            return cursor.slice(cursor.readVInt(), scratch);
+        }
     }
 }

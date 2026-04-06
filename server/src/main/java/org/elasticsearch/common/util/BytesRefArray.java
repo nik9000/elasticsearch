@@ -156,6 +156,12 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         return dest;
     }
 
+    public PagedBytesCursor get(long id, PagedBytesCursor scratch) {
+        final long startOffset = startOffsets.get(id);
+        final int length = (int) (startOffsets.get(id + 1) - startOffset);
+        return bytes.get(startOffset, length, scratch);
+    }
+
     public long size() {
         return size;
     }

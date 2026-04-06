@@ -28,6 +28,8 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
     BytesRef getBytesRef(int position, BytesRef dest);
 
+    PagedBytesCursor get(int position, PagedBytesCursor scratch);
+
     @Override
     BytesRefBlock asBlock();
 

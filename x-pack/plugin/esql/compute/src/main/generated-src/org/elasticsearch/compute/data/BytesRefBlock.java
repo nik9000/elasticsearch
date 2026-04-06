@@ -41,6 +41,18 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
 
     /**
+     * Retrieves the value stored at the given value index as a {@link PagedBytesCursor}.
+     *
+     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
+     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
+     *
+     * @param valueIndex the value index
+     * @param scratch a cursor to use as scratch space; may be returned directly or a new cursor may be returned
+     * @return the data value as a {@link PagedBytesCursor}
+     */
+    PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch);
+
+    /**
      * Checks if this block has the given value at position. If at this index we have a
      * multivalue, then it returns true if any values match.
      *

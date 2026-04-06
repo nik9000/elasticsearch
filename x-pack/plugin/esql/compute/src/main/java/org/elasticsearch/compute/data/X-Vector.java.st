@@ -46,6 +46,8 @@ $endif$
 $if(BytesRef)$
     BytesRef getBytesRef(int position, BytesRef dest);
 
+    PagedBytesCursor get(int position, PagedBytesCursor scratch);
+
 $else$
     $type$ get$Type$(int position);
 

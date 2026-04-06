@@ -110,7 +110,6 @@ class SampleBytesRefAggregator {
                     int start = bytesRefBlock.getFirstValueIndex(position);
                     int end = start + valueCount;
                     for (int i = start; i < end; i++) {
-                        // NOCOMMIT rework these
                         PagedBytesCursor cursor = PagedBytesCursor.fromBytesRef(bytesRefBlock.getBytesRef(i, scratch));
                         ENCODER.decodeLong(cursor);
                         BytesRefBlock.appendBytesRef(ENCODER.decodeBytesRef(cursor, cursorScratch));

@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -126,6 +127,26 @@ public class BytesRefArrayTests extends ESTestCase {
             }
         } finally {
             array.close();
+        }
+    }
+
+    public void testCursorGet() {
+        int size = randomIntBetween(1, 16 * 1024);
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(0, size), mockBigArrays())) {
+            BytesRef[] values = new BytesRef[size];
+            for (int i = 0; i < size; i++) {
+                values[i] = new BytesRef(randomByteArrayOfLength(between(0, 50)));
+                array.append(values[i]);
+            }
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            for (int i = 0; i < size; i++) {
+                int pos = randomIntBetween(0, size - 1);
+                array.get(pos, cursor);
+                assertThat(cursor.remaining(), equalTo(values[pos].length));
+                for (int j = 0; j < values[pos].length; j++) {
+                    assertThat(cursor.readByte(), equalTo(values[pos].bytes[values[pos].offset + j]));
+                }
+            }
         }
     }
 

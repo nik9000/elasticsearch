@@ -9,6 +9,7 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteArray;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -33,8 +34,12 @@ public class PagedBytesCursor {
     /**
      * Scratch space for encoders that need to copy-and-mutate bytes. Access via {@link #init(BytesRef)}.
      */
-    public final BytesRef scratchBytes = new BytesRef();
-    private final byte[][] singlePageHolder = new byte[1][];
+    public final BytesRef scratchBytes = new BytesRef(); // NOCOMMIT remove me
+    /**
+     * Used by {@link #init(byte[], int, int, int)} to hold the single page so
+     * we only have to allocate one time.
+     */
+    private byte[][] singlePageHolder;
 
     /**
      * Make an empty cursor, pointing at nothing.
@@ -44,11 +49,34 @@ public class PagedBytesCursor {
     /**
      * Reset this cursor to point at the start of {@code ref}.
      */
-    void init(PagedBytes ref) {
-        this.pages = ref.pages();
-        this.pageIndex = 0;
-        this.pageOffset = 0;
-        this.remaining = ref.length();
+    public void init(PagedBytes ref) {
+        init(ref.pages(), 0, 0, ref.length());
+    }
+
+    /**
+     * Reset this cursor to point at {@code remaining} bytes starting at
+     * {@code pageIndex}/{@code pageOffset} within {@code pages}.
+     */
+    public void init(byte[][] pages, int pageIndex, int pageOffset, int remaining) {
+        this.pages = pages;
+        this.pageIndex = pageIndex;
+        this.pageOffset = pageOffset;
+        this.remaining = remaining;
+    }
+
+    /**
+     * Reset this cursor to point at {@code remaining} bytes within a single {@code byte[]},
+     * starting at {@code pageOffset}. Lazily allocates the single-page holder on first use.
+     */
+    public void init(byte[] bytes, int pageIndex, int pageOffset, int remaining) {
+        if (singlePageHolder == null) {
+            singlePageHolder = new byte[1][];
+        }
+        singlePageHolder[0] = bytes;
+        this.pages = singlePageHolder;
+        this.pageIndex = pageIndex;
+        this.pageOffset = pageOffset;
+        this.remaining = remaining;
     }
 
     /**
@@ -56,12 +84,8 @@ public class PagedBytesCursor {
      * that copy-and-mutate via {@link #scratchBytes} and then make the result
      * readable through the cursor.
      */
-    public void init(BytesRef ref) {
-        singlePageHolder[0] = ref.bytes;
-        this.pages = singlePageHolder;
-        this.pageIndex = 0;
-        this.pageOffset = ref.offset;
-        this.remaining = ref.length;
+    public void init(BytesRef ref) { // NOCOMMIT all calls to this are leftovers
+        init(ref.bytes, 0, ref.offset, ref.length);
     }
 
     /**
@@ -70,6 +94,7 @@ public class PagedBytesCursor {
     public static PagedBytesCursor fromBytesRef(BytesRef ref) {
         return new PagedBytesCursor(ref);
     }
+    // NOCOMMIT all calls to this are leftovers? maybe. same for private ctor below.
 
     private PagedBytesCursor(BytesRef ref) {
         this.pages = new byte[][] { ref.bytes };
