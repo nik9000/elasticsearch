@@ -1,0 +1,72 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "org.elasticsearch.benchmark._nightly.BytesBuilderBenchmark.run",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/home/nik9000/.gradle/jdks/oracle_corporation-25-amd64-linux.2/bin/java",
+        "jvmArgs" : [
+            "-Des.nativelibs.path=/home/nik9000/Code/Elastic/elasticsearch/libs/native/libraries/build/platform/linux-x64",
+            "-Dplugins.dir=/home/nik9000/Code/Elastic/elasticsearch/benchmarks/build/plugins",
+            "-Dtests.index=/home/nik9000/Code/Elastic/elasticsearch/benchmarks/build/index",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.country",
+            "-Duser.language=en",
+            "-Duser.variant"
+        ],
+        "jdkVersion" : "25",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "25+36-3489",
+        "warmupIterations" : 5,
+        "warmupTime" : "10 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 10,
+        "measurementTime" : "10 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "data" : "1000_ints",
+            "impl" : "paged",
+            "operation" : "write"
+        },
+        "primaryMetric" : {
+            "score" : 0.3978173480204253,
+            "scoreError" : 0.003402386347981761,
+            "scoreConfidence" : [
+                0.39441496167244355,
+                0.401219734368407
+            ],
+            "scorePercentiles" : {
+                "0.0" : 0.3950258110764256,
+                "50.0" : 0.39723278362851566,
+                "90.0" : 0.4020781677183123,
+                "95.0" : 0.40224822000921784,
+                "99.0" : 0.40224822000921784,
+                "99.9" : 0.40224822000921784,
+                "99.99" : 0.40224822000921784,
+                "99.999" : 0.40224822000921784,
+                "99.9999" : 0.40224822000921784,
+                "100.0" : 0.40224822000921784
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    0.3958573279491398,
+                    0.3959211814022178,
+                    0.3950258110764256,
+                    0.39743094222215225,
+                    0.3967844920555892,
+                    0.4005476971001624,
+                    0.3987321736139634,
+                    0.3970346250348791,
+                    0.3985910097405054,
+                    0.40224822000921784
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+
