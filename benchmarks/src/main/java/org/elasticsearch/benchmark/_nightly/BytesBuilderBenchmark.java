@@ -9,6 +9,7 @@ package org.elasticsearch.benchmark._nightly;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
+import java.util.concurrent.Callable;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Random;
@@ -17,7 +18,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytes;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -96,7 +100,7 @@ public class BytesBuilderBenchmark {
     @Param({ "write", "read" })
     public String operation;
 
-    @Param({ "1000_ints", "4000_ints", "1000_vints", "100_15_bytes", "100_15_not_bytes" })
+    @Param({ "1000_ints", "4000_ints", "1000_vints", "100_15b_bytes", "100_15b_not_bytes" })
     public String data;
 
     // parsed from data param
@@ -112,10 +116,38 @@ public class BytesBuilderBenchmark {
     private Plain plain;
     private Stream stream;
     private Destination selected;
+    private Callable<Long> write;
+    private Callable<Long> read;
 
     @Setup
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         parseData();
+        NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
+        int byteSize = switch (dataType) {
+            case "bytes", "not_bytes" -> count * chunkSize;
+            default -> count * Integer.BYTES;
+        };
+        selected = switch (impl) {
+            case "paged" -> paged = new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);
+            case "breaking" -> breaking = new Breaking(breaker, byteSize);
+            case "plain" -> plain = new Plain();
+            case "stream" -> stream = new Stream(0);
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+        write = switch (dataType) {
+            case "ints" -> () -> selected.writeInts(ints);
+            case "vints" -> () -> selected.writeVInts(ints);
+            case "bytes" -> () -> selected.writeBytes(chunks);
+            case "not_bytes" -> () -> selected.writeNot(chunks);
+            default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+        };
+        read = switch (dataType) {
+            case "ints" -> selected::readInts;
+            case "vints" -> selected::readVInts;
+            case "bytes" -> selected::readBytes;
+            case "not_bytes" -> selected::readNotBytes;
+            default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+        };
         expected = switch (operation) {
             case "write" -> switch (dataType) {
                 case "vints" -> {
@@ -163,33 +195,11 @@ public class BytesBuilderBenchmark {
             };
             default -> throw new IllegalArgumentException("unknown operation: " + operation);
         };
-        NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
-        int byteSize = switch (dataType) {
-            case "bytes", "not_bytes" -> count * chunkSize;
-            default -> count * Integer.BYTES;
-        };
-        paged = new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);
-        breaking = new Breaking(breaker, byteSize);
-        plain = new Plain();
-        stream = new Stream(0);
-        selected = switch (impl) {
-            case "paged" -> paged;
-            case "breaking" -> breaking;
-            case "plain" -> plain;
-            case "stream" -> stream;
-            default -> throw new IllegalArgumentException("unknown impl: " + impl);
-        };
 
         if (operation.equals("read")) {
             // Pre-populate the active builder so that read benchmarks measure only
             // the read path, not write cost.
-            switch (dataType) {
-                case "ints" -> writeInts();
-                case "vints" -> writeVInts();
-                case "bytes" -> writeBytes();
-                case "not_bytes" -> writeNotBytes();
-                default -> throw new IllegalArgumentException("operation read does not support data type: " + dataType);
-            }
+            write.call();
         }
     }
 
@@ -219,7 +229,7 @@ public class BytesBuilderBenchmark {
             }
             case "bytes", "not_bytes" -> {
                 String chunkSizeStr = typePart.substring(0, typePart.length() - ("_" + dataType).length());
-                chunkSize = parseChunkSize(chunkSizeStr);
+                chunkSize = Math.toIntExact(ByteSizeValue.parseBytesSizeValue(chunkSizeStr, "chunkSize").getBytes());
                 chunks = new byte[count][chunkSize];
                 for (byte[] chunk : chunks) {
                     rng.nextBytes(chunk);
@@ -231,61 +241,16 @@ public class BytesBuilderBenchmark {
 
     @TearDown
     public void teardown() {
-        paged.close();
-        breaking.close();
+        selected.close();
     }
 
     @Benchmark
-    public long run() throws IOException {
+    public long run() throws Exception {
         return switch (operation) {
-            case "write" -> switch (dataType) {
-                case "ints" -> writeInts();
-                case "vints" -> writeVInts();
-                case "bytes" -> writeBytes();
-                case "not_bytes" -> writeNotBytes();
-                default -> throw new IllegalArgumentException("operation " + operation + " does not support data type: " + dataType);
-            };
-            case "read" -> switch (dataType) {
-                case "ints" -> readInts();
-                case "vints" -> readVInts();
-                case "bytes" -> readBytes();
-                case "not_bytes" -> readNotBytes();
-                default -> throw new IllegalArgumentException("operation " + operation + " does not support data type: " + dataType);
-            };
+            case "write" -> write.call();
+            case "read" -> read.call();
             default -> throw new IllegalArgumentException("unknown operation: " + operation);
         };
-    }
-
-    private long writeInts() throws IOException {
-        return selected.writeInts(ints);
-    }
-
-    private long writeVInts() throws IOException {
-        return selected.writeVInts(ints);
-    }
-
-    private long readInts() throws IOException {
-        return selected.readInts();
-    }
-
-    private long readVInts() throws IOException {
-        return selected.readVInts();
-    }
-
-    private long readBytes() throws IOException {
-        return selected.readBytes();
-    }
-
-    private long readNotBytes() throws IOException {
-        return selected.readNotBytes();
-    }
-
-    private long writeBytes() throws IOException {
-        return selected.writeBytes(chunks);
-    }
-
-    private long writeNotBytes() throws IOException {
-        return selected.writeNot(chunks);
     }
 
     interface Destination {
@@ -304,6 +269,8 @@ public class BytesBuilderBenchmark {
         long writeNot(byte[][] chunks) throws IOException;
 
         long readNotBytes() throws IOException;
+
+        void close();
     }
 
     static class Paged implements Destination {
@@ -392,7 +359,8 @@ public class BytesBuilderBenchmark {
             return readBytes();
         }
 
-        void close() {
+        @Override
+        public void close() {
             builder.close();
         }
     }
@@ -481,7 +449,8 @@ public class BytesBuilderBenchmark {
             return readBytes();
         }
 
-        void close() {
+        @Override
+        public void close() {
             builder.close();
         }
     }
@@ -565,6 +534,9 @@ public class BytesBuilderBenchmark {
         public long readNotBytes() {
             return readBytes();
         }
+
+        @Override
+        public void close() {}
     }
 
     static class Stream implements Destination {
@@ -585,8 +557,8 @@ public class BytesBuilderBenchmark {
         }
 
         /**
-         * Note: {@link BytesStreamOutput#bytes()} returns a concrete {@link org.elasticsearch.common.bytes.BytesArray}
-         * for small outputs, so {@link org.elasticsearch.common.bytes.BytesReference#streamInput()} and
+         * Note: {@link BytesStreamOutput#bytes()} returns a concrete {@link BytesArray}
+         * for small outputs, so {@link BytesReference#streamInput()} and
          * {@link StreamInput#readInt()} here are likely monomorphic — giving this variant an inherent
          * advantage over the others that may not appear in real workloads where multiple implementations
          * are live.
@@ -654,19 +626,15 @@ public class BytesBuilderBenchmark {
         public long readNotBytes() throws IOException {
             return readBytes();
         }
+
+        @Override
+        public void close() {}
     }
 
     void assertResult(String label, long result) {
         if (result != expected) {
             throw new AssertionError("[" + label + "] expected " + expected + " but got " + result);
         }
-    }
-
-    private static int parseChunkSize(String s) {
-        if (s.endsWith("kb")) {
-            return Integer.parseInt(s.substring(0, s.length() - 2)) * 1024;
-        }
-        return Integer.parseInt(s);
     }
 
     private static int vIntSize(int v) {
