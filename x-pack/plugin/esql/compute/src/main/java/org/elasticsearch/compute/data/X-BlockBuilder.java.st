@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 $if(BytesRef)$
 import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
@@ -63,9 +64,9 @@ $endif$
 
 $if(BytesRef)$
     @Override
-    public BytesRefBlockBuilder appendBytesRef(PagedBytes key) {
+    public BytesRefBlockBuilder appendBytesRef(PagedBytes value) {
         ensureCapacity();
-        values.append(key);
+        values.append(value);
         hasNonNullValue = true;
         valueCount++;
         updatePosition();
@@ -73,9 +74,19 @@ $if(BytesRef)$
     }
 
     @Override
-    public BytesRefBlockBuilder appendBytesRef(PagedBytesBuilder builder) {
+    public BytesRefBlockBuilder appendBytesRef(PagedBytesBuilder value) {
         ensureCapacity();
-        values.append(builder);
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
+    @Override
+    public BytesRefBlockBuilder appendBytesRef(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
         hasNonNullValue = true;
         valueCount++;
         updatePosition();

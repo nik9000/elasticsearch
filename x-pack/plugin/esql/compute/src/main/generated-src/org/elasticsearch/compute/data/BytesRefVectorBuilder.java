@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -40,17 +41,25 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
     }
 
     @Override
-    public BytesRefVectorBuilder appendBytesRef(PagedBytes key) {
+    public BytesRefVectorBuilder appendBytesRef(PagedBytes value) {
         ensureCapacity();
-        values.append(key);
+        values.append(value);
         valueCount++;
         return this;
     }
 
     @Override
-    public BytesRefVectorBuilder appendBytesRef(PagedBytesBuilder builder) {
+    public BytesRefVectorBuilder appendBytesRef(PagedBytesBuilder value) {
         ensureCapacity();
-        values.append(builder);
+        values.append(value);
+        valueCount++;
+        return this;
+    }
+
+    @Override
+    public BytesRefVectorBuilder appendBytesRef(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
         valueCount++;
         return this;
     }

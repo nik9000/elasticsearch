@@ -228,6 +228,42 @@ public class PagedBytesCursorTests extends ESTestCase {
         }
     }
 
+    public void testBitwiseNot() {
+        var breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE * 3));
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            builder.append(bytes, 0, bytes.length);
+            try (PagedBytes ref = builder.build()) {
+                var cursor = ref.cursor();
+                cursor.bitwiseNot();
+                assertThat(cursor.remaining(), equalTo(bytes.length));
+                for (byte b : bytes) {
+                    assertThat(cursor.readByte(), equalTo((byte) ~b));
+                }
+            }
+        }
+    }
+
+    public void testBitwiseNotAfterPartialRead() {
+        var breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        byte[] bytes = randomByteArrayOfLength(randomIntBetween(2, BYTE_PAGE_SIZE * 3));
+        int skip = randomIntBetween(1, bytes.length - 1);
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            builder.append(bytes, 0, bytes.length);
+            try (PagedBytes ref = builder.build()) {
+                var cursor = ref.cursor();
+                for (int i = 0; i < skip; i++) {
+                    cursor.readByte();
+                }
+                cursor.bitwiseNot();
+                assertThat(cursor.remaining(), equalTo(bytes.length - skip));
+                for (int i = skip; i < bytes.length; i++) {
+                    assertThat(cursor.readByte(), equalTo((byte) ~bytes[i]));
+                }
+            }
+        }
+    }
+
     public void testReadLongCrossPage() {
         var breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         long value = randomLong();

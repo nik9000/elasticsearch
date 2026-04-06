@@ -191,6 +191,43 @@ public class PagedBytesCursor {
     }
 
     /**
+     * Read bytes up to the end of the current page without crossing a page boundary,
+     * returning a zero-copy {@link BytesRef} into the backing page. Advances the cursor.
+     */
+    public BytesRef readPageChunk(BytesRef scratch) {
+        int len = Math.min(pages[pageIndex].length - pageOffset, remaining);
+        scratch.bytes = pages[pageIndex];
+        scratch.offset = pageOffset;
+        scratch.length = len;
+        pageOffset += len;
+        remaining -= len;
+        if (pageOffset >= pages[pageIndex].length && remaining > 0) {
+            pageIndex++;
+            pageOffset = 0;
+        }
+        return scratch;
+    }
+
+    /**
+     * Flip all bits of the remaining unread bytes in the underlying pages in-place.
+     * The cursor position is not advanced.
+     */
+    public void bitwiseNot() {
+        int rem = remaining;
+        int pi = pageIndex;
+        int po = pageOffset;
+        while (rem > 0) {
+            int len = Math.min(pages[pi].length - po, rem);
+            for (int i = po; i < po + len; i++) {
+                pages[pi][i] = (byte) ~pages[pi][i];
+            }
+            rem -= len;
+            pi++;
+            po = 0;
+        }
+    }
+
+    /**
      * Read bytes up to (and consuming) {@code terminator}, copying them into {@code scratch}.
      * Always copies — callers are expected to mutate the result in place.
      * <p>
