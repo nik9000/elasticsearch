@@ -84,7 +84,8 @@ public class BytesBuilderBenchmark {
         Utils.configureBenchmarkLogging();
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
             // Smoke test all the expected values and force loading subclasses more like prod.
-            // Also primes the JIT with all four implementations before JMH begins warmup.
+            // Confusingly, this makes the test *faster* in some cases and *slower* in others.
+            // If you want to know why, ask a wizard. I don't know.
             selfTest();
         }
     }
@@ -95,13 +96,15 @@ public class BytesBuilderBenchmark {
     @Param({ "write", "read" })
     public String operation;
 
-    @Param({ "1000_ints", "4000_ints", "1000_vints" })
+    @Param({ "1000_ints", "4000_ints", "1000_vints", "100_15_bytes", "100_15_not_bytes" })
     public String data;
 
     // parsed from data param
     private int count;
     private String dataType;
+    private int chunkSize;
     private int[] ints;
+    private byte[][] chunks;
     private long expected;
 
     private Paged paged;
@@ -112,54 +115,109 @@ public class BytesBuilderBenchmark {
     @Setup
     public void setup() throws IOException {
         parseData();
-        if (operation.equals("write")) {
-            if (dataType.equals("vints")) {
-                long bytes = 0;
-                for (int v : ints) {
-                    bytes += vIntSize(v);
+        expected = switch (operation) {
+            case "write" -> switch (dataType) {
+                case "vints" -> {
+                    long total = 0;
+                    for (int v : ints) {
+                        total += vIntSize(v);
+                    }
+                    yield total;
                 }
-                expected = bytes;
-            } else {
-                expected = (long) count * Integer.BYTES;
-            }
-        } else {
-            long sum = 0;
-            for (int v : ints) {
-                sum += v;
-            }
-            expected = sum;
-        }
+                case "bytes", "not_bytes" -> {
+                    long total = 0;
+                    for (byte[] chunk : chunks) {
+                        total += chunk.length;
+                    }
+                    yield total;
+                }
+                default -> (long) count * Integer.BYTES;
+            };
+            case "read" -> switch (dataType) {
+                case "bytes" -> {
+                    long sum = 0;
+                    for (byte[] chunk : chunks) {
+                        for (byte b : chunk) {
+                            sum += b & 0xFF;
+                        }
+                    }
+                    yield sum;
+                }
+                case "not_bytes" -> {
+                    long sum = 0;
+                    for (byte[] chunk : chunks) {
+                        for (byte b : chunk) {
+                            sum += (~b) & 0xFF;
+                        }
+                    }
+                    yield sum;
+                }
+                default -> {
+                    long sum = 0;
+                    for (int v : ints) {
+                        sum += v;
+                    }
+                    yield sum;
+                }
+            };
+            default -> throw new IllegalArgumentException("unknown operation: " + operation);
+        };
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
-        int byteSize = count * Integer.BYTES;
+        int byteSize = switch (dataType) {
+            case "bytes", "not_bytes" -> count * chunkSize;
+            default -> count * Integer.BYTES;
+        };
         paged = new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);
         breaking = new Breaking(breaker, byteSize);
         plain = new Plain();
-        stream = new Stream(byteSize);
+        stream = new Stream(0);
 
         if (operation.equals("read")) {
             // Pre-populate the active builder so that read benchmarks measure only
             // the read path, not write cost.
-            if (dataType.equals("vints")) {
-                writeVInts();
-            } else {
-                write();
+            switch (dataType) {
+                case "ints" -> writeInts();
+                case "vints" -> writeVInts();
+                case "bytes" -> writeBytes();
+                case "not_bytes" -> writeNotBytes();
+                default -> throw new IllegalArgumentException("operation read does not support data type: " + dataType);
             }
         }
     }
 
     private void parseData() {
-        // Format: "{count}_{type}", e.g. "1000_ints" or "1000_vints"
+        // Format: "{count}_{type}" or "{count}x{chunkSize}_{type}"
         int underscore = data.indexOf('_');
         if (underscore < 0) {
             throw new IllegalArgumentException("data param must be '{count}_{type}', got: " + data);
         }
         count = Integer.parseInt(data.substring(0, underscore));
-        dataType = data.substring(underscore + 1);
-        ints = new int[count];
+        String typePart = data.substring(underscore + 1);
+        if (typePart.endsWith("_not_bytes")) {
+            dataType = "not_bytes";
+        } else if (typePart.endsWith("_bytes")) {
+            dataType = "bytes";
+        } else {
+            dataType = typePart;
+        }
         Random rng = new Random(42);
-        for (int i = 0; i < count; i++) {
-            // vints are typically small positive values in production (counts, lengths, ordinals)
-            ints[i] = dataType.equals("vints") ? rng.nextInt(1 << 14) : rng.nextInt();
+        switch (dataType) {
+            case "ints", "vints" -> {
+                ints = new int[count];
+                for (int i = 0; i < count; i++) {
+                    // vints are typically small positive values in production (counts, lengths, ordinals)
+                    ints[i] = dataType.equals("vints") ? rng.nextInt(1 << 14) : rng.nextInt();
+                }
+            }
+            case "bytes", "not_bytes" -> {
+                String chunkSizeStr = typePart.substring(0, typePart.length() - ("_" + dataType).length());
+                chunkSize = parseChunkSize(chunkSizeStr);
+                chunks = new byte[count][chunkSize];
+                for (byte[] chunk : chunks) {
+                    rng.nextBytes(chunk);
+                }
+            }
+            default -> throw new IllegalArgumentException("unknown data type: " + typePart);
         }
     }
 
@@ -173,20 +231,24 @@ public class BytesBuilderBenchmark {
     public long run() throws IOException {
         return switch (operation) {
             case "write" -> switch (dataType) {
-                case "ints" -> write();
+                case "ints" -> writeInts();
                 case "vints" -> writeVInts();
-                default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+                case "bytes" -> writeBytes();
+                case "not_bytes" -> writeNotBytes();
+                default -> throw new IllegalArgumentException("operation " + operation + " does not support data type: " + dataType);
             };
             case "read" -> switch (dataType) {
-                case "ints" -> read();
+                case "ints" -> readInts();
                 case "vints" -> readVInts();
-                default -> throw new IllegalArgumentException("unknown data type: " + dataType);
+                case "bytes" -> readBytes();
+                case "not_bytes" -> readNotBytes();
+                default -> throw new IllegalArgumentException("operation " + operation + " does not support data type: " + dataType);
             };
             default -> throw new IllegalArgumentException("unknown operation: " + operation);
         };
     }
 
-    private long write() throws IOException {
+    private long writeInts() throws IOException {
         return switch (impl) {
             case "paged" -> paged.writeInts(ints);
             case "breaking" -> breaking.writeInts(ints);
@@ -206,7 +268,7 @@ public class BytesBuilderBenchmark {
         };
     }
 
-    private long read() throws IOException {
+    private long readInts() throws IOException {
         return switch (impl) {
             case "paged" -> paged.readInts();
             case "breaking" -> breaking.readInts();
@@ -226,6 +288,46 @@ public class BytesBuilderBenchmark {
         };
     }
 
+    private long readBytes() throws IOException {
+        return switch (impl) {
+            case "paged" -> paged.readBytes();
+            case "breaking" -> breaking.readBytes();
+            case "plain" -> plain.readBytes();
+            case "stream" -> stream.readBytes();
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+    }
+
+    private long readNotBytes() throws IOException {
+        return switch (impl) {
+            case "paged" -> paged.readNotBytes();
+            case "breaking" -> breaking.readNotBytes();
+            case "plain" -> plain.readNotBytes();
+            case "stream" -> stream.readNotBytes();
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+    }
+
+    private long writeBytes() throws IOException {
+        return switch (impl) {
+            case "paged" -> paged.writeBytes(chunks);
+            case "breaking" -> breaking.writeBytes(chunks);
+            case "plain" -> plain.writeBytes(chunks);
+            case "stream" -> stream.writeBytes(chunks);
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+    }
+
+    private long writeNotBytes() throws IOException {
+        return switch (impl) {
+            case "paged" -> paged.writeNot(chunks);
+            case "breaking" -> breaking.writeNot(chunks);
+            case "plain" -> plain.writeNot(chunks);
+            case "stream" -> stream.writeNot(chunks);
+            default -> throw new IllegalArgumentException("unknown impl: " + impl);
+        };
+    }
+
     interface Destination {
         long writeInts(int[] ints) throws IOException;
 
@@ -234,6 +336,14 @@ public class BytesBuilderBenchmark {
         long writeVInts(int[] ints) throws IOException;
 
         long readVInts() throws IOException;
+
+        long writeBytes(byte[][] chunks) throws IOException;
+
+        long readBytes() throws IOException;
+
+        long writeNot(byte[][] chunks) throws IOException;
+
+        long readNotBytes() throws IOException;
     }
 
     static class Paged implements Destination {
@@ -282,6 +392,44 @@ public class BytesBuilderBenchmark {
                 sum += cursor.readVInt();
             }
             return sum;
+        }
+
+        @Override
+        public long writeBytes(byte[][] chunks) {
+            builder.clear();
+            for (byte[] chunk : chunks) {
+                builder.append(chunk, 0, chunk.length);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readBytes() {
+            PagedBytes view = builder.view();
+            PagedBytesCursor cursor = view.cursor();
+            BytesRef scratch = new BytesRef();
+            long sum = 0;
+            while (cursor.remaining() > 0) {
+                BytesRef ref = cursor.readBytesRef(Math.min(cursor.remaining(), PageCacheRecycler.BYTE_PAGE_SIZE), scratch);
+                for (int i = ref.offset; i < ref.offset + ref.length; i++) {
+                    sum += ref.bytes[i] & 0xFF;
+                }
+            }
+            return sum;
+        }
+
+        @Override
+        public long writeNot(byte[][] chunks) {
+            builder.clear();
+            for (byte[] chunk : chunks) {
+                builder.appendNot(chunk, 0, chunk.length);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readNotBytes() {
+            return readBytes();
         }
 
         void close() {
@@ -334,6 +482,45 @@ public class BytesBuilderBenchmark {
             return sumVInts(ref.bytes, ref.offset, ref.offset + ref.length);
         }
 
+        @Override
+        public long writeBytes(byte[][] chunks) {
+            builder.clear();
+            for (byte[] chunk : chunks) {
+                builder.grow(builder.length() + chunk.length);
+                System.arraycopy(chunk, 0, builder.bytes(), builder.length(), chunk.length);
+                builder.setLength(builder.length() + chunk.length);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readBytes() {
+            BytesRef ref = builder.bytesRefView();
+            long sum = 0;
+            for (int i = ref.offset; i < ref.offset + ref.length; i++) {
+                sum += ref.bytes[i] & 0xFF;
+            }
+            return sum;
+        }
+
+        @Override
+        public long writeNot(byte[][] chunks) {
+            builder.clear();
+            for (byte[] chunk : chunks) {
+                builder.grow(builder.length() + chunk.length);
+                for (int i = 0; i < chunk.length; i++) {
+                    builder.bytes()[builder.length() + i] = (byte) ~chunk[i];
+                }
+                builder.setLength(builder.length() + chunk.length);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readNotBytes() {
+            return readBytes();
+        }
+
         void close() {
             builder.close();
         }
@@ -378,6 +565,45 @@ public class BytesBuilderBenchmark {
         public long readVInts() {
             BytesRef ref = builder.get();
             return sumVInts(ref.bytes, ref.offset, ref.offset + ref.length);
+        }
+
+        @Override
+        public long writeBytes(byte[][] chunks) {
+            builder.clear();
+            for (byte[] chunk : chunks) {
+                builder.grow(builder.length() + chunk.length);
+                System.arraycopy(chunk, 0, builder.bytes(), builder.length(), chunk.length);
+                builder.setLength(builder.length() + chunk.length);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readBytes() {
+            BytesRef ref = builder.get();
+            long sum = 0;
+            for (int i = ref.offset; i < ref.offset + ref.length; i++) {
+                sum += ref.bytes[i] & 0xFF;
+            }
+            return sum;
+        }
+
+        @Override
+        public long writeNot(byte[][] chunks) {
+            builder.clear();
+            for (byte[] chunk : chunks) {
+                builder.grow(builder.length() + chunk.length);
+                for (int i = 0; i < chunk.length; i++) {
+                    builder.bytes()[builder.length() + i] = (byte) ~chunk[i];
+                }
+                builder.setLength(builder.length() + chunk.length);
+            }
+            return builder.length();
+        }
+
+        @Override
+        public long readNotBytes() {
+            return readBytes();
         }
     }
 
@@ -433,12 +659,54 @@ public class BytesBuilderBenchmark {
             }
             return sum;
         }
+
+        @Override
+        public long writeNot(byte[][] chunks) throws IOException {
+            output.reset();
+            for (byte[] chunk : chunks) {
+                for (byte b : chunk) {
+                    output.writeByte((byte) ~b);
+                }
+            }
+            return output.size();
+        }
+
+        @Override
+        public long writeBytes(byte[][] chunks) throws IOException {
+            output.reset();
+            for (byte[] chunk : chunks) {
+                output.write(chunk);
+            }
+            return output.size();
+        }
+
+        @Override
+        public long readBytes() throws IOException {
+            StreamInput in = output.bytes().streamInput();
+            long sum = 0;
+            while (in.available() > 0) {
+                sum += in.readByte() & 0xFF;
+            }
+            return sum;
+        }
+
+        @Override
+        public long readNotBytes() throws IOException {
+            return readBytes();
+        }
     }
 
     void assertResult(String label, long result) {
         if (result != expected) {
             throw new AssertionError("[" + label + "] expected " + expected + " but got " + result);
         }
+    }
+
+    private static int parseChunkSize(String s) {
+        if (s.endsWith("kb")) {
+            return Integer.parseInt(s.substring(0, s.length() - 2)) * 1024;
+        }
+        return Integer.parseInt(s);
     }
 
     private static int vIntSize(int v) {
@@ -501,6 +769,8 @@ public class BytesBuilderBenchmark {
                         }
                         try {
                             b.assertResult(implParam + "/" + opParam + "/" + dataParam, b.run());
+                        } catch (IllegalArgumentException e) {
+                            // skip invalid (operation, dataType) combos
                         } catch (Exception e) {
                             throw new AssertionError("error running [" + implParam + "/" + opParam + "/" + dataParam + "]", e);
                         } finally {
