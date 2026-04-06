@@ -7,7 +7,7 @@ name including package to avoid ambiguity. Always pipe through `tee /tmp/bench/<
 
 ```
 cd benchmarks
-../gradlew run --args "org.elasticsearch.benchmark._nightly.BytesBuilderBenchmark -pdata=1000_ints -pimpl=paged -poperation=write -rf json" | tee /tmp/bench/paged_write
+../gradlew run --args "org.elasticsearch.benchmark._nightly.BytesBuilderBenchmark -pdata=1000_ints -pimpl=paged -poperation=write -rf json -rff build/jmh-result.json" | tee /tmp/bench/paged_write
 ```
 
 ## Self-test

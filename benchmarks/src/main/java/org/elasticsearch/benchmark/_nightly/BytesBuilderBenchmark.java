@@ -103,8 +103,6 @@ public class BytesBuilderBenchmark {
     @Param({ "1000_ints", "4000_ints", "1000_vints", "100_15b_bytes", "100_15b_not_bytes" })
     public String data;
 
-    // parsed from data param
-    private Data parsedData;
     private long expected;
 
     private Destination selected;
@@ -113,9 +111,9 @@ public class BytesBuilderBenchmark {
 
     @Setup
     public void setup() throws Exception {
-        parsedData = buildData();
+        Data data = Data.build(this.data);
         NoopCircuitBreaker breaker = new NoopCircuitBreaker("benchmark");
-        int byteSize = (int) parsedData.expectedLength();
+        int byteSize = (int) data.expectedLength();
         selected = switch (impl) {
             case "paged" -> new Paged(PageCacheRecycler.NON_RECYCLING_INSTANCE, breaker, byteSize);
             case "breaking" -> new Breaking(breaker, byteSize);
@@ -123,11 +121,11 @@ public class BytesBuilderBenchmark {
             case "stream" -> new Stream(0);
             default -> throw new IllegalArgumentException("unknown impl: " + impl);
         };
-        write = parsedData.writer(selected);
-        read = parsedData.reader(selected);
+        write = data.writer(selected);
+        read = data.reader(selected);
         expected = switch (operation) {
-            case "write" -> parsedData.expectedLength();
-            case "read" -> parsedData.expectedSum();
+            case "write" -> data.expectedLength();
+            case "read" -> data.expectedSum();
             default -> throw new IllegalArgumentException("unknown operation: " + operation);
         };
 
@@ -136,52 +134,6 @@ public class BytesBuilderBenchmark {
             // the read path, not write cost.
             write.call();
         }
-    }
-
-    private Data buildData() {
-        // Format: "{count}_{type}" or "{count}x{chunkSize}_{type}"
-        int underscore = data.indexOf('_');
-        if (underscore < 0) {
-            throw new IllegalArgumentException("data param must be '{count}_{type}', got: " + data);
-        }
-        int count = Integer.parseInt(data.substring(0, underscore));
-        String typePart = data.substring(underscore + 1);
-        String dataType;
-        if (typePart.endsWith("_not_bytes")) {
-            dataType = "not_bytes";
-        } else if (typePart.endsWith("_bytes")) {
-            dataType = "bytes";
-        } else {
-            dataType = typePart;
-        }
-        Random rng = new Random(42);
-        return switch (dataType) {
-            case "ints" -> {
-                int[] values = new int[count];
-                for (int i = 0; i < count; i++) {
-                    values[i] = rng.nextInt();
-                }
-                yield new Ints(values);
-            }
-            case "vints" -> {
-                int[] values = new int[count];
-                for (int i = 0; i < count; i++) {
-                    // vints are typically small positive values in production (counts, lengths, ordinals)
-                    values[i] = rng.nextInt(1 << 14);
-                }
-                yield new VInts(values);
-            }
-            case "bytes", "not_bytes" -> {
-                String chunkSizeStr = typePart.substring(0, typePart.length() - ("_" + dataType).length());
-                int chunkSize = Math.toIntExact(ByteSizeValue.parseBytesSizeValue(chunkSizeStr, "chunkSize").getBytes());
-                byte[][] chunks = new byte[count][chunkSize];
-                for (byte[] chunk : chunks) {
-                    rng.nextBytes(chunk);
-                }
-                yield dataType.equals("bytes") ? new Bytes(chunks) : new NotBytes(chunks);
-            }
-            default -> throw new IllegalArgumentException("unknown data type: " + typePart);
-        };
     }
 
     @TearDown
@@ -198,136 +150,6 @@ public class BytesBuilderBenchmark {
         };
     }
 
-    sealed interface Data permits Ints, VInts, Bytes, NotBytes {
-        long expectedLength();
-
-        long expectedSum();
-
-        Callable<Long> writer(Destination dest);
-
-        Callable<Long> reader(Destination dest);
-    }
-
-    record Ints(int[] values) implements Data {
-        @Override
-        public long expectedLength() {
-            return (long) values.length * Integer.BYTES;
-        }
-
-        @Override
-        public long expectedSum() {
-            long sum = 0;
-            for (int v : values) {
-                sum += v;
-            }
-            return sum;
-        }
-
-        @Override
-        public Callable<Long> writer(Destination dest) {
-            return () -> dest.writeInts(values);
-        }
-
-        @Override
-        public Callable<Long> reader(Destination dest) {
-            return dest::readInts;
-        }
-    }
-
-    record VInts(int[] values) implements Data {
-        @Override
-        public long expectedLength() {
-            long total = 0;
-            for (int v : values) {
-                total += vIntSize(v);
-            }
-            return total;
-        }
-
-        @Override
-        public long expectedSum() {
-            long sum = 0;
-            for (int v : values) {
-                sum += v;
-            }
-            return sum;
-        }
-
-        @Override
-        public Callable<Long> writer(Destination dest) {
-            return () -> dest.writeVInts(values);
-        }
-
-        @Override
-        public Callable<Long> reader(Destination dest) {
-            return dest::readVInts;
-        }
-    }
-
-    record Bytes(byte[][] chunks) implements Data {
-        @Override
-        public long expectedLength() {
-            long total = 0;
-            for (byte[] chunk : chunks) {
-                total += chunk.length;
-            }
-            return total;
-        }
-
-        @Override
-        public long expectedSum() {
-            long sum = 0;
-            for (byte[] chunk : chunks) {
-                for (byte b : chunk) {
-                    sum += b & 0xFF;
-                }
-            }
-            return sum;
-        }
-
-        @Override
-        public Callable<Long> writer(Destination dest) {
-            return () -> dest.writeBytes(chunks);
-        }
-
-        @Override
-        public Callable<Long> reader(Destination dest) {
-            return dest::readBytes;
-        }
-    }
-
-    record NotBytes(byte[][] chunks) implements Data {
-        @Override
-        public long expectedLength() {
-            long total = 0;
-            for (byte[] chunk : chunks) {
-                total += chunk.length;
-            }
-            return total;
-        }
-
-        @Override
-        public long expectedSum() {
-            long sum = 0;
-            for (byte[] chunk : chunks) {
-                for (byte b : chunk) {
-                    sum += (~b) & 0xFF;
-                }
-            }
-            return sum;
-        }
-
-        @Override
-        public Callable<Long> writer(Destination dest) {
-            return () -> dest.writeNot(chunks);
-        }
-
-        @Override
-        public Callable<Long> reader(Destination dest) {
-            return dest::readNotBytes;
-        }
-    }
-
     interface Destination {
         long writeInts(int[] ints) throws IOException;
 
@@ -341,7 +163,7 @@ public class BytesBuilderBenchmark {
 
         long readBytes() throws IOException;
 
-        long writeNot(byte[][] chunks) throws IOException;
+        long writeNotBytes(byte[][] chunks) throws IOException;
 
         long readNotBytes() throws IOException;
 
@@ -421,7 +243,7 @@ public class BytesBuilderBenchmark {
         }
 
         @Override
-        public long writeNot(byte[][] chunks) {
+        public long writeNotBytes(byte[][] chunks) {
             builder.clear();
             for (byte[] chunk : chunks) {
                 builder.appendNot(chunk, 0, chunk.length);
@@ -507,7 +329,7 @@ public class BytesBuilderBenchmark {
         }
 
         @Override
-        public long writeNot(byte[][] chunks) {
+        public long writeNotBytes(byte[][] chunks) {
             builder.clear();
             for (byte[] chunk : chunks) {
                 builder.grow(builder.length() + chunk.length);
@@ -593,7 +415,7 @@ public class BytesBuilderBenchmark {
         }
 
         @Override
-        public long writeNot(byte[][] chunks) {
+        public long writeNotBytes(byte[][] chunks) {
             builder.clear();
             for (byte[] chunk : chunks) {
                 builder.grow(builder.length() + chunk.length);
@@ -668,7 +490,7 @@ public class BytesBuilderBenchmark {
         }
 
         @Override
-        public long writeNot(byte[][] chunks) {
+        public long writeNotBytes(byte[][] chunks) {
             output.reset();
             for (byte[] chunk : chunks) {
                 for (byte b : chunk) {
@@ -784,6 +606,185 @@ public class BytesBuilderBenchmark {
             }
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
+        }
+    }
+
+    sealed interface Data permits Ints, VInts, Bytes, NotBytes {
+        long expectedLength();
+
+        long expectedSum();
+
+        Callable<Long> writer(Destination dest);
+
+        Callable<Long> reader(Destination dest);
+
+        static Data build(String param) {
+            // Format: "{count}_{type}" or "{count}x{chunkSize}_{type}"
+            int underscore = param.indexOf('_');
+            if (underscore < 0) {
+                throw new IllegalArgumentException("data param must be '{count}_{type}', got: " + param);
+            }
+            int count = Integer.parseInt(param.substring(0, underscore));
+            String typePart = param.substring(underscore + 1);
+            String dataType = parseDataType(typePart);
+            Random rng = new Random(42);
+            return switch (dataType) {
+                case "ints" -> {
+                    int[] values = new int[count];
+                    for (int i = 0; i < count; i++) {
+                        values[i] = rng.nextInt();
+                    }
+                    yield new Ints(values);
+                }
+                case "vints" -> {
+                    int[] values = new int[count];
+                    for (int i = 0; i < count; i++) {
+                        // vints are typically small positive values in production (counts, lengths, ordinals)
+                        values[i] = rng.nextInt(1 << 14);
+                    }
+                    yield new VInts(values);
+                }
+                case "bytes", "not_bytes" -> {
+                    String chunkSizeStr = typePart.substring(0, typePart.length() - ("_" + dataType).length());
+                    int chunkSize = Math.toIntExact(ByteSizeValue.parseBytesSizeValue(chunkSizeStr, "chunkSize").getBytes());
+                    byte[][] chunks = new byte[count][chunkSize];
+                    for (byte[] chunk : chunks) {
+                        rng.nextBytes(chunk);
+                    }
+                    yield dataType.equals("bytes") ? new Bytes(chunks) : new NotBytes(chunks);
+                }
+                default -> throw new IllegalArgumentException("unknown data type: " + typePart);
+            };
+        }
+
+        private static String parseDataType(String typePart) {
+            if (typePart.endsWith("_not_bytes")) {
+                return "not_bytes";
+            } else if (typePart.endsWith("_bytes")) {
+                return "bytes";
+            } else {
+                return typePart;
+            }
+        }
+    }
+
+    record Ints(int[] values) implements Data {
+        @Override
+        public long expectedLength() {
+            return (long) values.length * Integer.BYTES;
+        }
+
+        @Override
+        public long expectedSum() {
+            long sum = 0;
+            for (int v : values) {
+                sum += v;
+            }
+            return sum;
+        }
+
+        @Override
+        public Callable<Long> writer(Destination dest) {
+            return () -> dest.writeInts(values);
+        }
+
+        @Override
+        public Callable<Long> reader(Destination dest) {
+            return dest::readInts;
+        }
+    }
+
+    record VInts(int[] values) implements Data {
+        @Override
+        public long expectedLength() {
+            long total = 0;
+            for (int v : values) {
+                total += vIntSize(v);
+            }
+            return total;
+        }
+
+        @Override
+        public long expectedSum() {
+            long sum = 0;
+            for (int v : values) {
+                sum += v;
+            }
+            return sum;
+        }
+
+        @Override
+        public Callable<Long> writer(Destination dest) {
+            return () -> dest.writeVInts(values);
+        }
+
+        @Override
+        public Callable<Long> reader(Destination dest) {
+            return dest::readVInts;
+        }
+    }
+
+    record Bytes(byte[][] chunks) implements Data {
+        @Override
+        public long expectedLength() {
+            long total = 0;
+            for (byte[] chunk : chunks) {
+                total += chunk.length;
+            }
+            return total;
+        }
+
+        @Override
+        public long expectedSum() {
+            long sum = 0;
+            for (byte[] chunk : chunks) {
+                for (byte b : chunk) {
+                    sum += b & 0xFF;
+                }
+            }
+            return sum;
+        }
+
+        @Override
+        public Callable<Long> writer(Destination dest) {
+            return () -> dest.writeBytes(chunks);
+        }
+
+        @Override
+        public Callable<Long> reader(Destination dest) {
+            return dest::readBytes;
+        }
+    }
+
+    record NotBytes(byte[][] chunks) implements Data {
+        @Override
+        public long expectedLength() {
+            long total = 0;
+            for (byte[] chunk : chunks) {
+                total += chunk.length;
+            }
+            return total;
+        }
+
+        @Override
+        public long expectedSum() {
+            long sum = 0;
+            for (byte[] chunk : chunks) {
+                for (byte b : chunk) {
+                    sum += (~b) & 0xFF;
+                }
+            }
+            return sum;
+        }
+
+        @Override
+        public Callable<Long> writer(Destination dest) {
+            return () -> dest.writeNotBytes(chunks);
+        }
+
+        @Override
+        public Callable<Long> reader(Destination dest) {
+            return dest::readNotBytes;
         }
     }
 }
