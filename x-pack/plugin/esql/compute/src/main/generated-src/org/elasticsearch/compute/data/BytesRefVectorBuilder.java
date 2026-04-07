@@ -46,7 +46,6 @@ final class BytesRefVectorBuilder extends AbstractVectorBuilder implements Bytes
         return this;
     }
 
-
     @Override
     protected int elementSize() {
         return -1;

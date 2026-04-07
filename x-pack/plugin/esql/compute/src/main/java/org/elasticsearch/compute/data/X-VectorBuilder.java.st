@@ -69,7 +69,6 @@ $if(BytesRef)$
     }
 
 $endif$
-
     @Override
     protected int elementSize() {
         return $if(BytesRef)$-1$else$$BYTES$$endif$;
