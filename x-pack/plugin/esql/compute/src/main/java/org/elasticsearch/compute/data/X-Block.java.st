@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,23 +35,58 @@ $endif$
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
 
-$endif$
     /**
-     * Retrieves the $type$ value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * Build a contiguous array of bytes for the value value stored at the
+     * given position. They underlying data is generally stored in pages
+     * that look like {@code byte[][]} with some data spanning more than
+     * one of the inner {@code byte[]} arrays. In that case, this builds
+     * a {@code byte[]} in the {@link BytesRef}, copies the bytes, and
+     * returns it. Otherwise, this returns a zero-copy snapshot of the
+     * underlying data.
+     * <p>
+     *    If possible, use {@link #get} because it'll never copy.
+     * </p>
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
-$if(BytesRef)$
-     * @param dest the destination
-$endif$
-     * @return the data value (as a $type$)
+     * @return the data value (as a BytesRef)
      */
-$if(BytesRef)$
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
 
+    /**
+     * Retrieves the bytes value stored at the given value index using a {@link PagedBytesCursor}
+     * for zero-copy access to the underlying paged byte storage.
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
+     * @param valueIndex the value index
+     * @param scratch the cursor to initialize and return
+     * @return the initialized cursor pointing to the value's bytes
+     */
+    PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch);
+
 $else$
+    /**
+     * Retrieves the $type$ value stored at the given value index.
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
+     * @param valueIndex the value index
+     * @return the data value (as a $type$)
+     */
     $type$ get$Type$(int valueIndex);
 $endif$
 
@@ -361,6 +397,13 @@ $endif$
         @Override
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
+         */
+        Builder append(PagedBytesCursor value);
+
+$endif$
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.

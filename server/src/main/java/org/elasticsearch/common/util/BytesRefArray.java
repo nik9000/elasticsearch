@@ -13,6 +13,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -95,6 +96,21 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         }
     }
 
+    public void append(PagedBytesCursor cursor) {
+        final int length = cursor.remaining();
+        final long startOffset = startOffsets.get(size);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
+        startOffsets.set(size + 1, startOffset + length);
+        ++size;
+        if (length > 0) {
+            bytes = bigArrays.grow(bytes, startOffset + length);
+            long writeOffset = startOffset;
+            while (cursor.remaining() > 0) {
+                writeOffset += cursor.copyPageInto(bytes, writeOffset);
+            }
+        }
+    }
+
     /**
      * Return the key at <code>0 &lt;= index &lt;= capacity()</code>. The result is undefined if the slot is unused.
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
@@ -104,6 +120,12 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
         return dest;
+    }
+
+    public PagedBytesCursor get(long id, PagedBytesCursor scratch) {
+        final long startOffset = startOffsets.get(id);
+        final int length = (int) (startOffsets.get(id + 1) - startOffset);
+        return bytes.get(startOffset, length, scratch);
     }
 
     public long size() {

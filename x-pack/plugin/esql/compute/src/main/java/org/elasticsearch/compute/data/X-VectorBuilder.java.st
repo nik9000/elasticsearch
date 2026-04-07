@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -57,6 +58,17 @@ $endif$
         valueCount++;
         return this;
     }
+
+$if(BytesRef)$
+    @Override
+    public BytesRefVectorBuilder append(PagedBytesCursor value) {
+        ensureCapacity();
+        values.append(value);
+        valueCount++;
+        return this;
+    }
+
+$endif$
 
     @Override
     protected int elementSize() {

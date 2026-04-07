@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +42,32 @@ public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector
 $endif$
 
 $if(BytesRef)$
+    /**
+     * Build a contiguous array of bytes for the value value stored at the
+     * given position. They underlying data is generally stored in pages
+     * that look like {@code byte[][]} with some data spanning more than
+     * one of the inner {@code byte[]} arrays. In that case, this builds
+     * a {@code byte[]} in the {@link BytesRef}, copies the bytes, and
+     * returns it. Otherwise, this returns a zero-copy snapshot of the
+     * underlying data.
+     * <p>
+     *    If possible, use {@link #get} because it'll never copy.
+     * </p>
+     * @param position the position index
+     * @param dest the destination
+     * @return the data value (as a BytesRef)
+     */
     BytesRef getBytesRef(int position, BytesRef dest);
+
+    /**
+     * Positions a cursor at the bytes value stored at the given position.
+     * This never ever ever copies the underlying bytes storage.
+     *
+     * @param position the position index
+     * @param scratch the cursor to initialize and return
+     * @return the initialized cursor pointing to the value's bytes
+     */
+    PagedBytesCursor get(int position, PagedBytesCursor scratch);
 
 $else$
     $type$ get$Type$(int position);
@@ -269,6 +295,13 @@ $endif$
          */
         Builder append$Type$($type$ value);
 
+$if(BytesRef)$
+        /**
+         * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
+         */
+        Builder append(PagedBytesCursor value);
+
+$endif$
         @Override
         $Type$Vector build();
     }
