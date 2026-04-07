@@ -168,7 +168,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
         sb.append(nodeName())
             .append("[")
             .append(indexPattern)
-            .append("], stats")
+            .append("], stats[")
             .append(stat)
             .append("], query[")
             .append(query != null ? Strings.toString(query, false, true) : "")
