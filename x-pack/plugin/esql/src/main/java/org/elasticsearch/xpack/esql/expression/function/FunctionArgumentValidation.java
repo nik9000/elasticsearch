@@ -36,12 +36,6 @@ class FunctionArgumentValidation {
         }
     };
 
-    static void checkIsTimestampAware(Class<? extends Function> function) {
-        if (TimestampAware.class.isAssignableFrom(function) == false) {
-            throw new IllegalArgumentException("function class [" + function.getSimpleName() + "] is not TimestampAware");
-        }
-    }
-
     static BiConsumer<Source, List<Expression>> binary(Class<? extends Function> function) {
         if (OptionalArgument.class.isAssignableFrom(function)) {
             return (source, children) -> {
