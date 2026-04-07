@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Delta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Deriv;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -156,6 +160,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvConc
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDifference;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
@@ -177,6 +182,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialCo
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StBuffer;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDimension;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StEnvelope;
@@ -187,6 +193,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StIsEmpty;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StNPoints;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplify;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopology;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StXMin;
@@ -266,7 +273,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionDefinition.def;
 
 public class EsqlFunctionRegistry {
 
@@ -360,7 +366,7 @@ public class EsqlFunctionRegistry {
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION },
+            new FunctionDefinition[] { Bucket.DEFINITION, Categorize.DEFINITION, TBucket.DEFINITION, TimeSeriesWithout.DEFINITION },
             // aggregate functions
             // since they declare two public constructors - one with filter (for nested where) and one without
             // use casting to disambiguate between the two
@@ -384,7 +390,9 @@ public class EsqlFunctionRegistry {
                 Present.DEFINITION,
                 Absent.DEFINITION,
                 First.DEFINITION,
-                Last.DEFINITION, },
+                Last.DEFINITION,
+                Earliest.DEFINITION,
+                Latest.DEFINITION, },
             // math
             new FunctionDefinition[] {
                 Abs.DEFINITION,
@@ -475,7 +483,9 @@ public class EsqlFunctionRegistry {
                 SpatialWithin.DEFINITION,
                 StDistance.DEFINITION,
                 StEnvelope.DEFINITION,
+                StBuffer.DEFINITION,
                 StSimplify.DEFINITION,
+                StSimplifyPreserveTopology.DEFINITION,
                 StGeohash.DEFINITION,
                 StGeotile.DEFINITION,
                 StGeohex.DEFINITION,
@@ -532,6 +542,7 @@ public class EsqlFunctionRegistry {
                 MvContains.DEFINITION,
                 MvCount.DEFINITION,
                 MvDedupe.DEFINITION,
+                MvDifference.DEFINITION,
                 MvFirst.DEFINITION,
                 MvIntersection.DEFINITION,
                 MvLast.DEFINITION,
@@ -596,7 +607,8 @@ public class EsqlFunctionRegistry {
                 Delay.DEFINITION,
                 // dense vector functions
                 Magnitude.DEFINITION,
-                ToDateRange.DEFINITION } };
+                ToDateRange.DEFINITION,
+                Sparkline.DEFINITION } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
