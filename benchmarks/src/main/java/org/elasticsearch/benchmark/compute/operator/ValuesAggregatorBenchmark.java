@@ -77,6 +77,7 @@ public class ValuesAggregatorBenchmark {
         new BytesRef("Cairo") };
     static {
         assert KEYWORDS.length == UNIQUE_VALUES;
+        Utils.configureBenchmarkLogging();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
