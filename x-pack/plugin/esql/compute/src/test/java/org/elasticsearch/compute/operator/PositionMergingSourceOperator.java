@@ -24,7 +24,7 @@ import org.elasticsearch.compute.test.MappingSourceOperator;
  * <p>
  *     For example:
  * </p>
- * {@snippet lang="markdown":
+ * {@snippet lang="text":
  * |   a   |   b   |
  * | ----- | ----- |
  * |   1   |   a   |
