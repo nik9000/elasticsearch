@@ -51,7 +51,9 @@ public final class Utils {
             }
             return result;
         } catch (NoSuchFieldException e) {
-            throw new AssertionError("unknown field " + clazz.getName() + "#" + field);
+            AssertionError assertionError = new AssertionError("unknown field " + clazz.getName() + "#" + field);
+            assertionError.initCause(e);
+            throw assertionError;
         }
     }
 }
