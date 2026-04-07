@@ -52,7 +52,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
         return this;
     }
 
-
     @Override
     protected int elementSize() {
         return -1;
