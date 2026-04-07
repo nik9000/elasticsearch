@@ -85,19 +85,14 @@ public class GroupedTopNBenchmark {
     }
 
     static void selfTest() {
-        try {
-            for (String data : GroupedTopNBenchmark.class.getField("data").getAnnotationsByType(Param.class)[0].value()) {
-                for (String topCount : GroupedTopNBenchmark.class.getField("topCount").getAnnotationsByType(Param.class)[0].value()) {
-                    for (String groupCount : GroupedTopNBenchmark.class.getField("groupCount").getAnnotationsByType(Param.class)[0]
-                        .value()) {
-                        for (String gk : GroupedTopNBenchmark.class.getField("groupKeys").getAnnotationsByType(Param.class)[0].value()) {
-                            run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
-                        }
+        for (String data : Utils.possibleValues(GroupedTopNBenchmark.class, "data")) {
+            for (String topCount : Utils.possibleValues(GroupedTopNBenchmark.class, "topCount")) {
+                for (String groupCount : Utils.possibleValues(GroupedTopNBenchmark.class, "groupCount")) {
+                    for (String gk : Utils.possibleValues(GroupedTopNBenchmark.class, "groupKeys")) {
+                        run(data, Integer.parseInt(topCount), Integer.parseInt(groupCount), gk, SELF_TEST_PAGES);
                     }
                 }
             }
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError();
         }
     }
 
