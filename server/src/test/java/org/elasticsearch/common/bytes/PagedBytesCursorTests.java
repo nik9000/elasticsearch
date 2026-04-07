@@ -383,11 +383,15 @@ public class PagedBytesCursorTests extends ESTestCase {
         mutated[mutated.length - 1] ^= 1;
         PagedBytesCursor original = new PagedBytesCursor();
         original.init(bytes, 0, 0, bytes.length);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            original,
-            cursor -> { PagedBytesCursor copy = new PagedBytesCursor(); copy.init(bytes, 0, 0, bytes.length); return copy; },
-            cursor -> { PagedBytesCursor mutation = new PagedBytesCursor(); mutation.init(mutated, 0, 0, mutated.length); return mutation; }
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, cursor -> {
+            PagedBytesCursor copy = new PagedBytesCursor();
+            copy.init(bytes, 0, 0, bytes.length);
+            return copy;
+        }, cursor -> {
+            PagedBytesCursor mutation = new PagedBytesCursor();
+            mutation.init(mutated, 0, 0, mutated.length);
+            return mutation;
+        });
     }
 
     public void testHashCodeMatchesBytesRef() {
@@ -449,9 +453,7 @@ public class PagedBytesCursorTests extends ESTestCase {
             if (Assertions.ENABLED) {
                 for (int i = 0; i < pages.length - 1; i++) {
                     if (pages[i].length != BYTE_PAGE_SIZE) {
-                        throw new IllegalStateException(
-                            "page " + i + " has length " + pages[i].length + " but expected " + BYTE_PAGE_SIZE
-                        );
+                        throw new IllegalStateException("page " + i + " has length " + pages[i].length + " but expected " + BYTE_PAGE_SIZE);
                     }
                 }
                 if (pages.length > 0 && pages[pages.length - 1].length > BYTE_PAGE_SIZE) {

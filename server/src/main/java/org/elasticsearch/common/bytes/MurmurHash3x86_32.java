@@ -33,10 +33,7 @@ class MurmurHash3x86_32 {
      */
     void fullPage(byte[] page) {
         for (int i = 0; i < page.length; i += 4) {
-            int k1 = (page[i] & 0xff)
-                | ((page[i + 1] & 0xff) << 8)
-                | ((page[i + 2] & 0xff) << 16)
-                | ((page[i + 3] & 0xff) << 24);
+            int k1 = (page[i] & 0xff) | ((page[i + 1] & 0xff) << 8) | ((page[i + 2] & 0xff) << 16) | ((page[i + 3] & 0xff) << 24);
             k1 *= C1;
             k1 = Integer.rotateLeft(k1, 15);
             k1 *= C2;
@@ -55,10 +52,7 @@ class MurmurHash3x86_32 {
         int roundedEnd = length & ~3;
 
         for (int i = 0; i < roundedEnd; i += 4) {
-            int k1 = (page[i] & 0xff)
-                | ((page[i + 1] & 0xff) << 8)
-                | ((page[i + 2] & 0xff) << 16)
-                | ((page[i + 3] & 0xff) << 24);
+            int k1 = (page[i] & 0xff) | ((page[i + 1] & 0xff) << 8) | ((page[i + 2] & 0xff) << 16) | ((page[i + 3] & 0xff) << 24);
             k1 *= C1;
             k1 = Integer.rotateLeft(k1, 15);
             k1 *= C2;
@@ -70,9 +64,7 @@ class MurmurHash3x86_32 {
         int tailLen = length & 3;
         if (tailLen > 0) {
             int k1 = switch (tailLen) {
-                case 3 -> ((page[roundedEnd + 2] & 0xff) << 16)
-                    | ((page[roundedEnd + 1] & 0xff) << 8)
-                    | (page[roundedEnd] & 0xff);
+                case 3 -> ((page[roundedEnd + 2] & 0xff) << 16) | ((page[roundedEnd + 1] & 0xff) << 8) | (page[roundedEnd] & 0xff);
                 case 2 -> ((page[roundedEnd + 1] & 0xff) << 8) | (page[roundedEnd] & 0xff);
                 default -> page[roundedEnd] & 0xff;
             };
