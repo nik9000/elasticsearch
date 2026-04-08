@@ -38,9 +38,17 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PagedBytesCursorTests extends ESTestCase {
     private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
+    /**
+     * Returns a random byte-array length that sometimes lands on an exact page-multiple
+     * so tests exercise page-boundary edge cases.
+     */
+    private int randomTestArraySize() {
+        return randomBoolean() ? between(1, BYTE_PAGE_SIZE * 3) : between(1, 3) * BYTE_PAGE_SIZE;
+    }
+
     public void testReadByte() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-        byte[] bytes = randomByteArrayOfLength(between(1, BYTE_PAGE_SIZE * 3));
+        byte[] bytes = randomByteArrayOfLength(randomTestArraySize());
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(bytes, 0, bytes.length);
             try (PagedBytes ref = builder.build()) {
@@ -199,7 +207,7 @@ public class PagedBytesCursorTests extends ESTestCase {
 
     public void testBitwiseNot() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-        byte[] bytes = randomByteArrayOfLength(between(1, BYTE_PAGE_SIZE * 3));
+        byte[] bytes = randomByteArrayOfLength(randomTestArraySize());
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
             builder.append(bytes, 0, bytes.length);
             try (PagedBytes ref = builder.build()) {
@@ -268,7 +276,7 @@ public class PagedBytesCursorTests extends ESTestCase {
 
         PagedBytesCursor cursor = new PagedBytesCursor();
         if (randomBoolean()) {
-            cursor.init(flat, 0, 0, totalLen);
+            cursor.init(flat, 0, totalLen);
         } else {
             cursor.init(pages, 0, 0, totalLen, false);
         }
@@ -288,7 +296,7 @@ public class PagedBytesCursorTests extends ESTestCase {
     private void assertSlice(byte[] bytes, int sliceStart, int sliceLen) {
         if (randomBoolean()) {
             PagedBytesCursor cursor = new PagedBytesCursor();
-            cursor.init(bytes, 0, 0, bytes.length);
+            cursor.init(bytes, 0, bytes.length);
             doAssertSlice(cursor, bytes, sliceStart, sliceLen);
         } else {
             CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
@@ -380,18 +388,18 @@ public class PagedBytesCursorTests extends ESTestCase {
     }
 
     public void testEquals() {
-        byte[] bytes = randomByteArrayOfLength(between(1, BYTE_PAGE_SIZE * 3));
+        byte[] bytes = randomByteArrayOfLength(randomTestArraySize());
         byte[] mutated = bytes.clone();
         mutated[mutated.length - 1] ^= 1;
         PagedBytesCursor original = new PagedBytesCursor();
-        original.init(bytes, 0, 0, bytes.length);
+        original.init(bytes, 0, bytes.length);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, cursor -> {
             PagedBytesCursor copy = new PagedBytesCursor();
-            copy.init(bytes, 0, 0, bytes.length);
+            copy.init(bytes, 0, bytes.length);
             return copy;
         }, cursor -> {
             PagedBytesCursor mutation = new PagedBytesCursor();
-            mutation.init(mutated, 0, 0, mutated.length);
+            mutation.init(mutated, 0, mutated.length);
             return mutation;
         });
     }
@@ -412,14 +420,14 @@ public class PagedBytesCursorTests extends ESTestCase {
     public void testToString() {
         byte[] bytes = new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F };
         PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(bytes, 0, 0, bytes.length);
+        cursor.init(bytes, 0, bytes.length);
         assertThat(cursor.toString(), equalTo("[48 65 6C 6C 6F]"));
     }
 
     public void testToStringTruncates() {
         byte[] bytes = new byte[101];
         PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(bytes, 0, 0, bytes.length);
+        cursor.init(bytes, 0, bytes.length);
         assertThat(cursor.toString(), equalTo("[00" + " 00".repeat(99) + "...]"));
     }
 

@@ -811,7 +811,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testAppendPagedBytesCursorVector() {
         byte[] data = randomByteArrayOfLength(between(1, 100));
         PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(data, 0, 0, data.length);
+        cursor.init(data, 0, data.length);
         try (
             BytesRefVector.Builder cursorBuilder = blockFactory.newBytesRefVectorBuilder(1);
             BytesRefVector.Builder bytesRefBuilder = blockFactory.newBytesRefVectorBuilder(1)
@@ -827,7 +827,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testAppendPagedBytesCursorBlock() {
         byte[] data = randomByteArrayOfLength(between(1, 100));
         PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(data, 0, 0, data.length);
+        cursor.init(data, 0, data.length);
         try (
             BytesRefBlock.Builder cursorBuilder = blockFactory.newBytesRefBlockBuilder(1);
             BytesRefBlock.Builder bytesRefBuilder = blockFactory.newBytesRefBlockBuilder(1)

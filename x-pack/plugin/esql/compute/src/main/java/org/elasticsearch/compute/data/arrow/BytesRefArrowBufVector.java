@@ -96,7 +96,7 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
         int length = end - start;
         byte[] buf = new byte[length];
         valueBuffer.getBytes(start, buf, 0, length);
-        scratch.init(buf, 0, 0, length);
+        scratch.init(buf, 0, length);
         return scratch;
     }
 

@@ -390,7 +390,7 @@ public class PagedBytesCursor {
         if (pageOffset == 0 && recyclerSizedPages) {
             int pi = pageIndex;
             int rem = remaining;
-            while (rem >= BYTE_PAGE_SIZE) {
+            while (rem > BYTE_PAGE_SIZE) {
                 hasher.fullPage(pages[pi]);
                 rem -= BYTE_PAGE_SIZE;
                 pi++;

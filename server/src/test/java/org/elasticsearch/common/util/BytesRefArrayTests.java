@@ -186,7 +186,7 @@ public class BytesRefArrayTests extends ESTestCase {
         try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
             byte[] data = randomByteArrayOfLength(between(1, 100));
             PagedBytesCursor cursor = new PagedBytesCursor();
-            cursor.init(data, 0, 0, data.length);
+            cursor.init(data, 0, data.length);
             array.append(cursor);
             assertThat(array.size(), equalTo(1L));
             assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef(data)));
@@ -213,7 +213,7 @@ public class BytesRefArrayTests extends ESTestCase {
     public void testAppendPagedBytesCursorEmpty() {
         try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
             PagedBytesCursor cursor = new PagedBytesCursor();
-            cursor.init(new byte[0], 0, 0, 0);
+            cursor.init(new byte[0], 0, 0);
             array.append(cursor);
             assertThat(array.size(), equalTo(1L));
             assertThat(array.get(0, new BytesRef()), equalTo(new BytesRef()));
@@ -231,7 +231,7 @@ public class BytesRefArrayTests extends ESTestCase {
                 if (randomBoolean()) {
                     array.append(new BytesRef(data));
                 } else {
-                    cursor.init(data, 0, 0, data.length);
+                    cursor.init(data, 0, data.length);
                     array.append(cursor);
                 }
             }

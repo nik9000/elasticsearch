@@ -44,7 +44,7 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
 
     @Override
     public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
-        scratch.init(value.bytes, 0, value.offset, value.length);
+        scratch.init(value.bytes, value.offset, value.length);
         return scratch;
     }
 
