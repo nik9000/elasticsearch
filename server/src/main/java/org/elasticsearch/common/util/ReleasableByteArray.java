@@ -67,7 +67,7 @@ public class ReleasableByteArray implements ByteArray {
     public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
         assert indexIsInt(index);
         BytesReference sliced = this.ref.slice((int) index, len);
-        scratch.init(sliced.array(), 0, sliced.arrayOffset(), sliced.length());
+        scratch.init(sliced.array(), sliced.arrayOffset(), sliced.length());
         return scratch;
     }
 

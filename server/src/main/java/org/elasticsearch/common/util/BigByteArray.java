@@ -89,7 +89,7 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
     public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
         assert index + len <= size();
         if (len == 0) {
-            scratch.init(BytesRef.EMPTY_BYTES, 0, 0, 0);
+            scratch.init(BytesRef.EMPTY_BYTES, 0, 0);
             return scratch;
         }
         scratch.init(pages, pageIdx(index), idxInPage(index), len, true);

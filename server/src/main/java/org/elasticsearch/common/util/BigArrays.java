@@ -138,7 +138,7 @@ public class BigArrays {
         @Override
         public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
             assert indexIsInt(index);
-            scratch.init(array, 0, (int) index, len);
+            scratch.init(array, (int) index, len);
             return scratch;
         }
 

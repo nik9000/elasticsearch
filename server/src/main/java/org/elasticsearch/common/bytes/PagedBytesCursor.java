@@ -63,7 +63,7 @@ public class PagedBytesCursor {
     private boolean recyclerSizedPages;
 
     /**
-     * Used by {@link #init(byte[], int, int, int)} to hold the single page so
+     * Used by {@link #init(byte[], int, int)} to hold the single page so
      * we only have to allocate one time.
      */
     private byte[][] singlePageHolder;
@@ -97,13 +97,13 @@ public class PagedBytesCursor {
      * {@link #recyclerSizedPages} is inferred from whether the page fits within
      * {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
      */
-    public void init(byte[] bytes, int pageIndex, int pageOffset, int remaining) {
+    public void init(byte[] bytes, int pageOffset, int remaining) {
         if (singlePageHolder == null) {
             singlePageHolder = new byte[1][];
         }
         singlePageHolder[0] = bytes;
         this.pages = singlePageHolder;
-        this.pageIndex = pageIndex;
+        this.pageIndex = 0;
         this.pageOffset = pageOffset;
         this.remaining = remaining;
         this.recyclerSizedPages = bytes.length <= BYTE_PAGE_SIZE;
