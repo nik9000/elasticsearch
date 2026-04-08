@@ -388,7 +388,7 @@ public class PagedBytesCursor {
     @Override
     public int hashCode() {
         MurmurHash3x86_32 hasher = new MurmurHash3x86_32();
-        if (pageOffset == 0 && recyclerSizedPages) {
+        if (remaining > 0 && pageOffset == 0 && recyclerSizedPages) {
             int pi = pageIndex;
             int rem = remaining;
             while (rem > BYTE_PAGE_SIZE) {

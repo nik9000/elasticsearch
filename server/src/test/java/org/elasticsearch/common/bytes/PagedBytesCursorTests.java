@@ -396,6 +396,84 @@ public class PagedBytesCursorTests extends ESTestCase {
         });
     }
 
+    public void testEqualsAfterPartial() {
+        // Enough bytes for any read: int(4), vint(1 with masked first byte), slice(4), slice(all)
+        byte[] bytes = randomByteArrayOfLength(between(9, BYTE_PAGE_SIZE * 3));
+        // Guarantee bytes[0] is a valid single-byte vint (bit 7 = 0)
+        bytes[0] &= 0x7F;
+
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(bytes, 0, bytes.length);
+
+        PagedBytesCursor scratch = new PagedBytesCursor();
+        switch (between(0, 3)) {
+            case 0 -> cursor.readInt();
+            case 1 -> cursor.readVInt();
+            case 2 -> cursor.slice(between(1, 4), scratch);
+            case 3 -> cursor.slice(cursor.remaining(), scratch);
+        }
+
+        int consumed = bytes.length - cursor.remaining();
+
+        if (cursor.remaining() == 0) {
+            // Both cursors are empty — just verify equality and matching hash
+            PagedBytesCursor copy = new PagedBytesCursor();
+            copy.init(bytes, consumed, 0);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(cursor, c -> {
+                PagedBytesCursor cp = new PagedBytesCursor();
+                cp.init(bytes, consumed, 0);
+                return cp;
+            });
+        } else {
+            byte[] mutated = bytes.clone();
+            mutated[bytes.length - 1] ^= 1;
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(cursor, c -> {
+                PagedBytesCursor copy = new PagedBytesCursor();
+                copy.init(bytes, consumed, bytes.length - consumed);
+                return copy;
+            }, c -> {
+                PagedBytesCursor mutation = new PagedBytesCursor();
+                mutation.init(mutated, consumed, mutated.length - consumed);
+                return mutation;
+            });
+        }
+    }
+
+    /**
+     * After slicing exactly to a page boundary the cursor's {@code pageIndex} is left at
+     * {@code pages.length} with {@code remaining == 0} and {@code pageOffset == 0}.
+     * The fast path in {@link PagedBytesCursor#hashCode()} then calls {@code pages[pageIndex]}
+     * unconditionally, which throws {@link ArrayIndexOutOfBoundsException}.
+     */
+    public void testHashCodeAfterSliceToPageBoundary() {
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(new byte[BYTE_PAGE_SIZE], 0, BYTE_PAGE_SIZE);
+        PagedBytesCursor scratch = new PagedBytesCursor();
+        cursor.slice(BYTE_PAGE_SIZE, scratch);
+        // cursor is now drained: remaining == 0, pageIndex == pages.length == 1, pageOffset == 0
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(cursor, c -> {
+            PagedBytesCursor copy = new PagedBytesCursor();
+            copy.init(new byte[BYTE_PAGE_SIZE], 0, BYTE_PAGE_SIZE);
+            copy.slice(BYTE_PAGE_SIZE, new PagedBytesCursor());
+            return copy;
+        });
+    }
+
+    public void testEqualsHashCodeEmptyBytes() {
+        PagedBytesCursor original = new PagedBytesCursor();
+        original.init(new byte[0], 0, 0);
+        assertThat(original.hashCode(), equalTo(new BytesRef(new byte[0]).hashCode()));
+        // Copy can be another inited-empty cursor or a completely uninitialized cursor (pages == null)
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, c -> {
+            if (randomBoolean()) {
+                return new PagedBytesCursor();
+            }
+            PagedBytesCursor copy = new PagedBytesCursor();
+            copy.init(new byte[0], 0, 0);
+            return copy;
+        });
+    }
+
     public void testHashCodeMatchesBytesRef() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
         byte[] bytes = randomByteArrayOfLength(between(0, BYTE_PAGE_SIZE * 3));
