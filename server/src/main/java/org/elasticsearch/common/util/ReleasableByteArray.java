@@ -56,6 +56,7 @@ public class ReleasableByteArray implements ByteArray {
         if (sliced.length() != 0) {
             ref.offset = sliced.arrayOffset();
             ref.length = sliced.length();
+            // It's safe to use array because this is always built as a contiguous array.
             ref.bytes = sliced.array();
             return true;
         } else {
@@ -67,6 +68,7 @@ public class ReleasableByteArray implements ByteArray {
     public PagedBytesCursor get(long index, int len, PagedBytesCursor scratch) {
         assert indexIsInt(index);
         BytesReference sliced = this.ref.slice((int) index, len);
+        // It's safe to use array because this is always built as a contiguous array.
         scratch.init(sliced.array(), sliced.arrayOffset(), sliced.length());
         return scratch;
     }

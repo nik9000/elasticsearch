@@ -25,8 +25,8 @@ import java.io.IOException;
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
     OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
     /**
-     * Build a contiguous array of bytes for the value value stored at the
-     * given position. They underlying data is generally stored in pages
+     * Build a contiguous array of bytes for the value stored at the
+     * given position. The underlying data is generally stored in pages
      * that look like {@code byte[][]} with some data spanning more than
      * one of the inner {@code byte[]} arrays. In that case, this builds
      * a {@code byte[]} in the {@link BytesRef}, copies the bytes, and
