@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlParamInfo;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
@@ -437,9 +438,9 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
         LogicalPlan child = null;
         List<Expression> extraParams = new ArrayList<>(Math.max(0, params.size() - 1));
-        List<PromqlFunctionRegistry.ParamInfo> functionParams = metadata.params();
+        List<PromqlParamInfo> functionParams = metadata.params();
         for (int i = 0; i < functionParams.size() && params.size() > i; i++) {
-            PromqlFunctionRegistry.ParamInfo expectedParam = functionParams.get(i);
+            PromqlParamInfo expectedParam = functionParams.get(i);
             LogicalPlan providedParam = switch (params.get(i)) {
                 case LogicalPlan plan -> plan;
                 case Literal literal -> new LiteralSelector(source, literal);

@@ -78,7 +78,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -86,92 +85,77 @@ import java.util.Set;
  */
 public class PromqlFunctionRegistry {
 
-    /**
-     * Describes whether a PromQL function supports counter metric types.
-     * <p>
-     * This is an ES|QL implementation detail — in real PromQL, all functions work with any numeric type.
-     * ES|QL distinguishes counter types from plain numerics internally, and some ESQL functions only
-     * accept one or the other.
-     */
-    public enum CounterSupport {
-        /** Only accepts counter types (e.g., rate, increase, irate). */
-        REQUIRED,
-        /** Accepts both counter and non-counter types. */
-        SUPPORTED,
-        /** Only accepts non-counter numeric types. */
-        UNSUPPORTED
-    }
-
     // Common parameter definitions
-    private static final ParamInfo RANGE_VECTOR = ParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
-    private static final ParamInfo INSTANT_VECTOR = ParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
-    private static final ParamInfo SCALAR = ParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
-    private static final ParamInfo QUANTILE = ParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
-    private static final ParamInfo TO_NEAREST = ParamInfo.optional(
+    // NOCOMMIT remove me
+    private static final PromqlParamInfo RANGE_VECTOR = PromqlParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
+    private static final PromqlParamInfo INSTANT_VECTOR = PromqlParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
+    private static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
+    private static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    private static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
         "Round to nearest multiple of this value."
     );
-    private static final ParamInfo MIN_SCALAR = ParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
-    private static final ParamInfo MAX_SCALAR = ParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
+    private static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
+    private static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
 
-    private static final FunctionDefinition[] FUNCTION_DEFINITIONS = new FunctionDefinition[] {
+    private static final PromqlFunctionDefinition[] FUNCTION_DEFINITIONS = new PromqlFunctionDefinition[] {
         //
         withinSeries(
             "delta",
             Delta::new,
             "Calculates the difference between the first and last value of each time series in a range vector.",
             "delta(cpu_temp_celsius[2h])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeries(
             "idelta",
             Idelta::new,
             "Calculates the difference between the last two samples of each time series in a range vector.",
             "idelta(cpu_temp_celsius[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeries(
             "increase",
             Increase::new,
             "Calculates the increase in the time series in the range vector, adjusting for counter resets.",
             "increase(http_requests_total[5m])",
-            CounterSupport.REQUIRED
+            PromqlFunctionDefinition.CounterSupport.REQUIRED
         ),
         withinSeries(
             "irate",
             Irate::new,
             "Calculates the per-second instant rate of increase based on the last two data points.",
             "irate(http_requests_total[5m])",
-            CounterSupport.REQUIRED
+            PromqlFunctionDefinition.CounterSupport.REQUIRED
         ),
         withinSeries(
             "rate",
             Rate::new,
             "Calculates the per-second average rate of increase of the time series in the range vector.",
             "rate(http_requests_total[5m])",
-            CounterSupport.REQUIRED
+            PromqlFunctionDefinition.CounterSupport.REQUIRED
         ),
         withinSeries(
             "first_over_time",
             FirstOverTime::new,
             "Returns the first value of each time series in the specified time range.",
             "first_over_time(http_requests_total[1h])",
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         ),
         withinSeries(
             "last_over_time",
             LastOverTime::new,
             "Returns the most recent value of each time series in the specified time range.",
             "last_over_time(http_requests_total[1h])",
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         ),
         withinSeries(
             "deriv",
             Deriv::new,
             "Calculates the per-second derivative of the time series using simple linear regression.",
             "deriv(node_memory_free_bytes[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         //
         withinSeriesOverTimeUnary(
@@ -179,63 +163,63 @@ public class PromqlFunctionRegistry {
             AvgOverTime::new,
             "Returns the average value of all points in the specified time range.",
             "avg_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "count_over_time",
             CountOverTime::new,
             "Returns the count of all values in the specified time range.",
             "count_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "max_over_time",
             MaxOverTime::new,
             "Returns the maximum value of all points in the specified time range.",
             "max_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "min_over_time",
             MinOverTime::new,
             "Returns the minimum value of all points in the specified time range.",
             "min_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "sum_over_time",
             SumOverTime::new,
             "Returns the sum of all values in the specified time range.",
             "sum_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "stddev_over_time",
             StddevOverTime::new,
             "Returns the population standard deviation of the values in the specified time range.",
             "stddev_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "stdvar_over_time",
             VarianceOverTime::new,
             "Returns the population standard variance of the values in the specified time range.",
             "stdvar_over_time(http_requests_total[5m])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "absent_over_time",
             AbsentOverTime::new,
             "Returns 1 if the range vector has no elements, otherwise returns an empty vector.",
             "absent_over_time(nonexistent_metric[5m])",
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         ),
         withinSeriesOverTimeUnary(
             "present_over_time",
             PresentOverTime::new,
             "Returns 1 if the range vector has any elements, otherwise returns an empty vector.",
             "present_over_time(http_requests_total[5m])",
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         ),
         //
         withinSeriesOverTimeBinary(
@@ -244,7 +228,7 @@ public class PromqlFunctionRegistry {
             "Returns the φ-quantile (0 ≤ φ ≤ 1) of the values in the specified time range.",
             List.of(QUANTILE, RANGE_VECTOR),
             "quantile_over_time(0.5, http_requests_total[1h])",
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         ),
         //
         acrossSeriesUnary("avg", Avg::new, "Calculates the average of the values across the input vector.", "avg(http_requests_total)"),
@@ -279,12 +263,7 @@ public class PromqlFunctionRegistry {
             "Rounds the sample values of all elements up to the nearest integer.",
             "ceil(rate(http_requests_total[5m]))"
         ),
-        valueTransformationFunction(
-            "abs",
-            Abs::new,
-            "Returns the input vector with all sample values converted to their absolute value.",
-            "abs(rate(http_requests_total[5m]))"
-        ),
+        Abs.PROMQL_DEFINITION,
         valueTransformationFunction(
             "sgn",
             Signum::new,
@@ -443,120 +422,16 @@ public class PromqlFunctionRegistry {
 
     public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
 
-    private final Map<String, FunctionDefinition> promqlFunctions = new HashMap<>();
+    private final Map<String, PromqlFunctionDefinition> promqlFunctions = new HashMap<>();
 
     private PromqlFunctionRegistry() {
-        for (FunctionDefinition def : FUNCTION_DEFINITIONS) {
+        for (PromqlFunctionDefinition def : FUNCTION_DEFINITIONS) {
             String normalized = normalize(def.name());
             promqlFunctions.put(normalized, def);
         }
     }
 
-    /**
-     * Represents the parameter count constraints for a PromQL function.
-     */
-    public record Arity(int min, int max) {
-
-        // Common arity patterns as constants
-        public static final Arity NONE = new Arity(0, 0);
-        public static final Arity ONE = new Arity(1, 1);
-        public static final Arity TWO = new Arity(2, 2);
-        public static final Arity VARIADIC = new Arity(1, Integer.MAX_VALUE);
-
-        public Arity {
-            if (min < 0) {
-                throw new IllegalArgumentException("min must be non-negative");
-            }
-            if (max < min) {
-                throw new IllegalArgumentException("max must be >= min");
-            }
-        }
-
-        public static Arity fixed(int count) {
-            return switch (count) {
-                case 0 -> NONE;
-                case 1 -> ONE;
-                case 2 -> TWO;
-                default -> new Arity(count, count);
-            };
-        }
-
-        public static Arity range(int min, int max) {
-            return min == max ? fixed(min) : new Arity(min, max);
-        }
-
-        public static Arity atLeast(int min) {
-            return min == 1 ? VARIADIC : new Arity(min, Integer.MAX_VALUE);
-        }
-
-        public static Arity optional(int max) {
-            return new Arity(0, max);
-        }
-
-        public boolean validate(int paramCount) {
-            return paramCount >= min && paramCount <= max;
-        }
-    }
-
-    public record ParamInfo(String name, PromqlDataType type, String description, boolean optional, boolean child) {
-        public static ParamInfo child(String name, PromqlDataType type, String description) {
-            return new ParamInfo(name, type, description, false, true);
-        }
-
-        public static ParamInfo of(String name, PromqlDataType type, String description) {
-            return new ParamInfo(name, type, description, false, false);
-        }
-
-        public static ParamInfo optional(String name, PromqlDataType type, String description) {
-            return new ParamInfo(name, type, description, true, false);
-        }
-    }
-
     public record PromqlContext(Expression timestamp, Expression window, Expression step) {}
-
-    @FunctionalInterface
-    public interface EsqlFunctionBuilder {
-        Expression build(Source source, Expression target, PromqlContext ctx, List<Expression> extraParams);
-    }
-
-    /**
-     * Function definition record for registration and metadata.
-     */
-    public record FunctionDefinition(
-        String name,
-        FunctionType functionType,
-        Arity arity,
-        EsqlFunctionBuilder esqlBuilder,
-        String description,
-        List<ParamInfo> params,
-        List<String> examples,
-        CounterSupport counterSupport
-    ) {
-        public FunctionDefinition {
-            Objects.requireNonNull(name, "name cannot be null");
-            Objects.requireNonNull(functionType, "functionType cannot be null");
-            Objects.requireNonNull(arity, "arity cannot be null");
-            Objects.requireNonNull(esqlBuilder, "esqlBuilder cannot be null");
-            Objects.requireNonNull(description, "description cannot be null");
-            Objects.requireNonNull(params, "params cannot be null");
-            Objects.requireNonNull(examples, "examples cannot be null");
-            Objects.requireNonNull(counterSupport, "counterSupport cannot be null");
-            if (arity.max() != params.size()) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "Arity max %d does not match number of parameters %d for function %s",
-                        arity.max(),
-                        params.size(),
-                        name
-                    )
-                );
-            }
-            if (params.isEmpty() == false && params.stream().filter(ParamInfo::child).count() != 1) {
-                throw new IllegalArgumentException("If a function takes parameters, there must be exactly one child parameter");
-            }
-        }
-    }
 
     @FunctionalInterface
     protected interface WithinSeries<T extends TimeSeriesAggregateFunction> {
@@ -584,11 +459,6 @@ public class PromqlFunctionRegistry {
     }
 
     @FunctionalInterface
-    protected interface ValueTransformationFunction<T extends ScalarFunction> {
-        T build(Source source, Expression value);
-    }
-
-    @FunctionalInterface
     protected interface ValueTransformationFunctionBinary<T extends Expression> {
         T build(Source source, Expression value, Expression arg1);
     }
@@ -603,17 +473,17 @@ public class PromqlFunctionRegistry {
         Expression build(Source source);
     }
 
-    private static FunctionDefinition withinSeries(
+    private static PromqlFunctionDefinition withinSeries(
         String name,
         WithinSeries<?> builder,
         String description,
         String example,
-        CounterSupport counterSupport
+        PromqlFunctionDefinition.CounterSupport counterSupport
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.ONE,
+            PromqlFunctionArity.ONE,
             (source, target, ctx, extraParams) -> builder.build(source, target, ctx.window(), ctx.timestamp()),
             description,
             List.of(RANGE_VECTOR),
@@ -622,17 +492,17 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition withinSeriesOverTimeUnary(
+    private static PromqlFunctionDefinition withinSeriesOverTimeUnary(
         String name,
         OverTime<?> builder,
         String description,
         String example,
-        CounterSupport counterSupport
+        PromqlFunctionDefinition.CounterSupport counterSupport
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.WITHIN_SERIES_AGGREGATION,
-            Arity.ONE,
+            PromqlFunctionArity.ONE,
             (source, target, ctx, extraParams) -> builder.build(source, target, Literal.TRUE, ctx.window()),
             description,
             List.of(RANGE_VECTOR),
@@ -641,157 +511,157 @@ public class PromqlFunctionRegistry {
         );
     }
 
-    private static FunctionDefinition withinSeriesOverTimeBinary(
+    private static PromqlFunctionDefinition withinSeriesOverTimeBinary(
         String name,
         OverTimeBinary<?> builder,
         String description,
-        List<ParamInfo> params,
+        List<PromqlParamInfo> params,
         String example,
-        CounterSupport counterSupport
+        PromqlFunctionDefinition.CounterSupport counterSupport
     ) {
-        return new FunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, Arity.TWO, (source, target, ctx, extraParams) -> {
+        return new PromqlFunctionDefinition(name, FunctionType.WITHIN_SERIES_AGGREGATION, PromqlFunctionArity.TWO, (source, target, ctx, extraParams) -> {
             Expression param = extraParams.getFirst();
             return builder.build(source, target, Literal.TRUE, ctx.window(), param);
         }, description, params, List.of(example), counterSupport);
     }
 
-    private static FunctionDefinition acrossSeriesUnary(String name, AcrossSeriesUnary<?> builder, String description, String example) {
-        return new FunctionDefinition(
+    private static PromqlFunctionDefinition acrossSeriesUnary(String name, AcrossSeriesUnary<?> builder, String description, String example) {
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.ACROSS_SERIES_AGGREGATION,
-            Arity.ONE,
+            PromqlFunctionArity.ONE,
             (source, target, ctx, extraParams) -> builder.build(source, target),
             description,
             List.of(INSTANT_VECTOR),
             List.of(example),
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         );
     }
 
-    private static FunctionDefinition acrossSeriesBinary(
+    private static PromqlFunctionDefinition acrossSeriesBinary(
         String name,
         AcrossSeriesBinary<?> builder,
         String description,
-        List<ParamInfo> params,
+        List<PromqlParamInfo> params,
         String example
     ) {
-        return new FunctionDefinition(name, FunctionType.ACROSS_SERIES_AGGREGATION, Arity.TWO, (source, target, ctx, extraParams) -> {
+        return new PromqlFunctionDefinition(name, FunctionType.ACROSS_SERIES_AGGREGATION, PromqlFunctionArity.TWO, (source, target, ctx, extraParams) -> {
             Expression param = extraParams.getFirst();
             return builder.build(source, target, Literal.TRUE, ctx.window(), param);
-        }, description, params, List.of(example), CounterSupport.UNSUPPORTED);
+        }, description, params, List.of(example), PromqlFunctionDefinition.CounterSupport.UNSUPPORTED);
     }
 
-    private static FunctionDefinition valueTransformationFunction(
+    private static PromqlFunctionDefinition valueTransformationFunction(
         String name,
-        ValueTransformationFunction<?> builder,
+        PromqlFunctionDefinition.ValueTransformationFunction<?> builder,
         String description,
         String example
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.VALUE_TRANSFORMATION,
-            Arity.ONE,
+            PromqlFunctionArity.ONE,
             (source, target, ctx, extraParams) -> builder.build(source, target),
             description,
             List.of(INSTANT_VECTOR),
             List.of(example),
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         );
     }
 
-    private static FunctionDefinition valueTransformationFunctionBinary(
+    private static PromqlFunctionDefinition valueTransformationFunctionBinary(
         String name,
         ValueTransformationFunctionBinary<?> builder,
         String description,
-        List<ParamInfo> params,
+        List<PromqlParamInfo> params,
         String example
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.VALUE_TRANSFORMATION,
-            Arity.TWO,
+            PromqlFunctionArity.TWO,
             (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.get(0)),
             description,
             params,
             List.of(example),
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         );
     }
 
-    private static FunctionDefinition valueTransformationFunctionTernary(
+    private static PromqlFunctionDefinition valueTransformationFunctionTernary(
         String name,
         ValueTransformationFunctionTernary<?> builder,
         String description,
-        List<ParamInfo> params,
+        List<PromqlParamInfo> params,
         String example
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.VALUE_TRANSFORMATION,
-            Arity.fixed(3),
+            PromqlFunctionArity.fixed(3),
             (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.get(0), extraParams.get(1)),
             description,
             params,
             List.of(example),
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         );
     }
 
-    private static FunctionDefinition valueTransformationFunctionOptionalArg(
+    private static PromqlFunctionDefinition valueTransformationFunctionOptionalArg(
         String name,
         ValueTransformationFunctionBinary<?> builder,
         String description,
-        List<ParamInfo> params,
+        List<PromqlParamInfo> params,
         String example
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.VALUE_TRANSFORMATION,
-            Arity.range(1, 2),
+            PromqlFunctionArity.range(1, 2),
             (source, target, ctx, extraParams) -> builder.build(source, target, extraParams.isEmpty() ? null : extraParams.getFirst()),
             description,
             params,
             List.of(example),
-            CounterSupport.UNSUPPORTED
+            PromqlFunctionDefinition.CounterSupport.UNSUPPORTED
         );
     }
 
-    private static FunctionDefinition vector(String description, String example) {
-        return new FunctionDefinition(
+    private static PromqlFunctionDefinition vector(String description, String example) {
+        return new PromqlFunctionDefinition(
             "vector",
             FunctionType.VECTOR_CONVERSION,
-            Arity.ONE,
+            PromqlFunctionArity.ONE,
             (source, target, ctx, extraParams) -> target,
             description,
             List.of(SCALAR),
             List.of(example),
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         );
     }
 
-    private static FunctionDefinition scalar(String description, String example) {
-        return new FunctionDefinition(
+    private static PromqlFunctionDefinition scalar(String description, String example) {
+        return new PromqlFunctionDefinition(
             "scalar",
             FunctionType.SCALAR_CONVERSION,
-            Arity.ONE,
+            PromqlFunctionArity.ONE,
             (source, target, ctx, extraParams) -> new Scalar(source, target),
             description,
             List.of(INSTANT_VECTOR),
             List.of(example),
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         );
     }
 
-    private static FunctionDefinition scalarFunction(String name, ScalarFunctionBuilder builder, String description, String example) {
-        return new FunctionDefinition(
+    private static PromqlFunctionDefinition scalarFunction(String name, ScalarFunctionBuilder builder, String description, String example) {
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.SCALAR,
-            Arity.NONE,
+            PromqlFunctionArity.NONE,
             (source, target, ctx, extraParams) -> builder.build(source),
             description,
             List.of(),
             List.of(example),
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         );
     }
 
@@ -800,21 +670,21 @@ public class PromqlFunctionRegistry {
         Expression build(Source source, Expression step);
     }
 
-    private static FunctionDefinition scalarFunctionWithStep(
+    private static PromqlFunctionDefinition scalarFunctionWithStep(
         String name,
         ScalarFunctionWithStepBuilder builder,
         String description,
         String example
     ) {
-        return new FunctionDefinition(
+        return new PromqlFunctionDefinition(
             name,
             FunctionType.SCALAR,
-            Arity.NONE,
+            PromqlFunctionArity.NONE,
             (source, target, ctx, extraParams) -> builder.build(source, ctx.step()),
             description,
             List.of(),
             List.of(example),
-            CounterSupport.SUPPORTED
+            PromqlFunctionDefinition.CounterSupport.SUPPORTED
         );
     }
 
@@ -868,14 +738,14 @@ public class PromqlFunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public Collection<FunctionDefinition> allFunctions() {
+    public Collection<PromqlFunctionDefinition> allFunctions() {
         return new ArrayList<>(promqlFunctions.values());
     }
 
     /**
      * Retrieves the function definition metadata for the given function name.
      */
-    public FunctionDefinition functionMetadata(String name) {
+    public PromqlFunctionDefinition functionMetadata(String name) {
         String normalized = normalize(name);
         return promqlFunctions.get(normalized);
     }
@@ -894,7 +764,7 @@ public class PromqlFunctionRegistry {
 
     public Expression buildEsqlFunction(String name, Source source, Expression target, PromqlContext ctx, List<Expression> extraParams) {
         checkFunction(source, name);
-        FunctionDefinition metadata = functionMetadata(name);
+        PromqlFunctionDefinition metadata = functionMetadata(name);
         try {
             return metadata.esqlBuilder().build(source, target, ctx, extraParams);
         } catch (Exception e) {
