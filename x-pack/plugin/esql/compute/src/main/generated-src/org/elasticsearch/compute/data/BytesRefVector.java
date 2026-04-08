@@ -31,7 +31,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
      * one of the inner {@code byte[]} arrays. In that case, this builds
      * a {@code byte[]} in the {@link BytesRef}, copies the bytes, and
      * returns it. Otherwise, this returns a zero-copy snapshot of the
-     * underlying data.
+     * underlying data. Except arrow. Arrow always copies.
      * <p>
      *    If possible, use {@link #get} because it only needs to copy
      *    in the arrow implementation.
