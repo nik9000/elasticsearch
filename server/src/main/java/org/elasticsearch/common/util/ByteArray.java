@@ -46,8 +46,9 @@ public interface ByteArray extends BigArray, Writeable {
     boolean get(long index, int len, BytesRef ref);
 
     /**
-     * Get a reference to a slice via a {@link PagedBytesCursor}. The cursor is initialized
-     * directly over the backing pages — no copy is ever made.
+     * Get a reference to a slice via a {@link PagedBytesCursor}. Well-behaved implementations
+     * will position the cursor directly over their backing pages. Well-behaved implementations
+     * will not copy any bytes.
      */
     PagedBytesCursor get(long index, int len, PagedBytesCursor scratch);
 
