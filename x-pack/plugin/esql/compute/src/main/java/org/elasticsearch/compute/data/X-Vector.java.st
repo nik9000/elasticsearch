@@ -51,7 +51,8 @@ $if(BytesRef)$
      * returns it. Otherwise, this returns a zero-copy snapshot of the
      * underlying data.
      * <p>
-     *    If possible, use {@link #get} because it'll never copy.
+     *    If possible, use {@link #get} because it only needs to copy
+     *    in the arrow implementation.
      * </p>
      * @param position the position index
      * @param dest the destination

@@ -38,14 +38,6 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PagedBytesCursorTests extends ESTestCase {
     private final PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
 
-    /**
-     * Returns a random byte-array length that sometimes lands on an exact page-multiple
-     * so tests exercise page-boundary edge cases.
-     */
-    private int randomTestArraySize() {
-        return randomBoolean() ? between(1, BYTE_PAGE_SIZE * 3) : between(1, 3) * BYTE_PAGE_SIZE;
-    }
-
     public void testReadByte() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         byte[] bytes = randomByteArrayOfLength(randomTestArraySize());
@@ -1051,5 +1043,13 @@ public class PagedBytesCursorTests extends ESTestCase {
                 breaker.addWithoutBreaking(-charge);
             }
         }
+    }
+
+    /**
+     * Returns a random byte-array length that sometimes lands on an exact page-multiple
+     * so tests exercise page-boundary edge cases.
+     */
+    private int randomTestArraySize() {
+        return randomBoolean() ? between(1, BYTE_PAGE_SIZE * 3) : between(1, 3) * BYTE_PAGE_SIZE;
     }
 }
