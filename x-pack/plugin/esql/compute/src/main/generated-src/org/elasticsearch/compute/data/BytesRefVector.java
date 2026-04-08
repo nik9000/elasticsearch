@@ -43,8 +43,9 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     BytesRef getBytesRef(int position, BytesRef dest);
 
     /**
-     * Positions a cursor at the bytes value stored at the given position.
-     * This never ever ever copies the underlying bytes storage.
+     * Retrieves the bytes value stored at the given value index using a
+     * {@link PagedBytesCursor} for zero-copy access to the underlying paged
+     * byte storage. Except arrow. Arrow always copies.
      *
      * @param position the position index
      * @param scratch the cursor to initialize and return

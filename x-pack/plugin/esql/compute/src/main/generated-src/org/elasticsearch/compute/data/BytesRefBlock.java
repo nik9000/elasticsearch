@@ -33,7 +33,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
      * inner {@code byte[]} arrays. In that case, this builds a
      * {@code byte[]} in the {@link BytesRef}, copies the bytes, and returns
      * it. Otherwise, this returns a zero-copy snapshot of the
-     * underlying data.
+     * underlying data. Except arrow. Arrow always copies.
      * <p>
      *    If possible, use {@link #get} because it only needs to copy
      *    in the arrow implementation.
@@ -58,7 +58,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     /**
      * Retrieves the bytes value stored at the given value index using a
      * {@link PagedBytesCursor} for zero-copy access to the underlying paged
-     * byte storage.
+     * byte storage. Except arrow. Arrow always copies.
      * <p>
      *    There are {@link #getValueCount} values in each position. You can
      *    access them all with something like:
