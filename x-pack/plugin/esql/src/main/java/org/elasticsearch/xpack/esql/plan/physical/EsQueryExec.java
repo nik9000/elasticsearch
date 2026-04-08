@@ -362,8 +362,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(indexPattern).append("], ").append("indexMode[").append(indexMode).append("], query[")
-            .append(query != null ? Strings.toString(query, false, true) : "").append("]");
+        sb.append(nodeName())
+            .append("[")
+            .append(indexPattern)
+            .append("], ")
+            .append("indexMode[")
+            .append(indexMode)
+            .append("], query[")
+            .append(query != null ? Strings.toString(query, false, true) : "")
+            .append("]");
         NodeUtils.toString(sb, attrs, format);
         sb.append(", limit[")
             .append(limit != null ? limit.toString(format) : "")
