@@ -420,7 +420,14 @@ public class PagedBytesCursorTests extends ESTestCase {
         byte[] bytes = new byte[101];
         PagedBytesCursor cursor = new PagedBytesCursor();
         cursor.init(bytes, 0, bytes.length);
-        assertThat(cursor.toString(), equalTo("[00" + " 00".repeat(99) + "...]"));
+        assertThat(cursor.toString(), equalTo("[00" + " 00".repeat(99) + " ...1b more...]"));
+    }
+
+    public void testToStringTruncatesKilobytes() {
+        byte[] bytes = new byte[2251]; // 100 shown + 2151 unrendered = 2.1kb more
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(bytes, 0, bytes.length);
+        assertThat(cursor.toString(), equalTo("[00" + " 00".repeat(99) + " ...2.1kb more...]"));
     }
 
     private static void skipBytes(PagedBytesCursor cursor, int count) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
@@ -415,8 +416,12 @@ public class PagedBytesCursor {
     }
 
     /**
-     * Returns a string showing the remaining byte count followed by up to 100 bytes
-     * rendered as uppercase hex pairs, e.g. {@code [48 65 6C 6C 6F]}.
+     * Returns a string representing the first 100 remaining bytes,
+     * optionally followed by a count of remaining unrendered bytes. Examples:
+     * <ul>
+     *     <li>{@code [48 65 6C 6C 6F]}</li>
+     *     <li>{@code [48 65 6C 6C 6F ...2.1kb more...]}</li>
+     * </ul>
      */
     @Override
     public String toString() {
@@ -439,7 +444,7 @@ public class PagedBytesCursor {
             }
         }
         if (remaining > 100) {
-            sb.append("...");
+            sb.append(" ...").append(ByteSizeValue.ofBytes(remaining - 100)).append(" more...");
         }
         return sb.append(']').toString();
     }
