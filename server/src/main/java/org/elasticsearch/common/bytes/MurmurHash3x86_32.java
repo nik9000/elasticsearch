@@ -34,6 +34,7 @@ class MurmurHash3x86_32 {
      * Mix a full page of bytes. The page length must be a multiple of 4.
      */
     void fullPage(byte[] page) {
+        assert page.length % 4 == 0 : "only valid for pages with length a multiple of 4";
         for (int i = 0; i < page.length; i += 4) {
             int k1 = (page[i] & 0xff) | ((page[i + 1] & 0xff) << 8) | ((page[i + 2] & 0xff) << 16) | ((page[i + 3] & 0xff) << 24);
             k1 *= C1;
