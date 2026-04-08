@@ -344,6 +344,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ForkGoldenTests
   method: testHybridSearch
   issue: https://github.com/elastic/elasticsearch/issues/145800
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testAverageWriteLoadMetricIsPublished
+  issue: https://github.com/elastic/elasticsearch/issues/145855
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testValidGetObjectCalls
+  issue: https://github.com/elastic/elasticsearch/issues/145859
+- class: org.elasticsearch.cluster.metadata.IndexMetadataTests
+  method: testSequenceNumbersDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/145864
+- class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcResultSetIT
+  method: testGettingValidBigDecimalFromLongWithoutCasting
+  issue: https://github.com/elastic/elasticsearch/issues/145866
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/145877
+- class: org.elasticsearch.xpack.esql.spatial.SpatialCentroidAggregationIT
+  method: testStCentroidAggregationWithShapes
+  issue: https://github.com/elastic/elasticsearch/issues/145883
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsSkipUnavailableIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/145884
 
 # Examples:
 #
