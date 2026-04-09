@@ -44,6 +44,10 @@ public class MvFirstErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
-        assertThat("all signatures except dense_vector and aggregate_metric_double should be supported", invalidSignatureSamples.size(), equalTo(2));
+        assertThat(
+            "all signatures except dense_vector and aggregate_metric_double should be supported",
+            invalidSignatureSamples.size(),
+            equalTo(2)
+        );
     }
 }

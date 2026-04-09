@@ -17,7 +17,6 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.Set;
 
-
 public class CaseErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
