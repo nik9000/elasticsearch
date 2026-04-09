@@ -35,7 +35,7 @@ public class Abs extends UnaryScalarFunction {
             "min_warning"
         )
         .name("abs");
-    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def(Abs.class)
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .unaryValueTransformation(Abs::new)
         .description("Returns the input vector with all sample values converted to their absolute value.")
         .example("abs(rate(http_requests_total[5m]))")

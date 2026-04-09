@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
  * Function definition record for registration and metadata.
@@ -56,8 +58,8 @@ public record PromqlFunctionDefinition(
     /**
      * Create a builder for a {@link FunctionDefinition}.
      */
-    public static <T extends Function> Builder<T> def(Class<T> function) {
-        return new Builder<>(function);
+    public static Builder def() {
+        return new Builder();
     }
 
     public PromqlFunctionDefinition {
@@ -86,76 +88,162 @@ public record PromqlFunctionDefinition(
         }
     }
 
-    private static final PromqlParamInfo RANGE_VECTOR = PromqlParamInfo.child(
-        "v",
-        PromqlDataType.RANGE_VECTOR,
-        "Range vector input."
-    );
-    private static final PromqlParamInfo INSTANT_VECTOR = PromqlParamInfo.child(
-        "v",
-        PromqlDataType.INSTANT_VECTOR,
-        "Instant vector input."
-    );
-    private static final PromqlParamInfo SCALAR = PromqlParamInfo.child(
-        "s",
-        PromqlDataType.SCALAR,
-        "Scalar value."
-    );
-    private static final PromqlParamInfo QUANTILE = PromqlParamInfo.of(
-        "φ",
-        PromqlDataType.SCALAR,
-        "Quantile value (0 ≤ φ ≤ 1)."
-    );
-    private static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
+    public static final PromqlParamInfo RANGE_VECTOR = PromqlParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
+    public static final PromqlParamInfo INSTANT_VECTOR = PromqlParamInfo.child("v", PromqlDataType.INSTANT_VECTOR, "Instant vector input.");
+    public static final PromqlParamInfo SCALAR = PromqlParamInfo.child("s", PromqlDataType.SCALAR, "Scalar value.");
+    public static final PromqlParamInfo QUANTILE = PromqlParamInfo.of("φ", PromqlDataType.SCALAR, "Quantile value (0 ≤ φ ≤ 1).");
+    public static final PromqlParamInfo TO_NEAREST = PromqlParamInfo.optional(
         "to_nearest",
         PromqlDataType.SCALAR,
         "Round to nearest multiple of this value."
     );
-    private static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of(
-        "min",
-        PromqlDataType.SCALAR,
-        "Minimum value."
-    );
-    private static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of(
-        "max",
-        PromqlDataType.SCALAR,
-        "Maximum value."
-    );
+    public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
+    public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
 
     /**
      * A builder for {@link PromqlFunctionDefinition}s. Get one from {@link #def}.
      */
-    public static class Builder<T extends Function> {
-        @SuppressWarnings("unused")
-        private final Class<T> function;
+    public static class Builder {
         private final List<String> examples = new ArrayList<>();
         private FunctionType functionType;
         private PromqlFunctionArity arity;
         private FunctionBuilder builder;
         private String description;
         private List<PromqlParamInfo> params;
-        private CounterSupport counterSupport;
+        private CounterSupport counterSupport = CounterSupport.UNSUPPORTED;
 
-        public Builder(Class<T> function) {
-            this.function = function;
+        public PromqlFunctionDefinition.Builder counterSupport(CounterSupport counterSupport) {
+            this.counterSupport = counterSupport;
+            return this;
         }
 
-        public PromqlFunctionDefinition.Builder<T> description(String description) {
+        public PromqlFunctionDefinition.Builder description(String description) {
             this.description = description;
             return this;
         }
 
-        public PromqlFunctionDefinition.Builder<T> example(String example) {
+        public PromqlFunctionDefinition.Builder example(String example) {
             this.examples.add(example);
             return this;
         }
 
-        public PromqlFunctionDefinition.Builder<T> unaryValueTransformation(ValueTransformationFunction<T> builder) {
+        public PromqlFunctionDefinition.Builder unaryValueTransformation(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
             this.functionType = FunctionType.VALUE_TRANSFORMATION;
             this.arity = PromqlFunctionArity.ONE;
-            this.builder = (source, target, ctx, extraParams) -> builder.build(source, target);
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
             this.params = List.of(INSTANT_VECTOR);
-            this.counterSupport = CounterSupport.UNSUPPORTED;
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder binaryValueTransformation(
+            PromqlParamInfo p,
+            FunctionDefinition.BinaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.VALUE_TRANSFORMATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(source, target, extraParams.getFirst());
+            this.params = List.of(INSTANT_VECTOR, p);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder binaryOptionalValueTransformation(
+            PromqlParamInfo p,
+            FunctionDefinition.BinaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.VALUE_TRANSFORMATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
+                source,
+                target,
+                extraParams.isEmpty() ? null : extraParams.getFirst()
+            );
+            this.params = List.of(INSTANT_VECTOR, p);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder ternaryValueTransformation(
+            PromqlParamInfo p1,
+            PromqlParamInfo p2,
+            FunctionDefinition.TernaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.VALUE_TRANSFORMATION;
+            this.arity = PromqlFunctionArity.fixed(3);
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(source, target, extraParams.getFirst(), extraParams.get(1));
+            this.params = List.of(INSTANT_VECTOR, p1, p2);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder withinSeries(FunctionDefinition.TernaryBuilder<? extends Expression> ctorRef) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(source, target, ctx.window(), ctx.timestamp());
+            this.params = List.of(RANGE_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder withinSeriesOverTime(FunctionDefinition.TernaryBuilder<? extends Expression> ctorRef) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(source, target, Literal.TRUE, ctx.window());
+            this.params = List.of(RANGE_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder withinSeriesOverTimeBinary(
+            PromqlParamInfo paramInfo,
+            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
+                source,
+                target,
+                Literal.TRUE,
+                ctx.window(),
+                extraParams.getFirst()
+            );
+            this.params = List.of(paramInfo, RANGE_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeries(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
+            this.functionType = FunctionType.ACROSS_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
+            this.params = List.of(INSTANT_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder acrossSeriesBinary(
+            PromqlParamInfo paramInfo,
+            FunctionDefinition.QuaternaryBuilder<? extends Expression> ctorRef
+        ) {
+            this.functionType = FunctionType.ACROSS_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
+                source,
+                target,
+                Literal.TRUE,
+                ctx.window(),
+                extraParams.getFirst()
+            );
+            this.params = List.of(paramInfo, INSTANT_VECTOR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder scalar(Function<Source, ? extends Expression> ctorRef) {
+            this.functionType = FunctionType.SCALAR;
+            this.arity = PromqlFunctionArity.NONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source);
+            this.params = List.of();
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder scalarWithStep(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
+            this.functionType = FunctionType.SCALAR;
+            this.arity = PromqlFunctionArity.NONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, ctx.step());
+            this.params = List.of();
             return this;
         }
 
@@ -167,8 +255,4 @@ public record PromqlFunctionDefinition(
         }
     }
 
-    @FunctionalInterface
-    public interface ValueTransformationFunction<T extends Expression> {
-        T build(Source source, Expression value);
-    }
 }
