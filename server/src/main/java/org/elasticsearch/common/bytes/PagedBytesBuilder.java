@@ -363,6 +363,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      * Do not modify the builder while holding a reference to the returned view.
      */
     public PagedBytesCursor view(PagedBytesCursor scratch) {
+        assert mode() != Mode.BUILT : "view() called on a built PagedBytesBuilder";
         int len = length();
         if (len == 0) {
             return PagedBytes.EMPTY.cursor(scratch);
@@ -618,9 +619,6 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
             // Small-tail mode: all bytes are in a single contiguous array.
             return StringHelper.murmurhash3_x86_32(tail, 0, tailOffset, StringHelper.GOOD_FAST_HASH_SEED);
         }
-        // NOCOMMIT: branch used new PagedBytes.MurmurHash3x86_32(StringHelper.GOOD_FAST_HASH_SEED)
-        // via a nested class inside PagedBytes. Changed to use the package-level MurmurHash3x86_32
-        // (no-arg constructor, same seed hardcoded) to avoid duplicating the class.
         MurmurHash3x86_32 hasher = new MurmurHash3x86_32();
         for (int i = 0; i < usedPages - 1; i++) {
             hasher.fullPage(pages[i].v());
