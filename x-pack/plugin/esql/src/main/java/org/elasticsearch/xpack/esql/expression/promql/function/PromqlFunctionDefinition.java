@@ -23,16 +23,16 @@ import java.util.function.Function;
 /**
  * Function definition record for registration and metadata.
  */
-public record PromqlFunctionDefinition(
-    String name,
-    FunctionType functionType,
-    PromqlFunctionArity arity,
-    FunctionBuilder esqlBuilder,
-    String description,
-    List<PromqlParamInfo> params,
-    List<String> examples,
-    CounterSupport counterSupport
-) {
+public final class PromqlFunctionDefinition {
+
+    private final String name;
+    private final FunctionType functionType;
+    private final PromqlFunctionArity arity;
+    private final FunctionBuilder esqlBuilder;
+    private final String description;
+    private final List<PromqlParamInfo> params;
+    private final List<String> examples;
+    private final CounterSupport counterSupport;
 
     @FunctionalInterface
     public interface FunctionBuilder {
@@ -55,15 +55,16 @@ public record PromqlFunctionDefinition(
         UNSUPPORTED
     }
 
-    /**
-     * Create a builder for a {@link FunctionDefinition}.
-     */
-    public static Builder def() {
-        return new Builder();
-    }
-
-    public PromqlFunctionDefinition {
-        // NOCOMMIT make this private
+    private PromqlFunctionDefinition(
+        String name,
+        FunctionType functionType,
+        PromqlFunctionArity arity,
+        FunctionBuilder esqlBuilder,
+        String description,
+        List<PromqlParamInfo> params,
+        List<String> examples,
+        CounterSupport counterSupport
+    ) {
         Objects.requireNonNull(name, "name cannot be null");
         Objects.requireNonNull(functionType, "functionType cannot be null");
         Objects.requireNonNull(arity, "arity cannot be null");
@@ -86,6 +87,46 @@ public record PromqlFunctionDefinition(
         if (params.isEmpty() == false && params.stream().filter(PromqlParamInfo::child).count() != 1) {
             throw new IllegalArgumentException("If a function takes parameters, there must be exactly one child parameter");
         }
+        this.name = name;
+        this.functionType = functionType;
+        this.arity = arity;
+        this.esqlBuilder = esqlBuilder;
+        this.description = description;
+        this.params = params;
+        this.examples = examples;
+        this.counterSupport = counterSupport;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public FunctionType functionType() {
+        return functionType;
+    }
+
+    public PromqlFunctionArity arity() {
+        return arity;
+    }
+
+    public FunctionBuilder esqlBuilder() {
+        return esqlBuilder;
+    }
+
+    public String description() {
+        return description;
+    }
+
+    public List<PromqlParamInfo> params() {
+        return params;
+    }
+
+    public List<String> examples() {
+        return examples;
+    }
+
+    public CounterSupport counterSupport() {
+        return counterSupport;
     }
 
     public static final PromqlParamInfo RANGE_VECTOR = PromqlParamInfo.child("v", PromqlDataType.RANGE_VECTOR, "Range vector input.");
@@ -99,6 +140,13 @@ public record PromqlFunctionDefinition(
     );
     public static final PromqlParamInfo MIN_SCALAR = PromqlParamInfo.of("min", PromqlDataType.SCALAR, "Minimum value.");
     public static final PromqlParamInfo MAX_SCALAR = PromqlParamInfo.of("max", PromqlDataType.SCALAR, "Maximum value.");
+
+    /**
+     * Create a builder for a {@link PromqlFunctionDefinition}.
+     */
+    public static Builder def() {
+        return new Builder();
+    }
 
     /**
      * A builder for {@link PromqlFunctionDefinition}s. Get one from {@link #def}.
@@ -244,6 +292,27 @@ public record PromqlFunctionDefinition(
             this.arity = PromqlFunctionArity.NONE;
             this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, ctx.step());
             this.params = List.of();
+            return this;
+        }
+
+        /**
+         * Builds a function that converts a scalar into a vector. There should only ever
+         * be one of these functions. It's built in {@link PromqlBuiltinFunctionDefinitions}.
+         * So this is package private.
+         */
+        PromqlFunctionDefinition.Builder vectorConversion() {
+            this.functionType = FunctionType.VECTOR_CONVERSION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = (source, target, ctx, extraParams) -> target;
+            this.params = List.of(SCALAR);
+            return this;
+        }
+
+        public PromqlFunctionDefinition.Builder scalarConversion(BiFunction<Source, Expression, ? extends Expression> ctorRef) {
+            this.functionType = FunctionType.SCALAR_CONVERSION;
+            this.arity = PromqlFunctionArity.ONE;
+            this.builder = (source, target, ctx, extraParams) -> ctorRef.apply(source, target);
+            this.params = List.of(INSTANT_VECTOR);
             return this;
         }
 
