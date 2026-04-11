@@ -77,7 +77,7 @@ The following examples show how to use subqueries within the `FROM` command.
 Use a subquery alongside a regular index pattern to combine results from
 different indices:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/basic_subquery.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/basic_subquery.md
 :::
 
 Rows from `employees` have `null` for `client_ip`, while rows from `sample_data`
@@ -87,7 +87,7 @@ have `null` for `emp_no` and `languages`, because each index has different field
 
 You can use one or more subqueries without specifying a regular index pattern:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_only.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_only.md
 :::
 
 The `FROM` clause contains only a subquery with no regular index pattern. The
@@ -98,7 +98,7 @@ projects the results.
 
 Apply a `WHERE` clause inside the subquery to pre-filter data before combining:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_filter.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_filter.md
 :::
 
 The `WHERE` inside the subquery filters `sample_data` to only rows where
@@ -109,7 +109,7 @@ metadata field shows which index each row originated from.
 
 Use `STATS` inside a subquery to aggregate data before combining with other sources:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_aggregation.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_aggregation.md
 :::
 
 The `STATS` inside the subquery aggregates `sample_data` by counting rows per
@@ -120,7 +120,7 @@ The `STATS` inside the subquery aggregates `sample_data` by counting rows per
 
 Multiple subqueries can be combined in a single `FROM` clause:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/multiple_subqueries.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/multiple_subqueries.md
 :::
 
 Two subqueries aggregate `sample_data` and `sample_data_str` separately, each
@@ -132,7 +132,7 @@ row's source.
 
 Enrich subquery results with a lookup join before combining:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_lookup_join.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_lookup_join.md
 :::
 
 The `LOOKUP JOIN` inside the subquery joins each `sample_data` row with the
@@ -143,7 +143,7 @@ The `LOOKUP JOIN` inside the subquery joins each `sample_data` row with the
 
 Use `SORT` and `LIMIT` inside a subquery to return only top results:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_sort.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_sort.md
 :::
 
 The subquery aggregates `sample_data` by `client_ip`, sorts by count in

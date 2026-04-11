@@ -128,3 +128,6 @@ It extracts failed tasks, exact failed tests, primary assertion/error, and repro
 In reports, list exact failed tests first, then failed tasks and related build scan URLs.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.
+
+## Documentation
+When building or editing docs, read `docs/AGENTS.md` first.

@@ -12,14 +12,10 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 
 import java.util.Map;
 
-public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMappedField> {
-    static InvalidMappedField randomInvalidMappedField(int maxPropertiesDepth) {
-        String name = randomAlphaOfLength(4);
-        String errorMessage = randomAlphaOfLengthBetween(1, 100);
-        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
-        return new InvalidMappedField(name, errorMessage, properties);
-    }
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomInvalidMappedField;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomProperties;
 
+public class InvalidMappedFieldTests extends AbstractEsFieldTypeTests<InvalidMappedField> {
     @Override
     protected InvalidMappedField createTestInstance() {
         return randomInvalidMappedField(4);

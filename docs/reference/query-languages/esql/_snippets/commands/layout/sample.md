@@ -18,5 +18,5 @@ SAMPLE probability
 
 ## Examples
 
-:::{include} ../examples/sample.csv-spec/sampleForDocs.md
+:::{include} ../../generated/x-pack-esql/commands/examples/sample.csv-spec/sampleForDocs.md
 :::

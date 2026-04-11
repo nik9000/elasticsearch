@@ -22,22 +22,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<T> {
-    public static EsField randomAnyEsField(int maxDepth) {
-        return switch (between(0, 5)) {
-            case 0 -> EsFieldTests.randomEsField(maxDepth);
-            case 1 -> DateEsFieldTests.randomDateEsField(maxDepth);
-            case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(maxDepth);
-            case 3 -> KeywordEsFieldTests.randomKeywordEsField(maxDepth);
-            case 4 -> TextEsFieldTests.randomTextEsField(maxDepth);
-            case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth);
-            default -> throw new IllegalArgumentException();
-        };
-    }
-
     @Override
     protected abstract T createTestInstance();
 
@@ -59,25 +45,6 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
 
     protected Configuration config() {
         return EsqlTestUtils.TEST_CFG;
-    }
-
-    /**
-     * Generate sub-properties.
-     * @param maxDepth the maximum number of levels of properties to make
-     */
-    static Map<String, EsField> randomProperties(int maxDepth) {
-        if (maxDepth < 0) {
-            throw new IllegalArgumentException("depth must be >= 0");
-        }
-        if (maxDepth == 0 || randomBoolean()) {
-            return Map.of();
-        }
-        int targetSize = between(1, 5);
-        Map<String, EsField> properties = new TreeMap<>();
-        while (properties.size() < targetSize) {
-            properties.put(randomAlphaOfLength(properties.size() + 1), randomAnyEsField(maxDepth - 1));
-        }
-        return properties;
     }
 
     @Override

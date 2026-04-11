@@ -50,5 +50,5 @@ There must be at least 22 values for change point detection. Any values beyond t
 
 The following example detects a step change in a metric:
 
-:::{include} ../examples/change_point.csv-spec/changePointForDocs.md
+:::{include} ../../generated/x-pack-esql/commands/examples/change_point.csv-spec/changePointForDocs.md
 :::
