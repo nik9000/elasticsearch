@@ -6,7 +6,7 @@ exclude:
   - README.md
   - AGENTS.md
   - internal/*
-  - reference/query-languages/esql/kibana/generated/**/docs/**
+  - reference/query-languages/esql/kibana/**
   - reference/query-languages/esql/README.md
 cross_links:
   - beats
