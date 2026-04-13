@@ -176,13 +176,12 @@ public class AllFirstLongByIntAggregator {
     public static final class GroupingState extends AbstractAllByIntGroupingState {
 
         /**
-         * The first group-indexed value, stored inline to avoid per-group object allocation
-         * in the common single-value case.
+         * First values, stored in a dense array to minimize per-group overhead.
          */
         private LongArray firstValues;
 
         /**
-         * The second-and-beyond group-indexed values. Null for groups with zero or one value.
+         * The second-and-beyond values. Null for groups with zero or one value.
          */
         private ObjectArray<LongArray> tailValues;
 
@@ -203,8 +202,7 @@ public class AllFirstLongByIntAggregator {
 
         void collectValue(int group, boolean timestampPresent, int timestamp, int position, LongBlock valuesBlock) {
             if (group <= maxGroupId) {
-                if (
-                    hasValue(group) == false // We never saw this group before, even if it's within bounds.
+                if (hasValue(group) == false // We never saw this group before, even if it's within bounds.
                     || (nullKey(group) && timestampPresent) // Or, the incoming non-null timestamp wins against the null one in the state.
                     || (timestampPresent && timestamp < key(group)) // Or, we found a better timestamp for this group.
                 ) {
@@ -296,7 +294,6 @@ public class AllFirstLongByIntAggregator {
         Block evaluateFinal(IntVector groups, GroupingAggregatorEvaluationContext evalContext) {
             return valuesBlock(groups, evalContext.blockFactory());
         }
-
 
         private LongArray getTail(int group) {
             if (tailValues == null) {

@@ -186,13 +186,12 @@ public class AllLastBytesRefByLongAggregator {
     public static final class GroupingState extends AbstractAllByLongGroupingState {
 
         /**
-         * The first group-indexed value, stored inline to avoid per-group object allocation
-         * in the common single-value case.
+         * First values, stored in a dense array to minimize per-group overhead.
          */
         private ObjectArray<BreakingBytesRefBuilder> firstValues;
         private final CircuitBreaker breaker;
         /**
-         * The second-and-beyond group-indexed values. Null for groups with zero or one value.
+         * The second-and-beyond values. Null for groups with zero or one value.
          */
         private ObjectArray<BytesRefArray> tailValues;
 
@@ -215,8 +214,7 @@ public class AllLastBytesRefByLongAggregator {
 
         void collectValue(int group, boolean timestampPresent, long timestamp, int position, BytesRefBlock valuesBlock) {
             if (group <= maxGroupId) {
-                if (
-                    hasValue(group) == false // We never saw this group before, even if it's within bounds.
+                if (hasValue(group) == false // We never saw this group before, even if it's within bounds.
                     || (nullKey(group) && timestampPresent) // Or, the incoming non-null timestamp wins against the null one in the state.
                     || (timestampPresent && timestamp > key(group)) // Or, we found a better timestamp for this group.
                 ) {
@@ -320,7 +318,6 @@ public class AllLastBytesRefByLongAggregator {
             return valuesBlock(groups, evalContext.blockFactory());
         }
 
-
         private BytesRefArray getTail(int group) {
             if (tailValues == null) {
                 return null;
@@ -344,6 +341,7 @@ public class AllLastBytesRefByLongAggregator {
             tailValues.set(group, tail);
             return tail;
         }
+
         private void clearTailValues(int group) {
             BytesRefArray tail = getTail(group);
             if (tail != null) {

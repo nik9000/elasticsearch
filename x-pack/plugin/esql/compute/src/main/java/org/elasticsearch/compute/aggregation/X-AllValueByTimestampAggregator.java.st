@@ -234,8 +234,7 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
     public static final class GroupingState extends AbstractAllBy$v2_Type$GroupingState {
 
         /**
-         * The first group-indexed value, stored inline to avoid per-group object allocation
-         * in the common single-value case.
+         * First values, stored in a dense array to minimize per-group overhead.
          */
         $if(v1_BytesRef)$
         private ObjectArray<BreakingBytesRefBuilder> firstValues;
@@ -247,7 +246,7 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
         $endif$
 
         /**
-         * The second-and-beyond group-indexed values. Null for groups with zero or one value.
+         * The second-and-beyond values. Null for groups with zero or one value.
          */
         private ObjectArray<$v1_TailArray$> tailValues;
 
@@ -278,8 +277,7 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
 
         void collectValue(int group, boolean timestampPresent, $v2_type$ timestamp, int position, $v1_Type$Block valuesBlock) {
             if (group <= maxGroupId) {
-                if (
-                    hasValue(group) == false // We never saw this group before, even if it's within bounds.
+                if (hasValue(group) == false // We never saw this group before, even if it's within bounds.
                     || (nullKey(group) && timestampPresent) // Or, the incoming non-null timestamp wins against the null one in the state.
                     || (timestampPresent && timestamp $if(First)$<$else$>$endif$ key(group)) // Or, we found a better timestamp for this group.
                 ) {
@@ -401,7 +399,6 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
             return valuesBlock(groups, evalContext.blockFactory());
         }
 
-
         private $v1_TailArray$ getTail(int group) {
             if (tailValues == null) {
                 return null;
@@ -426,6 +423,7 @@ $if(v1_BytesRef)$
             tailValues.set(group, tail);
             return tail;
         }
+
 $else$
         private $v1_TailArray$ getTailForWriting(int group, int count) {
             $v1_TailArray$ existing;
