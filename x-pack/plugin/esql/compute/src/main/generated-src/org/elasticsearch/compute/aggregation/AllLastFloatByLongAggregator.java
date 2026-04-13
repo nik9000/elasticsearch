@@ -209,8 +209,7 @@ public class AllLastFloatByLongAggregator {
 
         void collectValue(int group, boolean timestampPresent, long timestamp, int position, FloatBlock valuesBlock) {
             if (group <= maxGroupId) {
-                if (
-                    hasValue(group) == false // We never saw this group before, even if it's within bounds.
+                if (hasValue(group) == false // We never saw this group before, even if it's within bounds.
                     || (nullKey(group) && timestampPresent) // Or, the incoming non-null timestamp wins against the null one in the state.
                     || (timestampPresent && timestamp > key(group)) // Or, we found a better timestamp for this group.
                 ) {
@@ -302,7 +301,6 @@ public class AllLastFloatByLongAggregator {
         Block evaluateFinal(IntVector groups, GroupingAggregatorEvaluationContext evalContext) {
             return valuesBlock(groups, evalContext.blockFactory());
         }
-
 
         private FloatArray getTail(int group) {
             if (tailValues == null) {
