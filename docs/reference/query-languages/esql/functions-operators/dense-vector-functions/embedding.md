@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `EMBEDDING` function [esql-embedding]
 
-:::{include} ../../_snippets/functions/layout/embedding.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/embedding.md
 :::
