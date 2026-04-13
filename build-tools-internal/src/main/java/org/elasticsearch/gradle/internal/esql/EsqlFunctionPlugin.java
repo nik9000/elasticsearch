@@ -10,8 +10,8 @@
 package org.elasticsearch.gradle.internal.esql;
 
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
+import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.util.PlatformUtils;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
