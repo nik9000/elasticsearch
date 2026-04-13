@@ -16,7 +16,6 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -197,8 +196,7 @@ public class BytesBuilderBenchmark {
 
         @Override
         public long readInts() {
-            PagedBytes view = builder.view();
-            PagedBytesCursor cursor = view.cursor(scratch);
+            PagedBytesCursor cursor = builder.view(scratch);
             long sum = 0;
             while (cursor.remaining() >= Integer.BYTES) {
                 sum += cursor.readInt();
@@ -217,8 +215,7 @@ public class BytesBuilderBenchmark {
 
         @Override
         public long readVInts() {
-            PagedBytes view = builder.view();
-            PagedBytesCursor cursor = view.cursor(scratch);
+            PagedBytesCursor cursor = builder.view(scratch);
             long sum = 0;
             while (cursor.remaining() > 0) {
                 sum += cursor.readVInt();
@@ -237,8 +234,7 @@ public class BytesBuilderBenchmark {
 
         @Override
         public long readBytes() {
-            PagedBytes view = builder.view();
-            PagedBytesCursor cursor = view.cursor(scratch);
+            PagedBytesCursor cursor = builder.view(scratch);
             long sum = 0;
             while (cursor.remaining() > 0) {
                 PagedBytesCursor slice = cursor.slice(Math.min(cursor.remaining(), PageCacheRecycler.BYTE_PAGE_SIZE), sliceScratch);
