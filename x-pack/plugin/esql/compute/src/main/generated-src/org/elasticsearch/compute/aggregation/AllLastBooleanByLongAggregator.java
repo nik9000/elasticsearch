@@ -221,7 +221,7 @@ public class AllLastBooleanByLongAggregator {
                 maxGroupId = group;
                 updateValue(group, timestampPresent, timestamp, valuesBlock, position);
             }
-            trackGroupId(group); // NOCOMMIT: do we need this?
+            trackGroupId(group);
         }
 
         private void updateValue(int group, boolean timestampPresent, long timestamp, BooleanBlock valuesBlock, int position) {

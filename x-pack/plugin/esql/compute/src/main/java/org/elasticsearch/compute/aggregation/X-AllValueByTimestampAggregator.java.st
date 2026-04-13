@@ -291,7 +291,7 @@ public class $Prefix$$Occurrence$$v1_Type$By$v2_Type$Aggregator {
                 maxGroupId = group;
                 updateValue(group, timestampPresent, timestamp, valuesBlock, position);
             }
-            trackGroupId(group); // NOCOMMIT: do we need this?
+            trackGroupId(group);
         }
 
         private void updateValue(int group, boolean timestampPresent, $v2_type$ timestamp, $v1_Type$Block valuesBlock, int position) {
