@@ -376,7 +376,6 @@ public class CsvIT extends ESTestCase {
         Stream.of(request.indices()).flatMap(pattern -> {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {
-                assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
                 if (pattern.equals("*")) {
                     switch (currentGroupName) {
                         // Temporarily allow a few so they have time to migrate away
