@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.hamcrest.Matcher;
 
@@ -54,7 +55,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
         List<ExpressionEvaluator.Factory> maxInputs = maxChannels.stream().<ExpressionEvaluator.Factory>map(
             LoadFromPageEvaluator.Factory::new
         ).toList();
-        var sumSupplier = new SumLongAggregatorFunctionSupplier();
+        var sumSupplier = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE);
         var maxSupplier = new MaxLongAggregatorFunctionSupplier();
         return new AggregationOperator.Factory(
             List.of(sumSupplier.aggregatorFactory(mode, sumInputs), maxSupplier.aggregatorFactory(mode, maxInputs)),
