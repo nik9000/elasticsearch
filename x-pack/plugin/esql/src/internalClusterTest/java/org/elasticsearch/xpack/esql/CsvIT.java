@@ -377,6 +377,13 @@ public class CsvIT extends ESTestCase {
             assert pattern.contains("<") == false : "Date-math is not supported in test";
             if (pattern.contains("*")) {
                 assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
+                if (pattern.equals("*")) {
+                    switch (currentGroupName) {
+                        // Temporarily allow a few so they have time to migrate away
+                        case "enrich", "inlinestats", "limit", "lookup-join" -> logger.warn("stop using FROM *");
+                        default -> throw new IllegalStateException("FROM * is not allowed in csv-spec tests; use a specific index name");
+                    }
+                }
                 var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
                 return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
