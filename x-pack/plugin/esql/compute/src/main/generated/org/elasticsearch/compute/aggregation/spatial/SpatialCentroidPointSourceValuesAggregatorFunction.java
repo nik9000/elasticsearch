@@ -88,6 +88,18 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunction implements
       BytesRefBlock wkbBlock = (BytesRefBlock) wkbUncast;
       BytesRefVector wkbVector = wkbBlock.asVector();
       if (wkbVector == null) {
+        if (wkbBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
         addRawBlock(wkbBlock, mask);
         return;
       }
@@ -100,6 +112,18 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunction implements
       BytesRefBlock wkbBlock = (BytesRefBlock) wkbUncast;
       BytesRefVector wkbVector = wkbBlock.asVector();
       if (wkbVector == null) {
+        if (wkbBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
         addRawBlock(wkbBlock);
         return;
       }

@@ -82,6 +82,18 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
       LongBlock encodedBlock = (LongBlock) encodedUncast;
       LongVector encodedVector = encodedBlock.asVector();
       if (encodedVector == null) {
+        if (encodedBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
         addRawBlock(encodedBlock, mask);
         return;
       }
@@ -94,6 +106,18 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
       LongBlock encodedBlock = (LongBlock) encodedUncast;
       LongVector encodedVector = encodedBlock.asVector();
       if (encodedVector == null) {
+        if (encodedBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
         addRawBlock(encodedBlock);
         return;
       }

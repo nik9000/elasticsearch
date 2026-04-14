@@ -77,6 +77,18 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
   private void addRawInputMasked(Page page, BooleanVector mask) {
     try (Block vectorUncast = inputs.get(0).eval(page)) {
       FloatBlock vectorBlock = (FloatBlock) vectorUncast;
+      if (vectorBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vectorBlock, mask);
     }
   }
@@ -84,6 +96,18 @@ public final class SumDenseVectorAggregatorFunction implements AggregatorFunctio
   private void addRawInputNotMasked(Page page) {
     try (Block vectorUncast = inputs.get(0).eval(page)) {
       FloatBlock vectorBlock = (FloatBlock) vectorUncast;
+      if (vectorBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(vectorBlock);
     }
   }

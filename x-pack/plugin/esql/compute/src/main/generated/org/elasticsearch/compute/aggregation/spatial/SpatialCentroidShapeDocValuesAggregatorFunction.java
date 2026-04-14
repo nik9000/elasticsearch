@@ -84,6 +84,18 @@ public final class SpatialCentroidShapeDocValuesAggregatorFunction implements Ag
   private void addRawInputMasked(Page page, BooleanVector mask) {
     try (Block valuesUncast = inputs.get(0).eval(page)) {
       DoubleBlock valuesBlock = (DoubleBlock) valuesUncast;
+      if (valuesBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valuesBlock, mask);
     }
   }
@@ -91,6 +103,18 @@ public final class SpatialCentroidShapeDocValuesAggregatorFunction implements Ag
   private void addRawInputNotMasked(Page page) {
     try (Block valuesUncast = inputs.get(0).eval(page)) {
       DoubleBlock valuesBlock = (DoubleBlock) valuesUncast;
+      if (valuesBlock.areAllValuesNull()) {
+        /*
+         * All values are null so we can skip processing this block.
+         * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+         *       being fast without this. Likely the branch predictor is kicking
+         *       in there. But we do this anyway, just so we don't have to trust
+         *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+         *       always have long sequences of ConstantNullBlock. And this code
+         *       shows readers we've thought about this.
+         */
+        return;
+      }
       addRawBlock(valuesBlock);
     }
   }

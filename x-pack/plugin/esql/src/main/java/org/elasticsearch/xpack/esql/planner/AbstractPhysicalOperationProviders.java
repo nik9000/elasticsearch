@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -307,7 +308,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         Expression field = aggregateFunction.field();
                         // Only count can now support literals - all the other aggs should be optimized away
                         if (field.foldable()) {
-                            if (aggregateFunction instanceof Count) {
+                            if (aggregateFunction instanceof Count || aggregateFunction instanceof CountApproximate) {
                                 sourceAttr = emptyList();
                             } else {
                                 throw new InvalidArgumentException(

@@ -77,6 +77,9 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
             }
         } else {
             try (Block block = inputs.getFirst().eval(page)) {
+                if (block.areAllValuesNull()) {
+                    return;
+                }
                 DoubleState state = this.state;
                 int count;
                 if (mask.isConstant()) {
@@ -192,7 +195,7 @@ public class CountApproximateAggregatorFunction implements AggregatorFunction {
 
         @Override
         public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return CountApproximateGroupingAggregatorFunction.create(driverContext, channels);
+            return new CountApproximateGroupingAggregatorFunction(channels, driverContext);
         }
 
         @Override

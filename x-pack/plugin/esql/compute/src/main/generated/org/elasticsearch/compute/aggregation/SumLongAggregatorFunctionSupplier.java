@@ -10,13 +10,18 @@ import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SumLongAggregatorFunctionSupplier() {
+  WarningSourceLocation warningsSource;
+
+  public SumLongAggregatorFunctionSupplier(WarningSourceLocation warningsSource) {
+    this.warningsSource = warningsSource;
   }
 
   @Override
@@ -32,13 +37,15 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
   @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext,
       List<ExpressionEvaluator> inputs) {
-    return new SumLongAggregatorFunction(driverContext, inputs);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new SumLongAggregatorFunction(warnings, driverContext, inputs);
   }
 
   @Override
   public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new SumLongGroupingAggregatorFunction(channels, driverContext);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new SumLongGroupingAggregatorFunction(warnings, channels, driverContext);
   }
 
   @Override

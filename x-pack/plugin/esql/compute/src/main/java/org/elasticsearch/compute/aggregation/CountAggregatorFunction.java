@@ -73,6 +73,9 @@ public class CountAggregatorFunction implements AggregatorFunction {
             return;
         }
         try (Block block = inputs.getFirst().eval(page)) {
+            if (block.areAllValuesNull()) {
+                return;
+            }
             if (mask.isConstant()) {
                 if (mask.getBoolean(0) == false) {
                     return;

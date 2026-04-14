@@ -4,6 +4,7 @@
 // 2.0.
 package org.elasticsearch.compute.aggregation;
 
+import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -26,18 +28,23 @@ import org.elasticsearch.core.Releasables;
 public final class SumLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("sum", ElementType.LONG),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("seen", ElementType.BOOLEAN),
+      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
+
+  private final Warnings warnings;
 
   private final DriverContext driverContext;
 
-  private final LongState state;
+  private final LongFallibleState state;
 
   private final List<ExpressionEvaluator> inputs;
 
-  SumLongAggregatorFunction(DriverContext driverContext, List<ExpressionEvaluator> inputs) {
+  SumLongAggregatorFunction(Warnings warnings, DriverContext driverContext,
+      List<ExpressionEvaluator> inputs) {
+    this.warnings = warnings;
     this.driverContext = driverContext;
     this.inputs = inputs;
-    this.state = new LongState(SumLongAggregator.init());
+    this.state = new LongFallibleState(SumLongAggregator.init());
     boolean success = false;
     try {
       driverContext.breaker().addEstimateBytesAndMaybeBreak(ExpressionEvaluator.totalRamBytesUsed(inputs), "ESQL");
@@ -60,6 +67,9 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page, BooleanVector mask) {
+    if (state.failed()) {
+      return;
+    }
     if (mask.allFalse()) {
       // Entire page masked away
     } else if (mask.allTrue()) {
@@ -74,6 +84,18 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       LongBlock vBlock = (LongBlock) vUncast;
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
+        if (vBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
         addRawBlock(vBlock, mask);
         return;
       }
@@ -86,6 +108,18 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       LongBlock vBlock = (LongBlock) vUncast;
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {
+        if (vBlock.areAllValuesNull()) {
+          /*
+           * All values are null so we can skip processing this block.
+           * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+           *       being fast without this. Likely the branch predictor is kicking
+           *       in there. But we do this anyway, just so we don't have to trust
+           *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+           *       always have long sequences of ConstantNullBlock. And this code
+           *       shows readers we've thought about this.
+           */
+          return;
+        }
         addRawBlock(vBlock);
         return;
       }
@@ -97,7 +131,13 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
-      state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+      try {
+        state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.failed(true);
+        return;
+      }
     }
   }
 
@@ -108,7 +148,13 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
         continue;
       }
       long vValue = vVector.getLong(valuesPosition);
-      state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+      try {
+        state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+      } catch (ArithmeticException e) {
+        warnings.registerException(e);
+        state.failed(true);
+        return;
+      }
     }
   }
 
@@ -123,7 +169,13 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+        try {
+          state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
     }
   }
@@ -142,7 +194,13 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+        try {
+          state.longValue(SumLongAggregator.combine(state.longValue(), vValue));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
     }
   }
@@ -153,6 +211,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
     try (
       Block sumUncast = inputs.get(0).eval(page);
       Block seenUncast = inputs.get(1).eval(page);
+      Block failedUncast = inputs.get(2).eval(page);
     ) {
       if (sumUncast.areAllValuesNull()) {
         return;
@@ -164,9 +223,23 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
       }
       BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
       assert seen.getPositionCount() == 1;
-      if (seen.getBoolean(0)) {
-        state.longValue(SumLongAggregator.combine(state.longValue(), sum.getLong(0)));
+      if (failedUncast.areAllValuesNull()) {
+        return;
+      }
+      BooleanVector failed = ((BooleanBlock) failedUncast).asVector();
+      assert failed.getPositionCount() == 1;
+      if (failed.getBoolean(0)) {
+        state.failed(true);
         state.seen(true);
+      } else if (seen.getBoolean(0)) {
+        try {
+          state.longValue(SumLongAggregator.combine(state.longValue(), sum.getLong(0)));
+          state.seen(true);
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          state.failed(true);
+          return;
+        }
       }
     }
   }
@@ -178,7 +251,7 @@ public final class SumLongAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    if (state.seen() == false) {
+    if (state.seen() == false || state.failed()) {
       blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }

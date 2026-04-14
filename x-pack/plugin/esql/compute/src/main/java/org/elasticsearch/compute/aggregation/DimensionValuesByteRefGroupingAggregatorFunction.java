@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.compute.aggregation;
 
-// begin generated imports
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,7 +20,6 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
-// end generated imports
 
 public final class DimensionValuesByteRefGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
@@ -236,12 +233,19 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        int positionCount = selected.getPositionCount();
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluate;
+    }
+
+    private void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
+        int positionCount = selectedInPage.getPositionCount();
         boolean allSelected = positionCount > maxGroupId;
         if (allSelected) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                if (selected.getInt(i) != i) {
+            for (int i = 0; i < selectedInPage.getPositionCount(); i++) {
+                if (selectedInPage.getInt(i) != i) {
                     allSelected = false;
                     break;
                 }
@@ -255,7 +259,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
         BytesRef scratch = new BytesRef();
         try (var block = builder.build(); var outputBuilder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
-                int groupId = selected.getInt(p);
+                int groupId = selectedInPage.getInt(p);
                 if (groupId <= maxGroupId) {
                     outputBuilder.copyFrom(block, groupId, scratch);
                 } else {
@@ -272,8 +276,11 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        evaluateIntermediate(blocks, offset, selected);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return this::evaluate;
     }
 
     @Override
