@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -397,12 +398,7 @@ public class DocsV3SupportTests extends ESTestCase {
         assert info != null;
         FunctionDefinition definition = FunctionDefinition.def(TestClass.class).unary(TestClass::new).name("count");
         TestCallbacks callbacks = new TestCallbacks();
-        var docs = new DocsV3Support.FunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures, callbacks) {
-            @Override
-            protected String pluginName() {
-                return TEST_PLUGIN_NAME;
-            }
-        };
+        var docs = new TestFunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures, callbacks);
         docs.renderDocs();
         return callbacks;
     }
@@ -489,7 +485,7 @@ public class DocsV3SupportTests extends ESTestCase {
             .ternary(TestClassWithMapParam::new)
             .name("test_map_func");
         TestCallbacks callbacks = new TestCallbacks();
-        var docsSupport = new DocsV3Support.FunctionDocsSupport(
+        var docsSupport = new TestFunctionDocsSupport(
             "test_map_func",
             TestClassWithMapParam.class,
             definition,
@@ -637,6 +633,23 @@ public class DocsV3SupportTests extends ESTestCase {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class TestFunctionDocsSupport extends DocsV3Support.FunctionDocsSupport {
+        TestFunctionDocsSupport(
+            String name,
+            Class<?> testClass,
+            FunctionDefinition definition,
+            Supplier<Set<TypeSignature>> signatures,
+            Callbacks callbacks
+        ) {
+            super(name, testClass, definition, signatures, callbacks);
+        }
+
+        @Override
+        protected String pluginName() {
+            return TEST_PLUGIN_NAME;
         }
     }
 }
