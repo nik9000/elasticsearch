@@ -55,6 +55,53 @@ public final class PromqlFunctionDefinition {
         UNSUPPORTED
     }
 
+    public record PromqlParamInfo(String name, PromqlDataType type, String description, boolean optional, boolean child) {
+        public static PromqlParamInfo child(String name, PromqlDataType type, String description) {
+            return new PromqlParamInfo(name, type, description, false, true);
+        }
+
+        public static PromqlParamInfo of(String name, PromqlDataType type, String description) {
+            return new PromqlParamInfo(name, type, description, false, false);
+        }
+
+        public static PromqlParamInfo optional(String name, PromqlDataType type, String description) {
+            return new PromqlParamInfo(name, type, description, true, false);
+        }
+    }
+
+    /**
+     * Represents the parameter count constraints for a PromQL function.
+     */
+    public record PromqlFunctionArity(int min, int max) {
+
+        // Common arity patterns as constants
+        public static final PromqlFunctionDefinition.PromqlFunctionArity NONE = new PromqlFunctionDefinition.PromqlFunctionArity(0, 0);
+        public static final PromqlFunctionDefinition.PromqlFunctionArity ONE = new PromqlFunctionDefinition.PromqlFunctionArity(1, 1);
+        public static final PromqlFunctionDefinition.PromqlFunctionArity TWO = new PromqlFunctionDefinition.PromqlFunctionArity(2, 2);
+
+        public PromqlFunctionArity {
+            if (min < 0) {
+                throw new IllegalArgumentException("min must be non-negative");
+            }
+            if (max < min) {
+                throw new IllegalArgumentException("max must be >= min");
+            }
+        }
+
+        private static PromqlFunctionDefinition.PromqlFunctionArity fixed(int count) {
+            return switch (count) {
+                case 0 -> NONE;
+                case 1 -> ONE;
+                case 2 -> TWO;
+                default -> new PromqlFunctionDefinition.PromqlFunctionArity(count, count);
+            };
+        }
+
+        private static PromqlFunctionDefinition.PromqlFunctionArity range(int min, int max) {
+            return min == max ? fixed(min) : new PromqlFunctionDefinition.PromqlFunctionArity(min, max);
+        }
+    }
+
     private PromqlFunctionDefinition(
         String name,
         FunctionType functionType,
