@@ -141,9 +141,9 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
             @Override
             public Aggregator.Factory aggregatorFactory(AggregatorMode mode, List<ExpressionEvaluator.Factory> inputs) {
                 List<ExpressionEvaluator.Factory> innerInputs = mode.isInputPartial()
-                    ? IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size())
-                        .<ExpressionEvaluator.Factory>mapToObj(LoadFromPageEvaluator.Factory::new)
-                        .toList()
+                    ? IntStream.range(0, supplier.nonGroupingIntermediateStateDesc().size()).<ExpressionEvaluator.Factory>mapToObj(
+                        LoadFromPageEvaluator.Factory::new
+                    ).toList()
                     : inputs;
                 List<Integer> channels = inputs.stream().map(f -> ((LoadFromPageEvaluator.Factory) f).channel()).toList();
                 return new Aggregator.Factory() {

@@ -278,7 +278,10 @@ public class BlockSerializationTests extends SerializationTestCase {
     public void testSimulateAggs() {
         DriverContext driverCtx = driverContext();
         Page page = new Page(blockFactory.newLongArrayVector(new long[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, 10).asBlock());
-        var function = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(driverCtx, List.of(new LoadFromPageEvaluator(0)));
+        var function = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(
+            driverCtx,
+            List.of(new LoadFromPageEvaluator(0))
+        );
         try (BooleanVector noMasking = driverContext().blockFactory().newConstantBooleanVector(true, page.getPositionCount())) {
             function.addRawInput(page, noMasking);
         }
@@ -294,7 +297,12 @@ public class BlockSerializationTests extends SerializationTestCase {
                 var inputEvaluators = IntStream.range(0, SumLongAggregatorFunction.intermediateStateDesc().size())
                     .mapToObj(i -> (ExpressionEvaluator) new LoadFromPageEvaluator(i))
                     .toList();
-                try (var finalAggregator = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(driverCtx, inputEvaluators)) {
+                try (
+                    var finalAggregator = new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).aggregator(
+                        driverCtx,
+                        inputEvaluators
+                    )
+                ) {
                     finalAggregator.addIntermediateInput(new Page(deserBlocks));
                     Block[] finalBlocks = new Block[1];
                     finalAggregator.evaluateFinal(finalBlocks, 0, driverCtx);
