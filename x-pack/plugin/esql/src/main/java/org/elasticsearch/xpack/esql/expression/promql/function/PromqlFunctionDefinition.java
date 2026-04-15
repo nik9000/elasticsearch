@@ -199,7 +199,7 @@ public final class PromqlFunctionDefinition {
             FunctionDefinition.BinaryBuilder<? extends Expression> ctorRef
         ) {
             this.functionType = FunctionType.VALUE_TRANSFORMATION;
-            this.arity = PromqlFunctionArity.TWO;
+            this.arity = PromqlFunctionArity.range(1, 2);
             this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
                 source,
                 target,
