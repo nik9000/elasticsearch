@@ -15,16 +15,12 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public final class ExchangeResponse extends TransportResponse implements Releasable {
-    private static final Logger logger = LogManager.getLogger(ExchangeResponse.class);
-
     private final RefCounted counted = AbstractRefCounted.of(this::closeInternal);
     private final Page page;
     private final boolean finished;
@@ -46,16 +42,13 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        long ramBytes = 0;
         if (page != null) {
-            ramBytes = page.ramBytesUsedByBlocks();
-            blockFactory.breaker().addEstimateBytesAndMaybeBreak(ramBytes, "serialize exchange response");
-            reservedBytes += ramBytes;
+            long bytes = page.ramBytesUsedByBlocks();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize exchange response");
+            reservedBytes += bytes;
         }
-        long positionBefore = out.position();
         out.writeOptionalWriteable(page);
         out.writeBoolean(finished);
-        logger.error("NOCOMMIT serialized exchange response: ramBytesUsed=[{}] bytesWritten=[{}]", ramBytes, out.position() - positionBefore);
     }
 
     /**
