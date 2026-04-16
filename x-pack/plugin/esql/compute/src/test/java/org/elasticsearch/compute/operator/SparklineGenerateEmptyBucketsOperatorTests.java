@@ -137,13 +137,7 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
             dates = dateBuilder.build();
         }
         try (
-            SparklineGenerateEmptyBucketsOperator op = new SparklineGenerateEmptyBucketsOperator(
-                ctx,
-                1,
-                dailyRounding,
-                minDate,
-                maxDate
-            )
+            SparklineGenerateEmptyBucketsOperator op = new SparklineGenerateEmptyBucketsOperator(ctx, 1, dailyRounding, minDate, maxDate)
         ) {
             op.addInput(new Page(values, dates));
             op.finish();

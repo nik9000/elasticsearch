@@ -55,7 +55,11 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
         long positionBefore = out.position();
         out.writeOptionalWriteable(page);
         out.writeBoolean(finished);
-        logger.error("NOCOMMIT serialized exchange response: ramBytesUsed=[{}] bytesWritten=[{}]", ramBytes, out.position() - positionBefore);
+        logger.error(
+            "NOCOMMIT serialized exchange response: ramBytesUsed=[{}] bytesWritten=[{}]",
+            ramBytes,
+            out.position() - positionBefore
+        );
     }
 
     /**
