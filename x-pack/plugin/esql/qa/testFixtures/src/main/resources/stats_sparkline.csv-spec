@@ -163,8 +163,8 @@ name_length:double                                                              
 sparklineComplexWithGroupingMapped-Ignore
 required_capability: fn_sparkline_complex
 FROM employees
-| STATS name_length = TO_STRING(SPARKLINE(AVG(LENGTH(first_name)::DOUBLE)), hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z"),
-          silly_sin = TO_STRING(SPARKLINE(MAX(SIN(emp_no + 12)))          , hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z")
+| STATS name_length = TO_STRING(SPARKLINE(AVG(LENGTH(first_name)::DOUBLE), hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z")),
+          silly_sin = TO_STRING(SPARKLINE(MAX(SIN(emp_no + 12))          , hire_date, 8, "1985-01-01T00:00:00Z", "1999-12-31T00:00:00Z"))
      BY gender
 | SORT gender
 ;
