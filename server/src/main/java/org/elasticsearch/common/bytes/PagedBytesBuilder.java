@@ -387,6 +387,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      */
     public PagedBytes build() {
         if (length() == 0) {
+            moveToBuilt();
             return PagedBytes.EMPTY;
         }
         if (usedPages == 0) {
