@@ -44,7 +44,7 @@ public class HeapAttackAggIT extends HeapAttackTestCase {
      */
     public void testSparklineAggWithManyLongs() throws IOException {
         initManyLongs(10);
-        Map<String, Object> result = sparklineFromMany(2);
+        Map<String, Object> result = sparklineFromMany(2, 10);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "s0").entry("type", "double"))
             .item(matchesMap().entry("name", "s1").entry("type", "double"))
             .item(matchesMap().entry("name", "b").entry("type", "long"))
@@ -65,21 +65,23 @@ public class HeapAttackAggIT extends HeapAttackTestCase {
     }
 
     /**
-     * Tests that SPARKLINE with too many columns trips the circuit breaker. Each additional
-     * SPARKLINE column adds a TOP accumulator in phase 2 of the expanded plan. Using
-     * {@code SUM(SIN(a * (s+1)))} as the inner aggregate ensures each column has a distinct
-     * expression that cannot be collapsed by common-subexpression elimination. With 10 000
-     * groups (b, c, d, e ∈ [0,9]^4) and 10 entries per group, one column occupies
-     * 10 000 × 10 × 16 bytes ≈ 1.6 MB. Including the shared timestamp TOP accumulator,
-     * at attempt × 50 columns the total exceeds the 307 MB limit by attempt 4.
+     * Tests that too may SPARKLINEs trips the circuit breaker.
      */
     public void testSparklineAggWithTooManyLongs() throws IOException {
         initManyLongs(10);
-        assertCircuitBreaks(attempt -> sparklineFromMany(attempt * 50));
+        assertCircuitBreaks(attempt -> sparklineFromMany(attempt * 50, 10));
     }
 
-    private Map<String, Object> sparklineFromMany(int numSparklines) throws IOException {
-        logger.info("running {} SPARKLINE columns over 10k groups", numSparklines);
+    /**
+     * Tests that few SPARKLINEs with too many buckets trips the circuit breaker.
+     */
+    public void testSparklineAggWithTooManyBuckets() throws IOException {
+        initManyLongs(10);
+        assertCircuitBreaks(attempt -> sparklineFromMany(50, attempt * 10));
+    }
+
+    private Map<String, Object> sparklineFromMany(int numSparklines, int bucketCount) throws IOException {
+        logger.info("running {} SPARKLINE columns with {} buckets over 10k groups", numSparklines, bucketCount);
         StringBuilder query = startQuery();
         query.append("FROM manylongs\\n");
         query.append("| EVAL ts = TO_DATETIME(a * 86400000)\\n");
@@ -88,14 +90,18 @@ public class HeapAttackAggIT extends HeapAttackTestCase {
             if (s != 0) {
                 query.append(", ");
             }
+
             // Each column uses SUM(SIN(a * (s+1))) so no two sparklines share the same
             // inner aggregate expression; this prevents common-subexpression elimination
             // from collapsing all TOP accumulators into one.
-            query.append("s").append(s)
-                .append(" = SPARKLINE(SUM(SIN(a * ").append(s + 1)
-                .append(")), ts, 10, \\\"1970-01-01\\\", \\\"1970-01-11\\\")");
+            query.append("s").append(s).append(" = SPARKLINE(");
+            query.append("SUM(SIN(a * ").append(s + 1).append(")), ");
+            query.append("ts, ");
+            query.append(bucketCount).append(", ");
+            query.append("\\\"1970-01-01\\\", \\\"1970-01-11\\\")");
         }
-        query.append("\\n BY b, c, d, e\\n| LIMIT 10000\"}");
+        query.append("\\n BY b, c, d, e");
+        query.append("\\n| LIMIT 10000\"}");
         return responseAsMap(query(query.toString(), null));
     }
 }
