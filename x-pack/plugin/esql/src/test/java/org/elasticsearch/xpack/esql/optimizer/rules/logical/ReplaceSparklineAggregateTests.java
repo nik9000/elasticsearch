@@ -420,8 +420,8 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
      * that the physical aggregator receives a correctly-typed channel.
      * <p>
      *     Without this extraction, {@code SumDoubleGroupingAggregatorFunction} is assigned
-     *     {@code salary}'s INTEGER channel instead of a DOUBLE channel, causing a
-     *     {@code ClassCastException} at runtime.
+     *     {@code salary}'s INTEGER-typed channel instead of a DOUBLE-typed channel,
+     *     causing a {@code ClassCastException} at runtime.
      * </p>
      */
     public void testSparklineWithNestedScalarInAggField() {
