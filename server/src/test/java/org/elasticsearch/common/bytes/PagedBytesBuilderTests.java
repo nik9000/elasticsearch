@@ -309,6 +309,40 @@ public class PagedBytesBuilderTests extends ESTestCase {
         });
     }
 
+    public void testAppendNot() {
+        testAppendNot(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAppendNotCranky() {
+        try {
+            testAppendNot(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAppendNot(CircuitBreaker breaker) {
+        testAgainstOracle(breaker, builder -> {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                if (randomBoolean()) {
+                    int v = randomInt();
+                    builder.appendVInt(v);
+                    out.writeVInt(v);
+                }
+                byte[] b = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE * 2));
+                builder.appendNot(b, 0, b.length);
+                for (byte x : b) {
+                    out.writeByte((byte) ~x);
+                }
+                BytesRef ref = out.bytes().toBytesRef();
+                return Arrays.copyOfRange(ref.bytes, ref.offset, ref.offset + ref.length);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     public void testBigButNotHuge() {
         testBigButNotHuge(newLimitedBreaker(ByteSizeValue.ofGb(1)));
     }

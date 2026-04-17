@@ -124,7 +124,7 @@ public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
         if (this == obj) {
             return true;
         }
-        if (obj.getClass() != PagedBytes.class) {
+        if (obj == null || obj.getClass() != PagedBytes.class) {
             return false;
         }
         PagedBytes rhs = (PagedBytes) obj;
@@ -181,7 +181,7 @@ public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
             remaining -= pageLen;
             rhsOffset += pageLen;
         }
-        return this.length - rhs.length;
+        return Integer.compare(this.length, rhs.length);
     }
 
     @Override

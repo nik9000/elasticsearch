@@ -605,7 +605,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         if (this == obj) {
             return true;
         }
-        if (obj.getClass() != PagedBytesBuilder.class) {
+        if (obj == null || obj.getClass() != PagedBytesBuilder.class) {
             return false;
         }
         PagedBytesBuilder rhs = (PagedBytesBuilder) obj;
