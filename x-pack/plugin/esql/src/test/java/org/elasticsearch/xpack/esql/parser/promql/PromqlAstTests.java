@@ -93,7 +93,7 @@ public class PromqlAstTests extends ESTestCase {
 
     public void testUnsupportedQueries() throws Exception {
         PromqlParser parser = new PromqlParser();
-        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid.promql");
+        List<Tuple<String, Integer>> lines = readQueries("/promql/grammar/queries-invalid-parser.promql");
         for (Tuple<String, Integer> line : lines) {
             String q = line.v1();
             try {
@@ -118,7 +118,7 @@ public class PromqlAstTests extends ESTestCase {
         log.info("{}", plan);
     }
 
-    static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
+    public static List<Tuple<String, Integer>> readQueries(String source) throws Exception {
         var urls = EsqlTestUtils.classpathResources(source);
         assertThat(urls, not(empty()));
         List<Tuple<String, Integer>> queries = new ArrayList<>();

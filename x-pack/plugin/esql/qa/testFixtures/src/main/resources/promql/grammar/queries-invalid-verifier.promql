@@ -1,0 +1,65 @@
+//
+// Invalid PromQL queries that the verifier (analysis phase) should reject.
+//
+// These are bare PromQL expressions. The test wraps each in
+// "PROMQL index=test step=5m (%s)" before passing to the analyzer.
+//
+// The file contains the failing query on one line, terminated by ;
+//
+
+//
+// set operators - caught by postAnalysisVerification
+//
+1 and 1;
+1 or 1;
+1 unless 1;
+1 == 1;
+foo and 1;
+1 and foo;
+foo or 1;
+1 or foo;
+foo unless 1;
+1 unless foo;
+1 or on(bar) foo;
+foo == on(bar) 10;
+
+//
+// unary negation of range vector - caught by postAnalysisVerification (binary child is RangeSelector)
+//
+-test[5m];
+
+//
+// function arity errors - caught by ResolvePromqlFunctions (ParsingException)
+//
+floor();
+floor(some_metric, other_metric);
+floor(some_metric, 1);
+hour(some_metric, some_metric, some_metric);
+time(some_metric);
+topk(some_metric);
+
+//
+// function type errors - caught by ResolvePromqlFunctions (VerificationException)
+//
+floor(1);
+topk(some_metric, other_metric);
+count_values(5, other_metric);
+
+//
+// BY/WITHOUT on non-aggregation function - caught by ResolvePromqlFunctions (VerificationException)
+//
+rate(some_metric[5m]) by (label);
+ceil(some_metric) without (label);
+
+//
+// unknown functions - caught by ResolvePromqlFunctions (VerificationException)
+//
+non_existent_function_far_bar();
+a>b();
+info(rate(http_request_counter_total{}[5m]), target_info{foo="bar"});
+
+//
+// subquery on matrix - caught by postAnalysisVerification (Subquery not supported)
+//
+test[5d] OFFSET 10s [10m:5s];
+(foo + bar{nm="val"})[5m:][10m:5s];

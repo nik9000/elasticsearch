@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -219,15 +220,23 @@ public class PromqlFunctionRegistry {
         return promqlFunctions.get(normalized);
     }
 
+    /**
+     * Returns {@code true} if the function with the given name exists in the registry but
+     * has not yet been implemented.
+     */
+    public boolean isNotImplemented(String name) {
+        return NOT_IMPLEMENTED.contains(normalize(name));
+    }
+
     public void checkFunction(Source source, String name) {
         String normalized = normalize(name);
 
         if (promqlFunctions.containsKey(normalized) == false) {
-            throw new ParsingException(source, "Function [{}] does not exist", name);
+            throw new VerificationException("Function [{}] does not exist", name);
         }
 
         if (NOT_IMPLEMENTED.contains(normalized)) {
-            throw new ParsingException(source, "Function [{}] is not yet implemented", name);
+            throw new VerificationException("Function [{}] is not yet implemented", name);
         }
     }
 

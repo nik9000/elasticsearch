@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -263,6 +264,11 @@ public class Verifier {
             // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
             else if (p instanceof PromqlCommand promql) {
                 promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
+                promql.promqlPlan()
+                    .forEachDown(
+                        UnresolvedPromqlFunction.class,
+                        u -> failures.add(fail(u, "Unresolved PromQL function [{}]", u.functionName()))
+                    );
             }
 
             else {

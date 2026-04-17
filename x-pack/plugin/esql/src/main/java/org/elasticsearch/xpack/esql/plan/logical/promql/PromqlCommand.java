@@ -461,7 +461,7 @@ public class PromqlCommand extends UnaryPlan
         sb.append("] scrape_interval=[").append(scrapeInterval);
         sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString());
+        sb.append(promqlPlan.toString(format));
         sb.append("\n<>]]");
     }
 
@@ -594,6 +594,17 @@ public class PromqlCommand extends UnaryPlan
                                     lp.sourceText()
                                 )
                             );
+                        }
+                        if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
+                            String opSymbol = switch (comp.op()) {
+                                case EQ -> "==";
+                                case NEQ -> "!=";
+                                case GT -> ">";
+                                case GTE -> ">=";
+                                case LT -> "<";
+                                case LTE -> "<=";
+                            };
+                            failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", opSymbol));
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet) {
