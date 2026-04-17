@@ -72,7 +72,7 @@ import java.io.IOException;
  * │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
  * │        │     │ ...must close and lock automatically... no guards                │
  * │        │     │ ...maintain a distance of at least fifty meters...               │ ⟶ this is too big!
- * │ 0,1,1  │ 096 │ ...5x5x5 airtight steel cube...Weekly check for cracks...        │   emit what we have                                                            │
+ * │ 0,1,1  │ 096 │ ...5x5x5 airtight steel cube...Weekly check for cracks...        │   emit what we have
  * │        │     │ ...no video...no optical...laser...                              │   and keep going
  * │        │     │ ...all photos and videos strictly forbidden...                   │
  * │ 1,0,1  │     │                                                                  │
