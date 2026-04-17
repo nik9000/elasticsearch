@@ -43,8 +43,105 @@ import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
- * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
- * and outputs them to a new column.
+ * Loads values from Lucene.
+ * <p>
+ *     Input pages must contain a {@link DocVector} which describes the location of lucene document.
+ *     We represent documents as a triple of integers that we all "shard", "segment", and "doc".
+ *     "Shard" point to the lucene index. "Segment" points to the segment inside the index. And
+ *     "doc" is the offset within that segment. Input look like
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬────┐
+ * │          doc          │    │
+ * ├───────┬─────────┬─────┤  i │
+ * │ shard │ segment │ doc │    │
+ * ├───────┼─────────┼─────┼────┤
+ * │     0 │       0 │   0 │ 10 │
+ * │     0 │       0 │   1 │ 20 │
+ * │     0 │       0 │   2 │ 30 │
+ * │     0 │       0 │   3 │ 40 │
+ * │     0 │       0 │   4 │ 50 │
+ * └───────┴─────────┴─────┴────┘
+ * }
+ * <p>
+ *     And output pages have the loaded fields appended:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬────┬──────┐
+ * │          doc          │    │      │
+ * ├───────┬─────────┬─────┤  i │ name │
+ * │ shard │ segment │ doc │    │      │
+ * ├───────┼─────────┼─────┼────┼──────┤
+ * │     0 │       0 │   0 │ 10 │ foo  │
+ * │     0 │       0 │   1 │ 20 │ bar  │
+ * │     0 │       0 │   2 │ 30 │ baz  │
+ * │     0 │       0 │   3 │ 40 │ foo  │
+ * │     0 │       0 │  12 │ 50 │ bar  │
+ * └───────┴─────────┴─────┴────┴──────┘
+ * }
+ * <h2>Are we loading from one segment?</h2>
+ * <p>
+ *     If we load from one segment then we can load more efficiently using
+ *     {@link ValuesFromSingleReader}. Otherwise, we use {@link ValuesFromManyReader}.
+ *     Loading from one shard looks like the example above. And it's super
+ *     common. {@link LuceneSourceOperator} always loads fields this way and
+ *     that's "high performance" way of reading documents. But after a sort
+ *     then you are likely to be loading from many segments. Which looks like:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬────┐
+ * │          doc          │    │
+ * ├───────┬─────────┬─────┤  i │
+ * │ shard │ segment │ doc │    │
+ * ├───────┼─────────┼─────┼────┤
+ * │     0 │       0 │   0 │ 10 │
+ * │     0 │       1 │   0 │ 20 │
+ * │     0 │       1 │   1 │ 30 │
+ * │     1 │       0 │   1 │ 40 │
+ * │     1 │       1 │  12 │ 50 │
+ * └───────┴─────────┴─────┴────┘
+ * }
+ * <h2>{@link BlockLoader.RowStrideReader row-by-row} vs {@link BlockLoader.ColumnAtATimeReader column-at-a-time}</h2>
+ * <p>
+ *     Lucene can be configured to score data in two kinds of ways: rows and columns.
+ *     All fields configured for "row" style storage and concatenated together and compressed
+ *     with something like <a href="https://en.wikipedia.org/wiki/Zstd">zstd</a>. "Column"
+ *     fields are stored as a dense array of values on disk and compressed using math tricks.
+ * </p>
+ * <p>The "row" style fields need to be loaded together, one row at a time.</p>
+ * {@snippet lang="txt" :
+ * ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐
+ * │ num │ class  │   │ num │ class  │   │ num │ class  │   │ num │ class  │   │ num │ class  │   │ num │ class  │
+ * ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤
+ * │     │        │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │
+ * │     │        │ ⟶ │     │        │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │
+ * │     │        │   │     │        │   │     │        │   │ 096 │ Euclid │   │ 096 │ Euclid │   │ 096 │ Euclid │
+ * │     │        │   │     │        │   │     │        │   │     │        │   │ 682 │ Keter  │   │ 682 │ Keter  │
+ * │     │        │   │     │        │   │     │        │   │     │        │   │     │        │   │ 055 │ Keter  │
+ * └─────┴────────┘   └─────┴────────┘   └─────┴────────┘   └─────┴────────┘   └─────┴────────┘   └─────┴────────┘
+ * }
+ * <p>The "column" style fields need to be loaded one at a time:</p>
+ * {@snippet lang="txt" :
+ * ┌─────┐   ┌─────┬────────┐   ┌─────┬────────┬──────┐   ┌─────┬────────┬──────┬────────────┐
+ * │ num │   │ num │ class  │   │ num │ class  │ site │   │ num │ class  │ site │ casualties │
+ * ├─────┤   ├─────┼────────┤   ├─────┼────────┼──────┤   ├─────┼────────┼──────┼────────────┤
+ * │ 173 │   │ 173 │ Euclid │   │ 173 │ Euclid │ 19   │   │ 173 │ Euclid │ 19   │ 0          │
+ * │ 049 │   │ 049 │ Euclid │   │ 049 │ Euclid │ 19   │   │ 049 │ Euclid │ 19   │ 1          │
+ * │ 096 │ ⟶ │ 096 │ Euclid │ ⟶ │ 096 │ Euclid │ ██   │ ⟶ │ 096 │ Euclid │ ██   │ ██         │
+ * │ 682 │   │ 682 │ Keter  │   │ 682 │ Keter  │ ██   │   │ 682 │ Keter  │ ██   │ 34         │
+ * │ 055 │   │ 055 │ Keter  │   │ 055 │ Keter  │ 19   │   │ 055 │ Keter  │ 19   │ null       │
+ * └─────┘   └─────┴────────┘   └─────┴────────┴──────┘   └─────┴────────┴──────┴────────────┘
+ * }
+ * <h2>Oh, no! Giant strings</h2>
+ * <p>
+ *     It's important to keep the {@link Block}s we build from being giant. A couple of mb
+ *     is ok, but 100mb is not usually great for the query. The most surefire way to do this
+ *     is to load fields in the order they appear in the input page and then stop if you load
+ *     too much. {@link ValuesFromSingleReader} and {@link ValuesFromManyReader} don't do that
+ *     because they are trying to be more efficient when loading small things. But when we load
+ *     big things we use {@link ValuesFromDocSequence} to load them in the order they appear
+ *     so we can always bail early.
+ * </p>
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOperator {
     private static final Logger log = LogManager.getLogger(ValuesSourceReaderOperator.class);
