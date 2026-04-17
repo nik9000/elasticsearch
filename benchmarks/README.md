@@ -83,7 +83,7 @@ NOTE: Linux only. Sorry Mac and Windows.
 
 Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and the JDK's `hsdis`.
 `perf` is generally available via `apg-get install perf` or `pacman -S perf linux-tools`. `hsdis` you'll want to compile from source. is a little more involved. This worked
-on 2020-08-01:
+on 2026-04-17:
 
 ```
 git clone git@github.com:openjdk/jdk.git

@@ -369,14 +369,14 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
             return PagedBytes.EMPTY.cursor(scratch);
         }
         if (usedPages == 0) {
-            scratch.init(new byte[][] { tail }, 0, 0, tailOffset, false);
+            scratch.init(tail, 0, tailOffset);
             return scratch;
         }
         byte[][] bytePages = new byte[usedPages][];
         for (int i = 0; i < usedPages; i++) {
             bytePages[i] = pages[i].v();
         }
-        scratch.init(bytePages, 0, 0, len, false);
+        scratch.init(bytePages, 0, 0, len, true);
         return scratch;
     }
 
@@ -387,6 +387,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      */
     public PagedBytes build() {
         if (length() == 0) {
+            close();
             moveToBuilt();
             return PagedBytes.EMPTY;
         }
@@ -442,7 +443,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
      * </p>
      * <p>
      *     If we need to grow the tail to more than {@link #MAX_SMALL_TAIL_SIZE}
-     *     then this transitions to small tail mode.
+     *     then this transitions to {@link Mode#PAGED} mode.
      * </p>
      * <p>
      *     To get the bytes to fit into the tail there are a few options:
@@ -490,7 +491,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         if (length > MAX_SMALL_TAIL_SIZE) {
             // Would grow too large
             promoteToPaged(length);
-            return length < BYTE_PAGE_SIZE;
+            return end <= BYTE_PAGE_SIZE;
         }
         growSmallTail(length);
         return true;
@@ -650,7 +651,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
         }
 
         // All shared bytes are the same.
-        return this.length() - rhs.length();
+        return Integer.compare(this.length(), rhs.length());
     }
 
     enum Mode {

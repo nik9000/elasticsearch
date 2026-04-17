@@ -33,8 +33,10 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  */
 public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
     /**
-     * The actual data. All entries have {@link PageCacheRecycler#BYTE_PAGE_SIZE} bytes;
-     * only the first {@link #length} bytes across all pages are valid.
+     * The actual data. All pages except the last have exactly
+     * {@link PageCacheRecycler#BYTE_PAGE_SIZE}. The last page has
+     * {@code <=} {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
+     * {@link #length} tracks how many of those bytes are valid.
      */
     private final byte[][] pages;
     /**
@@ -67,12 +69,14 @@ public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
     }
 
     /**
-     * The actual data. All entries have exactly {@link PageCacheRecycler#BYTE_PAGE_SIZE} bytes;
-     * only the first {@link #length} bytes across all pages are valid. Generally this will be
-     * in one of two shapes:
+     * The actual data. All pages except the last have exactly
+     * {@link PageCacheRecycler#BYTE_PAGE_SIZE}. The last page has
+     * {@code <=} {@link PageCacheRecycler#BYTE_PAGE_SIZE}.
+     * {@link #length} tracks how many of those bytes are valid.
+     * Generally this will be in one of two shapes:
      * <ul>
      *     <li>A single page containing a short value (e.g. {@code length=3}): {@snippet lang=java :
-     *     new byte[][] { page }  // page.length == BYTE_PAGE_SIZE, only first 3 bytes are valid
+     *     new byte[][] { page }  // page.length <= BYTE_PAGE_SIZE, only first 3 bytes are valid
      *     }</li>
      *     <li>Many full pages (e.g. {@code length = 5 * BYTE_PAGE_SIZE}): {@snippet lang=java :
      *     new byte[][] { page1, page2, page3, page4, page5 }
@@ -162,7 +166,7 @@ public final class PagedBytes implements Comparable<PagedBytes>, Releasable {
         }
 
         // All shared pages are the same.
-        return this.length - rhs.length;
+        return Integer.compare(this.length, rhs.length);
     }
 
     public int compareTo(BytesRef rhs) {

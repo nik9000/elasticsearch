@@ -135,6 +135,19 @@ public class PagedBytesCursorTests extends ESTestCase {
         }
     }
 
+    public void testReadVIntRespectsRemaining() {
+        // 0x80 0x01 encodes vint(128): a 2-byte VInt.
+        byte[] page = new byte[BYTE_PAGE_SIZE];
+        page[0] = (byte) 0x80;
+        page[1] = 0x01;
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        // remaining=1, but the page has >= 5 bytes from pageOffset=0.
+        // The fast path in readVInt() checks only page space, not remaining,
+        // so it reads 2 bytes and drives remaining to -1 instead of throwing.
+        cursor.init(page, 0, 1);
+        expectThrows(IllegalArgumentException.class, cursor::readVInt);
+    }
+
     public void testSliceTerminated() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         byte terminator = randomByte();

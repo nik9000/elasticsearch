@@ -201,7 +201,7 @@ public class PagedBytesCursor {
      * Smaller values take fewer bytes. Negative numbers always use all 5 bytes.
      */
     public int readVInt() {
-        if (pages[pageIndex].length - pageOffset >= 5) {
+        if (remaining >= 5 && pages[pageIndex].length - pageOffset >= 5) {
             return readVIntFromPage();
         }
         return readVIntAcrossPages();

@@ -674,6 +674,40 @@ public class PagedBytesBuilderTests extends ESTestCase {
         }
     }
 
+    public void testBuildEmptySmallTailReleasesBreaker() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        // Builder charges the breaker at construction even in SMALL_TAIL mode.
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.SMALL_TAIL));
+            assertTrue(breaker.getUsed() > 0);
+            try (PagedBytes built = builder.build()) {
+                assertThat(built, equalTo(PagedBytes.EMPTY));
+                assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.BUILT));
+            }
+        }
+        // All breaker charge should be released — the empty build must not leak.
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testBuildEmptyAfterClearReleasesBreaker() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        // Write enough to enter PAGED mode, then clear so length() == 0.
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            builder.append(randomByteArrayOfLength(BYTE_PAGE_SIZE), 0, BYTE_PAGE_SIZE);
+            assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.PAGED));
+            builder.clear();
+            assertThat(builder.length(), equalTo(0));
+            // build() sees length()==0, calls moveToBuilt(), returns EMPTY — but must
+            // release the recycler page(s) and refund the breaker before doing so.
+            try (PagedBytes built = builder.build()) {
+                assertThat(built, equalTo(PagedBytes.EMPTY));
+                assertThat(builder.mode(), equalTo(PagedBytesBuilder.Mode.BUILT));
+            }
+        }
+        // All breaker charge should be released — the empty build must not leak.
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     private static byte[] concat(byte[] a, byte[] b) {
         byte[] result = Arrays.copyOf(a, a.length + b.length);
         System.arraycopy(b, 0, result, a.length, b.length);
