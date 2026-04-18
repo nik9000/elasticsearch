@@ -17,35 +17,36 @@ import java.io.IOException;
 
 /**
  * Loads values from a many leaves. Much less efficient than {@link ValuesFromSingleReader}.
- * See {@link ValuesSourceReaderOperator} for an introduction. This takes data like:
+ * See {@link ValuesSourceReaderOperator} for an introduction. This takes a page containing
+ * a {@link DocVector} like:
  * {@snippet lang="txt" :
- * ┌───────────────────────┬────┐
- * │          doc          │    │
- * ├───────┬─────────┬─────┤  i │
- * │ shard │ segment │ doc │    │
- * ├───────┼─────────┼─────┼────┤
- * │     0 │       0 │   0 │ 10 │
- * │     0 │       1 │   0 │ 20 │
- * │     0 │       1 │   1 │ 30 │
- * │     1 │       0 │   1 │ 40 │
- * │     1 │       1 │  12 │ 50 │
- * └───────┴─────────┴─────┴────┘
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       0 │   0 │
+ * │     0 │       1 │   0 │
+ * │     0 │       1 │   1 │
+ * │     1 │       0 │   1 │
+ * │     1 │       1 │  12 │
+ * └───────┴─────────┴─────┘
  * }
  * <p>
  *     and loads columns from lucene:
  * </p>
  * {@snippet lang="txt" :
- * ┌───────────────────────┬────┬──────┐
- * │          doc          │    │      │
- * ├───────┬─────────┬─────┤  i │ name │
- * │ shard │ segment │ doc │    │      │
- * ├───────┼─────────┼─────┼────┼──────┤
- * │     0 │       0 │   0 │ 10 │ foo  │
- * │     0 │       1 │   0 │ 20 │ bar  │
- * │     0 │       1 │   1 │ 30 │ baz  │
- * │     1 │       0 │   1 │ 40 │ foo  │
- * │     1 │       1 │  12 │ 50 │ bar  │
- * └───────┴─────────┴─────┴────┴──────┘
+ * ┌───────────────────────┬─────┐
+ * │          doc          │     │
+ * ├───────┬─────────┬─────│ num │
+ * │ shard │ segment │ doc │     │
+ * ├───────┼─────────┼─────┼─────┤
+ * │     0 │       0 │   0 │ 173 │
+ * │     0 │       1 │   0 │ 049 │
+ * │     0 │       1 │   1 │ 096 │
+ * │     1 │       0 │   1 │ 682 │
+ * │     1 │       1 │  12 │ 055 │
+ * └───────┴─────────┴─────┴─────┘
  * }
  * <h2>Are the documents non-decreasing?</h2>
  * <p>
@@ -57,17 +58,17 @@ import java.io.IOException;
  *     instead, the incoming page looks like:
  * </p>
  * {@snippet lang="txt" :
- * ┌───────────────────────┬────┐
- * │          doc          │    │
- * ├───────┬─────────┬─────┤  i │
- * │ shard │ segment │ doc │    │
- * ├───────┼─────────┼─────┼────┤
- * │     0 │       1 │   0 │ 20 │
- * │     0 │       0 │   0 │ 10 │
- * │     1 │       1 │  12 │ 50 │
- * │     0 │       1 │   1 │ 30 │
- * │     1 │       0 │   1 │ 40 │
- * └───────┴─────────┴─────┴────┘
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       1 │   0 │
+ * │     0 │       0 │   0 │
+ * │     1 │       1 │  12 │
+ * │     0 │       1 │   1 │
+ * │     1 │       0 │   1 │
+ * └───────┴─────────┴─────┘
  * }
  * <p>
  *     Then we map the rows <strong>into</strong> non-decreasing order. We load in that
