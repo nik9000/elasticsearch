@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -232,11 +231,11 @@ public class PromqlFunctionRegistry {
         String normalized = normalize(name);
 
         if (promqlFunctions.containsKey(normalized) == false) {
-            throw new VerificationException("Function [{}] does not exist", name);
+            throw new ParsingException(source, "Function [{}] does not exist", name);
         }
 
         if (NOT_IMPLEMENTED.contains(normalized)) {
-            throw new VerificationException("Function [{}] is not yet implemented", name);
+            throw new ParsingException(source, "Function [{}] is not yet implemented", name);
         }
     }
 
