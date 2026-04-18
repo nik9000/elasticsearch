@@ -77,10 +77,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         // Many children aren't supported
         e = expectThrows(
             ParsingException.class,
-            () -> uf(mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
-                randomConfiguration(),
-                def
-            )
+            () -> uf(mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
         );
         assertThat(e.getMessage(), containsString("expects exactly two arguments"));
     }

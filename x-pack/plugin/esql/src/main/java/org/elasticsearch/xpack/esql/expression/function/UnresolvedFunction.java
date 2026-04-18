@@ -62,13 +62,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
      *
      * @see #withMessage(String)
      */
-    public UnresolvedFunction(
-        Source source,
-        String name,
-        List<Expression> children,
-        boolean analyzed,
-        String unresolvedMessage
-    ) {
+    public UnresolvedFunction(Source source, String name, List<Expression> children, boolean analyzed, String unresolvedMessage) {
         super(source, children);
         this.name = name;
         this.analyzed = analyzed;

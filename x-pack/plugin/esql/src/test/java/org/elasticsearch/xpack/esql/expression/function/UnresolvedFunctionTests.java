@@ -79,13 +79,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
                     uf.analyzed(),
                     uf.unresolvedMessage()
                 ),
-                () -> new UnresolvedFunction(
-                    uf.source(),
-                    uf.name(),
-                    uf.children(),
-                    uf.analyzed() == false,
-                    uf.unresolvedMessage()
-                ),
+                () -> new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed() == false, uf.unresolvedMessage()),
                 () -> new UnresolvedFunction(
                     uf.source(),
                     uf.name(),
@@ -100,13 +94,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     protected UnresolvedFunction copy(UnresolvedFunction uf) {
-        return new UnresolvedFunction(
-            uf.source(),
-            uf.name(),
-            uf.children(),
-            uf.analyzed(),
-            uf.unresolvedMessage()
-        );
+        return new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed(), uf.unresolvedMessage());
     }
 
     @Override
@@ -125,13 +113,7 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
         );
 
         assertEquals(
-            new UnresolvedFunction(
-                uf.source(),
-                uf.name(),
-                uf.children(),
-                uf.analyzed() == false,
-                uf.unresolvedMessage()
-            ),
+            new UnresolvedFunction(uf.source(), uf.name(), uf.children(), uf.analyzed() == false, uf.unresolvedMessage()),
             uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? uf.analyzed() == false : p)
         );
 

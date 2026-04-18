@@ -2640,10 +2640,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
@@ -2654,10 +2651,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
                 List.of(attribute("ts")),
-                List.of(
-                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))),
-                    attribute("ts")
-                ),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts"))
             )
@@ -2673,11 +2667,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     new Alias(
                         EMPTY,
                         "max(rate(requests))",
-                        new UnresolvedFunction(
-                            EMPTY,
-                            "max",
-                            List.of(new UnresolvedFunction(EMPTY, "rate", List.of(attribute("requests"))))
-                        )
+                        new UnresolvedFunction(EMPTY, "max", List.of(new UnresolvedFunction(EMPTY, "rate", List.of(attribute("requests")))))
                     ),
                     attribute("ts")
                 ),
