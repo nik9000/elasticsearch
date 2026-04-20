@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryCom
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
@@ -504,6 +505,11 @@ public class PromqlCommand extends UnaryPlan
             );
         }
 
+        if (p instanceof LiteralSelector || p instanceof InstantSelector) {
+            failures.add(fail(p, "unexpected op:*"));
+            return;
+        }
+
         // Validate entire plan
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
@@ -596,15 +602,7 @@ public class PromqlCommand extends UnaryPlan
                             );
                         }
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
-                            String opSymbol = switch (comp.op()) {
-                                case EQ -> "==";
-                                case NEQ -> "!=";
-                                case GT -> ">";
-                                case GTE -> ">=";
-                                case LT -> "<";
-                                case LTE -> "<=";
-                            };
-                            failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", opSymbol));
+                            failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }
                     }
                     if (binaryOperator instanceof VectorBinarySet) {

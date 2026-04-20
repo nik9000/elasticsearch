@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -30,12 +31,8 @@ public class ResolveFunctions extends ParameterizedAnalyzerRule<LogicalPlan, Ana
         );
     }
 
-    public static org.elasticsearch.xpack.esql.core.expression.function.Function resolveFunction(
-        UnresolvedFunction uf,
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry
-    ) {
-        org.elasticsearch.xpack.esql.core.expression.function.Function f = null;
+    public static Function resolveFunction(UnresolvedFunction uf, Configuration configuration, EsqlFunctionRegistry functionRegistry) {
+        Function f = null;
         if (uf.analyzed()) {
             f = uf;
         } else {

@@ -399,7 +399,6 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     @Override
     public Subquery visitSubquery(PromqlBaseParser.SubqueryContext ctx) {
-        Source source = source(ctx);
         LogicalPlan plan = plan(ctx.expression());
 
         Evaluation evaluation = visitEvaluation(ctx.evaluation());
