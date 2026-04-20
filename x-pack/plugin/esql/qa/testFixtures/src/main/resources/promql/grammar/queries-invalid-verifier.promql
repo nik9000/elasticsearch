@@ -7,14 +7,14 @@
 // The file contains the failing query on one line, terminated by ;
 //
 
-1;
-|unexpected op:*;
-test;
-|unexpected op:*;
+//1;
+//|unexpected op:*;
+//test;
+//|unexpected op:*;
 
 
 //
-// set operators - caught by postAnalysisVerification
+// set operators
 //
 1 and 1;
 |set operator "and" not allowed in binary scalar expression;
@@ -42,13 +42,13 @@ foo == on(bar) 10;
 |vector matching only allowed between instant vectors;
 
 //
-// unary negation of range vector - caught by postAnalysisVerification (binary child is RangeSelector)
+// unary negation of range vector
 //
 -test[5m];
 |unary expression only allowed on expressions of type scalar or instant vector, got "range vector";
 
 //
-// function arity errors - caught by ResolvePromqlFunctions (ParsingException)
+// function arity errors
 //
 floor();
 |expected 1 argument(s) in call to "floor", got 0;
@@ -64,7 +64,7 @@ topk(some_metric);
 |wrong number of arguments for aggregate expression provided, expected 2, got 1;
 
 //
-// function type errors - caught by ResolvePromqlFunctions (VerificationException)
+// function type errors
 //
 floor(1);
 |expected type instant vector in call to function "floor", got scalar;
@@ -74,7 +74,7 @@ count_values(5, other_metric);
 |1:14: parse error: expected type string in aggregation parameter, got scalar;
 
 //
-// BY/WITHOUT on non-aggregation function - caught by ResolvePromqlFunctions (VerificationException)
+// BY/WITHOUT on non-aggregation function
 //
 rate(some_metric[5m]) by (label);
 |1:1 sadf
@@ -82,7 +82,7 @@ ceil(some_metric) without (label);
 |1:1 sadf
 
 //
-// unknown functions - caught by ResolvePromqlFunctions (VerificationException)
+// unknown functions
 //
 non_existent_function_far_bar();
 |unknown function with name "non_existent_function_far_bar";
@@ -92,7 +92,7 @@ info(rate(http_request_counter_total{}[5m]), target_info{foo="bar"});
 |1:46: parse error: expected label selectors only, got vector selector instead;
 
 //
-// subquery on matrix - caught by postAnalysisVerification (Subquery not supported)
+// subquery on matrix
 //
 test[5d] OFFSET 10s [10m:5s];
 |1:1: parse error: subquery is only allowed on instant vector, got matrix;

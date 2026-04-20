@@ -13,7 +13,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.QlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -99,7 +98,7 @@ public class PromqlAstTests extends ESTestCase {
             try {
                 log.trace("Testing invalid query {}", q);
                 parser.createStatement(q);
-            } catch (QlClientException | UnsupportedOperationException ex) {
+            } catch (ParsingException ex) {
                 // Expected
                 log.trace("{}", ex.getMessage());
                 continue;

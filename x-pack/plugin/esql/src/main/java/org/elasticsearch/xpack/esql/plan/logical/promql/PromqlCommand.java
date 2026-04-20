@@ -505,11 +505,6 @@ public class PromqlCommand extends UnaryPlan
             );
         }
 
-        if (p instanceof LiteralSelector || p instanceof InstantSelector) {
-            failures.add(fail(p, "unexpected op:*"));
-            return;
-        }
-
         // Validate entire plan
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {

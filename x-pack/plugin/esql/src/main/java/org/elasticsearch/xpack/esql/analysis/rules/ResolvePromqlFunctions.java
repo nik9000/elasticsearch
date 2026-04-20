@@ -55,11 +55,11 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         String name = unresolved.functionName();
 
         PromqlFunctionDefinition metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(name);
-        if (metadata == null) {
-            return unresolved;
-        }
         if (PromqlFunctionRegistry.INSTANCE.isNotImplemented(name)) {
             throw new VerificationException(List.of(Failure.fail(unresolved, "Function [{}] is not yet implemented", name)));
+        }
+        if (metadata == null) {
+            throw new VerificationException(List.of(Failure.fail(unresolved, "Unknown PromQL function [{}]", name)));
         }
 
         List<LogicalPlan> rawParams = unresolved.rawParams();

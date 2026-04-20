@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.analysis.promql;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlAstTests;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
@@ -323,7 +325,7 @@ public class PromqlVerifierTests extends ESTestCase {
             try {
                 tsdb.query(promqlQuery);
                 fail("Expected exception for query on line " + line.v2() + ": [" + q + "] but none was thrown");
-            } catch (Exception e) {
+            } catch (ParsingException | VerificationException e) {
                 // Expected — analysis should reject this query
             }
         }
