@@ -16,6 +16,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHashTable;
@@ -63,7 +64,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     // base size of the bytes ref hash
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefSwissHash.class)
         // spare BytesRef
-        + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+        + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class) + PagedBytesCursor.SHALLOW_SIZE;
 
     private static final VectorSpecies<Byte> BS = ByteVector.SPECIES_128;
 
@@ -97,6 +98,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     private final BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
     private final BytesRef scratch = new BytesRef();
+    private final PagedBytesCursor cursorScratch = new PagedBytesCursor();
 
     private SmallCore smallCore;
     private BigCore bigCore;
@@ -161,6 +163,24 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     private long add(BytesRef key, int hash) {
+        if (smallCore != null) {
+            if (size < nextGrowSize) {
+                return smallCore.add(key, hash);
+            }
+            smallCore.transitionToBigCore();
+        }
+        return bigCore.add(key, hash);
+    }
+
+    /**
+     * Adds a {@code key}, returning its {@code id}. If it was already present
+     * it's previous assigned {@code id} will be returned. If it wasn't present
+     * it'll be assigned a new {@code id}. The cursor is drained (advanced to
+     * its end) when a new key is inserted.
+     */
+    @Override
+    public long add(PagedBytesCursor key) {
+        final int hash = hash(key);
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
@@ -256,6 +276,25 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         }
 
         int add(final BytesRef key, final int hash) {
+            int slot = slot(hash);
+            for (;; slot = slot(slot + 1)) {
+                final int offset = idAndHashOffset(slot);
+                final long value = (long) LONG_HANDLE.get(idAndHashPage, offset);
+                final int id = id(value);
+                if (id == -1) { // means unset
+                    final int nextId = (int) bytesRefs.size();
+                    bytesRefs.append(key);
+                    final long newValue = ((long) nextId << 32) | Integer.toUnsignedLong(hash);
+                    LONG_HANDLE.set(idAndHashPage, offset, newValue);
+                    size++;
+                    return nextId;
+                } else if (hash(value) == hash && matches(key, id)) {
+                    return -1 - id;
+                }
+            }
+        }
+
+        int add(final PagedBytesCursor key, final int hash) {
             int slot = slot(hash);
             for (;; slot = slot(slot + 1)) {
                 final int offset = idAndHashOffset(slot);
@@ -432,6 +471,39 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
+        private int add(final PagedBytesCursor key, final int hash) {
+            maybeGrow();
+            return bigCore.addImpl(key, hash);
+        }
+
+        private int addImpl(final PagedBytesCursor key, final int hash) {
+            final byte control = control(hash);
+            int group = hash & mask;
+            for (;;) {
+                ByteVector vec = ByteVector.fromArray(BS, controlData, group);
+                long matches = vec.eq(control).toLong();
+                while (matches != 0) {
+                    final int checkSlot = slot(group + Long.numberOfTrailingZeros(matches));
+                    final long value = idAndHash(checkSlot);
+                    final int id = id(value);
+                    if (hash(value) == hash && matches(key, id)) {
+                        return -1 - id;
+                    }
+                    matches &= matches - 1; // clear the first set bit and try again
+                }
+                long empty = vec.eq(EMPTY).toLong();
+                if (empty != 0) {
+                    final int insertSlot = slot(group + Long.numberOfTrailingZeros(empty));
+                    final int id = (int) bytesRefs.size();
+                    bytesRefs.append(key);
+                    bigCore.insertAtSlot(insertSlot, hash, control, id);
+                    size++;
+                    return id;
+                }
+                group = (group + BYTE_VECTOR_LANES) & mask;
+            }
+        }
+
         private void insertAtSlot(final int insertSlot, final int hash, final byte control, final int id) {
             final long value = ((long) id << 32) | Integer.toUnsignedLong(hash);
             final int offset = idAndHashOffset(insertSlot);
@@ -558,12 +630,20 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return BitMixer.mix32(v.hashCode());
     }
 
+    int hash(PagedBytesCursor cursor) {
+        return BitMixer.mix32(cursor.hashCode());
+    }
+
     int slot(int hash) {
         return hash & mask;
     }
 
     private boolean matches(BytesRef key, int id) {
         return key.bytesEquals(bytesRefs.get(id, scratch));
+    }
+
+    private boolean matches(PagedBytesCursor key, int id) {
+        return key.equals(bytesRefs.get(id, cursorScratch));
     }
 
     @Override

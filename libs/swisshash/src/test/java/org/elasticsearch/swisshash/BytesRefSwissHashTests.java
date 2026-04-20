@@ -16,6 +16,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,7 +54,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
 
     private enum AddType {
         SINGLE_VALUE,
-        // ARRAY // at some point, we might add bulk add operations
+        SINGLE_CURSOR,
     }
 
     private final AddType addType;
@@ -101,7 +103,28 @@ public class BytesRefSwissHashTests extends ESTestCase {
                     }
                     assertThat(hash.size(), equalTo((long) v.length));
                 }
-                default -> throw new IllegalArgumentException();
+                case SINGLE_CURSOR -> {
+                    try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "cursor-test", 64)) {
+                        PagedBytesCursor cursor = new PagedBytesCursor();
+                        for (int i = 0; i < v.length; i++) {
+                            builder.clear();
+                            builder.append(v[i]);
+                            assertThat(hash.add(builder.view(cursor)), equalTo((long) i));
+                            assertThat(hash.size(), equalTo(i + 1L));
+                            assertThat(hash.get(i, scratch), equalTo(v[i]));
+                            builder.clear();
+                            builder.append(v[i]);
+                            assertThat(hash.add(builder.view(cursor)), equalTo(-1L - i));
+                            assertThat(hash.size(), equalTo(i + 1L));
+                        }
+                        for (int i = 0; i < v.length; i++) {
+                            builder.clear();
+                            builder.append(v[i]);
+                            assertThat(hash.add(builder.view(cursor)), equalTo(-1L - i));
+                        }
+                        assertThat(hash.size(), equalTo((long) v.length));
+                    }
+                }
             }
 
             for (int i = 0; i < v.length; i++) {

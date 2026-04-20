@@ -15,6 +15,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytesBuilder;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -338,6 +340,52 @@ public class BytesRefHashTests extends ESTestCase {
     }
 
     // END - tests borrowed from LUCENE
+
+    public void testAddCursor() {
+        try (
+            BytesRefHash hash = randomHash();
+            PagedBytesBuilder builder = new PagedBytesBuilder(
+                new MockPageCacheRecycler(Settings.EMPTY),
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.FIELDDATA),
+                "test",
+                64
+            )
+        ) {
+            BytesRefBuilder ref = new BytesRefBuilder();
+            BytesRef scratch = new BytesRef();
+            PagedBytesCursor cursor = new PagedBytesCursor();
+            Set<String> added = new HashSet<>();
+            int uniqueCount = 0;
+            int count = scaledRandomIntBetween(10, 797);
+            for (int i = 0; i < count; i++) {
+                String str;
+                do {
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
+                } while (str.length() == 0);
+                ref.copyChars(str);
+                builder.clear();
+                builder.append(ref.get());
+                long id = hash.add(builder.view(cursor));
+                if (added.contains(str)) {
+                    assertTrue(id < 0);
+                    assertEquals(str, hash.get(-id - 1, scratch).utf8ToString());
+                    assertEquals(uniqueCount, hash.size());
+                } else {
+                    assertEquals(uniqueCount, id);
+                    assertEquals(uniqueCount + 1, hash.size());
+                    added.add(str);
+                    uniqueCount++;
+                }
+            }
+            // Verify round-trip: cursor-inserted keys are findable via BytesRef
+            for (String str : added) {
+                ref.copyChars(str);
+                long id = hash.find(ref.get());
+                assertTrue(id >= 0);
+                assertEquals(str, hash.get(id, scratch).utf8ToString());
+            }
+        }
+    }
 
     public void testAllocation() {
         MockBigArrays.assertFitsIn(ByteSizeValue.ofBytes(512), bigArrays -> new BytesRefHash(1, bigArrays));
