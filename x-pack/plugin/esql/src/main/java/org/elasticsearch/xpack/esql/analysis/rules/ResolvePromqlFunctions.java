@@ -139,7 +139,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
             case VALUE_TRANSFORMATION -> new ValueTransformationFunction(unresolved.source(), child, name, extraParams);
             case VECTOR_CONVERSION -> new VectorConversionFunction(unresolved.source(), child, name, extraParams);
             case SCALAR_CONVERSION -> new ScalarConversionFunction(unresolved.source(), child, name, extraParams);
-            case SCALAR -> new ScalarFunction(unresolved.source(), name);
+            case SCALAR, TIME_EXTRACTION -> child == null
+                ? new ScalarFunction(unresolved.source(), name)
+                : new ValueTransformationFunction(unresolved.source(), child, name, extraParams);
             default -> throw new VerificationException(
                 List.of(Failure.fail(unresolved, "Unsupported function type [{}] for function [{}]", metadata.functionType(), name))
             );
