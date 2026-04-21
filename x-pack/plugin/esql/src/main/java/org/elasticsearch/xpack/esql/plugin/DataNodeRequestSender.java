@@ -202,45 +202,57 @@ abstract class DataNodeRequestSender {
         try {
             while (sendingLock.tryLock()) {
                 try {
-                    if (changed.compareAndSet(true, false) == false) {
-                        break;
-                    }
-                    var pendingRetries = new HashSet<ShardId>();
-                    for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            if (isRetryableFailure(shardFailures.get(shardId))) {
-                                pendingRetries.add(shardId);
+                    if (changed.compareAndSet(true, false)) {
+                        var pendingRetries = new HashSet<ShardId>();
+                        for (ShardId shardId : pendingShardIds) {
+                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                                if (isRetryableFailure(shardFailures.get(shardId))) {
+                                    pendingRetries.add(shardId);
+                                }
                             }
                         }
-                    }
-                    if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
-                        for (var entry : resolveShards(pendingRetries).entrySet()) {
-                            targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                        if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                            for (var entry : resolveShards(pendingRetries).entrySet()) {
+                                targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                            }
                         }
-                    }
-                    for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()
-                            && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
-                            shardFailures.compute(
-                                shardId,
-                                (k, v) -> new ShardFailure(
-                                    true,
-                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                                )
-                            );
+                        for (ShardId shardId : pendingShardIds) {
+                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                                && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
+                                shardFailures.compute(
+                                    shardId,
+                                    (k, v) -> new ShardFailure(
+                                        true,
+                                        v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                    )
+                                );
+                            }
                         }
-                    }
-                    if (reportedFailure
-                        || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
-                        reportedFailure = true;
-                        reportFailures(computeListener);
-                    } else {
-                        for (NodeRequest request : selectNodeRequests(targetShards)) {
-                            sendOneNodeRequest(targetShards, computeListener, request);
+                        if (reportedFailure
+                            || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
+                            reportedFailure = true;
+                            reportFailures(computeListener);
+                        } else {
+                            for (NodeRequest request : selectNodeRequests(targetShards)) {
+                                sendOneNodeRequest(targetShards, computeListener, request);
+                            }
                         }
                     }
                 } finally {
                     sendingLock.unlock();
+                }
+                /*
+                 * Check changed *after* releasing the lock to close the following race:
+                 * 1. Thread A holds the lock, CAS(true→false) returns false (no work), about to break.
+                 * 2. Thread B sets changed=true, calls tryLock() — fails because A is still in finally.
+                 * 3. A's finally runs the unlock; A exits the while via break.
+                 * 4. B's tryLock already failed, so B also exits — leaving work unprocessed.
+                 * Moving the break outside the try-finally means A sees B's changed=true after the
+                 * unlock and loops back to process B's work instead of exiting.
+                 * NOCOMMIT AI generated explanation needs sharpening/moving
+                 */
+                if (changed.get() == false) {
+                    break;
                 }
             }
         } finally {
