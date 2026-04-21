@@ -37,7 +37,7 @@ import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
  * </p>
  */
 public class PagedBytesCursor {
-    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOf(PagedBytesCursor.class);
+    public static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(PagedBytesCursor.class);
     private static final VarHandle INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
