@@ -2564,6 +2564,11 @@ public class EsqlCapabilities {
          */
         PROMQL_YEAR,
 
+        /**
+         * Unknown PromQL functions now make the error message "Unknown PromQL function".
+         */
+        PROMQL_RESOLVE_UNKOWN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;
