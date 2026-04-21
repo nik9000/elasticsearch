@@ -22,7 +22,7 @@ import java.io.IOException;
  * {@link ValuesSourceReaderOperator#jumboBytes}. It looks like:
  * {@snippet lang="txt" :
  * ┌────────┐   ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- * │ doc    │   │ doc    │ num │ containment                                                      │
+ * │ doc    │   │ doc    │ ref │ containment                                                      │
  * ├────────┤   ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  * │ 0,0,0  │   │ 0,1,0  │ 049 │ ...must live in a Standard Person Containment Unit               │
  * │ 0,1,0  │   │        │     │ ...sedated it before moving...lavender calms it down             │
@@ -33,7 +33,7 @@ import java.io.IOException;
  *              │ 1,0,1  │     │                                                                  │
  *              └────────┴─────┴──────────────────────────────────────────────────────────────────┘
  * ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- * │ doc    │ num │ containment                                                      │
+ * │ doc    │ ref │ containment                                                      │
  * ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  * │ 0,1,0  │ 049 │ ...must live in a Standard Person Containment Unit               │
  * │        │     │ ...sedated it before moving...lavender calms it down             │
@@ -47,7 +47,7 @@ import java.io.IOException;
  * └────────┴─────┴──────────────────────────────────────────────────────────────────┘
  * emit:
  *    ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- *    │ doc    │ num │ containment                                                      │
+ *    │ doc    │ ref │ containment                                                      │
  *    ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  *    │ 0,1,0  │ 049 │ ...must live in a Standard Person Containment Unit               │
  *    │        │     │ ...sedated it before moving...lavender calms it down             │
@@ -58,7 +58,7 @@ import java.io.IOException;
  *    └────────┴─────┴──────────────────────────────────────────────────────────────────┘
  * keep going:
  *    ┌────────┐   ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- *    │ doc    │   │ doc    │ num │ containment                                                      │
+ *    │ doc    │   │ doc    │ ref │ containment                                                      │
  *    ├────────┤   ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  *    │ 1,1,12 │   │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
  *    │ 0,1,1  │ ⟶ │        │     │ ...must close and lock automatically... no guards                │
@@ -67,7 +67,7 @@ import java.io.IOException;
  *                 │ 1,0,1  │     │                                                                  │
  *                 └────────┴─────┴──────────────────────────────────────────────────────────────────┘
  * ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- * │ doc    │ num │ containment                                                      │
+ * │ doc    │ ref │ containment                                                      │
  * ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  * │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
  * │        │     │ ...must close and lock automatically... no guards                │
@@ -79,7 +79,7 @@ import java.io.IOException;
  * └────────┴─────┴──────────────────────────────────────────────────────────────────┘
  * emit:
  *    ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- *    │ doc    │ num │ containment                                                      │
+ *    │ doc    │ ref │ containment                                                      │
  *    ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  *    │ 1,1,12 │ 055 │ ...5x5x2.5m cement room...Faraday cage...door 2.5m thick         │
  *    │        │     │ ...must close and lock automatically... no guards                │
@@ -90,7 +90,7 @@ import java.io.IOException;
  *    └────────┴─────┴──────────────────────────────────────────────────────────────────┘
  * keep going:
  *    ┌────────┐   ┌────────┬─────┬──────────────────────────────────────────────────────────────────┐
- *    │ doc    │   │ doc    │ num │ containment                                                      │
+ *    │ doc    │   │ doc    │ ref │ containment                                                      │
  *    ├────────┤   ├────────┼─────┼──────────────────────────────────────────────────────────────────┤
  *    │ 1,0,1  │ ⟶ │ 1,0,1  │ 682 │ ...destroyed as soon as possible...5x5x5 acid resistant steel    │ ⟶ done!
  *    └────────┘   │        │     │ ...submerged in hydrochloric acid...do not talk to it            │   emit this

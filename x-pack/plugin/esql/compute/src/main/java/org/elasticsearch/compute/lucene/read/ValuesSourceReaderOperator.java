@@ -111,7 +111,7 @@ import java.util.function.Function;
  * <p>The "row" style fields need to be loaded together, one row at a time.</p>
  * {@snippet lang="txt" :
  * ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐   ┌─────┬────────┐
- * │ num │ class  │   │ num │ class  │   │ num │ class  │   │ num │ class  │   │ num │ class  │   │ num │ class  │
+ * │ ref │ class  │   │ ref │ class  │   │ ref │ class  │   │ ref │ class  │   │ ref │ class  │   │ ref │ class  │
  * ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤   ├─────┼────────┤
  * │     │        │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │   │ 173 │ Euclid │
  * │     │        │ ⟶ │     │        │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │ ⟶ │ 049 │ Euclid │
@@ -123,7 +123,7 @@ import java.util.function.Function;
  * <p>The "column" style fields need to be loaded one at a time:</p>
  * {@snippet lang="txt" :
  * ┌─────┐   ┌─────┬────────┐   ┌─────┬────────┬──────┐   ┌─────┬────────┬──────┬────────────┐
- * │ num │   │ num │ class  │   │ num │ class  │ site │   │ num │ class  │ site │ casualties │
+ * │ ref │   │ ref │ class  │   │ ref │ class  │ site │   │ ref │ class  │ site │ casualties │
  * ├─────┤   ├─────┼────────┤   ├─────┼────────┼──────┤   ├─────┼────────┼──────┼────────────┤
  * │ 173 │   │ 173 │ Euclid │   │ 173 │ Euclid │ 19   │   │ 173 │ Euclid │ 19   │ 0          │
  * │ 049 │   │ 049 │ Euclid │   │ 049 │ Euclid │ 19   │   │ 049 │ Euclid │ 19   │ 1          │
