@@ -263,7 +263,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testUnknownFunction() {
         tsdb.error(
             "PROMQL index=test step=5m result=(non_existent_function(network.bytes_in))",
-            containsString("Unresolved PromQL function [non_existent_function]")
+            containsString("Unknown PromQL function [non_existent_function]")
         );
     }
 

@@ -264,11 +264,6 @@ public class Verifier {
             // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
             else if (p instanceof PromqlCommand promql) {
                 promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
-                promql.promqlPlan()
-                    .forEachDown(
-                        UnresolvedPromqlFunction.class,
-                        u -> failures.add(fail(u, "Unresolved PromQL function [{}]", u.functionName()))
-                    );
             }
 
             else {
