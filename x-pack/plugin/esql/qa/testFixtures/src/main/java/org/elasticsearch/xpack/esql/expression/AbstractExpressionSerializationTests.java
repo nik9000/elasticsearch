@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -18,6 +19,10 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
 
     public static Expression randomChild() {
         return randomReferenceAttribute(false);
+    }
+
+    public static Expression randomChildSupportedOn(TransportVersion version) {
+        return randomReferenceAttribute(false, version);
     }
 
     public static Expression mutateExpression(Expression expression) {
