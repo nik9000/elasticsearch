@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -179,7 +180,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
-        UnresolvedNamedExpression.class
+        UnresolvedNamedExpression.class,
+        UnresolvedPromqlFunction.class
     );
 
     private final Class<T> subclass;
