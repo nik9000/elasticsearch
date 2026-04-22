@@ -38,9 +38,9 @@ public interface BytesRefHashTable extends Accountable, Releasable {
     long add(BytesRef key);
 
     /**
-     * Adds the given key to the table. Return its newly allocated id if
-     * it wasn't in the table yet, or {@code -1-id} if it was already
-     * present in the table. The cursor is drained (advanced to its end)
+     * Adds the given key to the table, copying the remaining bytes.
+     * Return its newly allocated id if it wasn't in the table yet, or {@code -1-id}
+     * if it was already present in the table. The cursor is drained (advanced to its end)
      * when a new key is inserted.
      */
     long add(PagedBytesCursor key);

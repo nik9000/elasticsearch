@@ -15,8 +15,10 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.PagedBytes;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.common.bytes.PagedBytesTests;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -383,6 +385,40 @@ public class BytesRefHashTests extends ESTestCase {
                 long id = hash.find(ref.get());
                 assertTrue(id >= 0);
                 assertEquals(str, hash.get(id, scratch).utf8ToString());
+            }
+        }
+    }
+
+    public void testBytesRefAndPagedBytesCursorCompatible() {
+        byte[] bytes = randomByteArrayOfLength(between(1, 1000));
+        BytesRef bytesRef = new BytesRef(bytes);
+        PagedBytes pagedBytes = PagedBytesTests.newPagedBytes(bytes);
+        PagedBytesCursor cursor = new PagedBytesCursor();
+
+        try (BytesRefHash hash = randomHash()) {
+            // First add - randomly via cursor or BytesRef
+            long firstId;
+            if (randomBoolean()) {
+                firstId = hash.add(bytesRef);
+            } else {
+                firstId = hash.add(pagedBytes.cursor(cursor));
+            }
+            assertTrue(firstId >= 0);
+
+            // Add same bytes 10 more times interleaving cursor and BytesRef
+            for (int i = 0; i < 10; i++) {
+                long id;
+                if (randomBoolean()) {
+                    id = hash.add(bytesRef);
+                } else {
+                    id = hash.add(pagedBytes.cursor(cursor));
+                }
+                assertEquals(-firstId - 1, id);
+            }
+
+            // Find same bytes 10 times
+            for (int i = 0; i < 10; i++) {
+                assertEquals(firstId, hash.find(bytesRef));
             }
         }
     }

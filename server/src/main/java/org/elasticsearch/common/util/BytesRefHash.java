@@ -216,7 +216,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
             grow();
             hashes = bigArrays.resize(hashes, maxSize);
         }
-        assert size < maxSize;
         return set(key, rehash(code), size);
     }
 
@@ -238,7 +237,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
             grow();
             hashes = bigArrays.resize(hashes, maxSize);
         }
-        assert size < maxSize;
         return setCursor(key, rehash(code), size);
     }
 
