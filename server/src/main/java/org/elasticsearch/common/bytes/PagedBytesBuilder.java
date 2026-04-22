@@ -389,7 +389,7 @@ public class PagedBytesBuilder implements Accountable, Releasable, Comparable<Pa
             scratch.init(tail, 0, tailOffset);
             return scratch;
         }
-        byte[][] bytePages = new byte[usedPages][];
+        byte[][] bytePages = new byte[usedPages][]; // TODO see if we can remove this allocation
         for (int i = 0; i < usedPages; i++) {
             bytePages[i] = pages[i].v();
         }

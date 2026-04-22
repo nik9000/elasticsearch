@@ -74,7 +74,7 @@ public class PagedBytesCursor {
      * Used by {@link #init(byte[], int, int)} to hold the single page so
      * we only have to allocate one time.
      */
-    private byte[][] singlePageHolder;
+    private byte[][] singlePageHolder; // TODO solve this the same way we solve the view allocation?
 
     /**
      * Make an empty cursor, pointing at nothing. Use a variant of

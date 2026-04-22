@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -35,6 +36,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BytesRefHashTests extends ESTestCase {
 
@@ -344,14 +347,22 @@ public class BytesRefHashTests extends ESTestCase {
     // END - tests borrowed from LUCENE
 
     public void testAddCursor() {
+        testAddCursor(newLimitedBreaker(ByteSizeValue.ofMb(50)));
+    }
+
+    public void testAddCursorCranky() {
+        try {
+            testAddCursor(new CrankyCircuitBreakerService.CrankyCircuitBreaker());
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testAddCursor(CircuitBreaker breaker) {
         try (
             BytesRefHash hash = randomHash();
-            PagedBytesBuilder builder = new PagedBytesBuilder(
-                new MockPageCacheRecycler(Settings.EMPTY),
-                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.FIELDDATA),
-                "test",
-                64
-            )
+            PagedBytesBuilder builder = new PagedBytesBuilder(new MockPageCacheRecycler(Settings.EMPTY), breaker, "test", 64)
         ) {
             BytesRefBuilder ref = new BytesRefBuilder();
             BytesRef scratch = new BytesRef();
@@ -360,10 +371,7 @@ public class BytesRefHashTests extends ESTestCase {
             int uniqueCount = 0;
             int count = scaledRandomIntBetween(10, 797);
             for (int i = 0; i < count; i++) {
-                String str;
-                do {
-                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
-                } while (str.length() == 0);
+                String str = randomValueOtherThanMany(s -> s.length() == 0, () -> TestUtil.randomRealisticUnicodeString(random(), 1000));
                 ref.copyChars(str);
                 builder.clear();
                 builder.append(ref.get());
