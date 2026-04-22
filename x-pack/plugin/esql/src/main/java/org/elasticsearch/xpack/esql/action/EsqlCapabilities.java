@@ -1611,6 +1611,11 @@ public class EsqlCapabilities {
         TBUCKET,
 
         /**
+         * Support for tstep function
+         */
+        TSTEP,
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -2568,6 +2573,11 @@ public class EsqlCapabilities {
          * Unknown PromQL functions now make the error message "Unknown PromQL function".
          */
         PROMQL_RESOLVE_UNKOWN,
+
+        /**
+         * Support for PromQL time extraction functions: month(), day_of_month(), day_of_week(), day_of_year(), hour(), minute().
+         */
+        PROMQL_TIME_FUNCTIONS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
