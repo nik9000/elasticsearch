@@ -3,7 +3,7 @@
 
 ## Syntax
 
-:::{image} ../../../images/functions/date_unit_count.svg
+:::{image} /reference/query-languages/esql/images/generated/x-pack-esql/functions/date_unit_count.svg
 :alt: Embedded
 :class: text-center
 :::
