@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
@@ -180,8 +182,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
-        UnresolvedNamedExpression.class,
-        UnresolvedPromqlFunction.class
+        UnresolvedNamedExpression.class
     );
 
     private final Class<T> subclass;
@@ -652,9 +653,21 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+        if (nodeClass.equals(UnresolvedPromqlFunction.class)) {
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            throw new IllegalArgumentException("can't make an UnresolvedPromqlFunction");
+        }
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             var subclasses = innerSubclassesOf(nodeClass);
-            nodeClass = randomValueOtherThanMany(UNRESOLVED_CLASSES::contains, () -> randomFrom(subclasses));
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            subclasses.remove(UnresolvedPromqlFunction.class);
+            nodeClass = randomFrom(subclasses);
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {
