@@ -629,10 +629,13 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
                 """,
             matchesList().item("a" + value.length()),
             matchesList().item(matchesMap().entry("name", "test").entry("type", any(String.class))),
-            Map.of("data", List.of(
-                matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
-                matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
-            )),
+            Map.of(
+                "data",
+                List.of(
+                    matchesMap().entry("test:column_at_a_time:Utf8CodePointsFromOrds.Singleton", 1),
+                    matchesMap().entry("main_matching:column_at_a_time:BytesRefsFromOrds.Singleton", 1)
+                )
+            ),
             sig -> assertMap(
                 sig,
                 matchesList().item("LuceneSourceOperator")
