@@ -288,6 +288,9 @@ tests:
 - class: org.elasticsearch.license.LicensingTests
   method: testNodeJoinWithoutSecurityExplicitlyEnabled
   issue: https://github.com/elastic/elasticsearch/issues/147529
+- class: org.elasticsearch.license.LicensingTests
+  method: testNoWarningHeaderWhenAuthenticationFailed
+  issue: https://github.com/elastic/elasticsearch/issues/147530
 
 # Examples:
 #
