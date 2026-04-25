@@ -285,6 +285,9 @@ tests:
 - class: org.elasticsearch.license.LicensingTests
   method: testEnableDisableBehaviour
   issue: https://github.com/elastic/elasticsearch/issues/147528
+- class: org.elasticsearch.license.LicensingTests
+  method: testNodeJoinWithoutSecurityExplicitlyEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/147529
 
 # Examples:
 #
