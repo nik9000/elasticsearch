@@ -291,6 +291,9 @@ tests:
 - class: org.elasticsearch.license.LicensingTests
   method: testNoWarningHeaderWhenAuthenticationFailed
   issue: https://github.com/elastic/elasticsearch/issues/147530
+- class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  method: testUpdateTransformWithProjectRouting
+  issue: https://github.com/elastic/elasticsearch/issues/147534
 
 # Examples:
 #
