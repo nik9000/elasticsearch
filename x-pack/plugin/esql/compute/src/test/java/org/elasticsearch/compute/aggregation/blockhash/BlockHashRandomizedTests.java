@@ -244,7 +244,6 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
     private int randomPositionsPerPage(boolean trackGroupIds, int pageCount, List<ElementType> elementTypes) {
         long maxCombosPerPosition = (long) Math.pow(maxValuesPerPosition, groups);
         long totalElementSize = elementTypes.stream().mapToLong(BlockHashRandomizedTests::elementSize).sum();
-        System.err.println("totalElementSize " + totalElementSize);
         // Per-key cost: ArrayList wrapper + all elements + TreeMap.Entry
         long bytesPerOracleKey = 56 + totalElementSize + 40;
         // expectedOrds holds a second copy of every key when groups <= 5
