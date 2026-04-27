@@ -229,7 +229,8 @@ abstract class DataNodeRequestSender {
                             }
                         }
                         if (reportedFailure
-                            || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
+                            || (allowPartialResults == false
+                                && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
                             reportedFailure = true;
                             reportFailures(computeListener);
                         } else {
