@@ -36,7 +36,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
     private final List<Expression> parameters;
     private final PromqlFunctionDefinition definition;
 
-    public PromqlFunctionCall(Source source, LogicalPlan child, List<Expression> parameters, PromqlFunctionDefinition definition) {
+    public PromqlFunctionCall(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child);
         this.parameters = parameters != null ? parameters : List.of();
         this.definition = definition;

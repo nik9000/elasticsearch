@@ -24,8 +24,8 @@ import java.util.List;
  */
 public final class VectorConversionFunction extends PromqlFunctionCall {
 
-    public VectorConversionFunction(Source source, LogicalPlan child, List<Expression> parameters, PromqlFunctionDefinition definition) {
-        super(source, child, parameters, definition);
+    public VectorConversionFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child, definition, parameters);
     }
 
     @Override
@@ -35,12 +35,12 @@ public final class VectorConversionFunction extends PromqlFunctionCall {
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, VectorConversionFunction::new, child(), parameters(), definition());
+        return NodeInfo.create(this, VectorConversionFunction::new, child(), definition(), parameters());
     }
 
     @Override
     public VectorConversionFunction replaceChild(LogicalPlan newChild) {
-        return new VectorConversionFunction(source(), newChild, parameters(), definition());
+        return new VectorConversionFunction(source(), newChild, definition(), parameters());
     }
 
     @Override

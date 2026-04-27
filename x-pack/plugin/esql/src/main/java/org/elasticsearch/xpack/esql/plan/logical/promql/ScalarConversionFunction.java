@@ -22,8 +22,8 @@ import java.util.List;
  */
 public final class ScalarConversionFunction extends PromqlFunctionCall {
 
-    public ScalarConversionFunction(Source source, LogicalPlan child, List<Expression> parameters, PromqlFunctionDefinition definition) {
-        super(source, child, parameters, definition);
+    public ScalarConversionFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child, definition, parameters);
     }
 
     @Override
@@ -33,12 +33,12 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, ScalarConversionFunction::new, child(), parameters(), definition());
+        return NodeInfo.create(this, ScalarConversionFunction::new, child(), definition(), parameters());
     }
 
     @Override
     public ScalarConversionFunction replaceChild(LogicalPlan newChild) {
-        return new ScalarConversionFunction(source(), newChild, parameters(), definition());
+        return new ScalarConversionFunction(source(), newChild, definition(), parameters());
     }
 
     @Override

@@ -42,18 +42,18 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
     private List<Attribute> output;
 
-    public WithinSeriesAggregate(Source source, LogicalPlan child, List<Expression> parameters, PromqlFunctionDefinition definition) {
-        super(source, child, parameters, definition);
+    public WithinSeriesAggregate(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child, definition, parameters);
     }
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, WithinSeriesAggregate::new, child(), parameters(), definition());
+        return NodeInfo.create(this, WithinSeriesAggregate::new, child(), definition(), parameters());
     }
 
     @Override
     public WithinSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new WithinSeriesAggregate(source(), newChild, parameters(), definition());
+        return new WithinSeriesAggregate(source(), newChild, definition(), parameters());
     }
 
     @Override

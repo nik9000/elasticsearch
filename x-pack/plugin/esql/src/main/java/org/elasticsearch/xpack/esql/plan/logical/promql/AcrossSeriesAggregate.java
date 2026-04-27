@@ -56,12 +56,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     public AcrossSeriesAggregate(
         Source source,
         LogicalPlan child,
-        List<Expression> parameters,
         PromqlFunctionDefinition definition,
+        List<Expression> parameters,
         Grouping grouping,
         List<Attribute> groupings
     ) {
-        super(source, child, parameters, definition);
+        super(source, child, definition, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
         this.timeseriesAttribute = FieldAttribute.timeSeriesAttribute(source);
@@ -82,12 +82,12 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, AcrossSeriesAggregate::new, child(), parameters(), definition(), grouping(), groupings());
+        return NodeInfo.create(this, AcrossSeriesAggregate::new, child(), definition(), parameters(), grouping(), groupings());
     }
 
     @Override
     public AcrossSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new AcrossSeriesAggregate(source(), newChild, parameters(), definition(), grouping(), groupings());
+        return new AcrossSeriesAggregate(source(), newChild, definition(), parameters(), grouping(), groupings());
     }
 
     // @Override

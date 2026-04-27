@@ -37,18 +37,18 @@ import java.util.List;
  * These functions operate on the value of each time series without changing the set of series or their labels.
  */
 public final class ValueTransformationFunction extends PromqlFunctionCall {
-    public ValueTransformationFunction(Source source, LogicalPlan child, List<Expression> parameters, PromqlFunctionDefinition definition) {
-        super(source, child, parameters, definition);
+    public ValueTransformationFunction(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
+        super(source, child, definition, parameters);
     }
 
     @Override
     protected NodeInfo<PromqlFunctionCall> info() {
-        return NodeInfo.create(this, ValueTransformationFunction::new, child(), parameters(), definition());
+        return NodeInfo.create(this, ValueTransformationFunction::new, child(), definition(), parameters());
     }
 
     @Override
     public ValueTransformationFunction replaceChild(LogicalPlan newChild) {
-        return new ValueTransformationFunction(source(), newChild, parameters(), definition());
+        return new ValueTransformationFunction(source(), newChild, definition(), parameters());
     }
 
     @Override
