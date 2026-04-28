@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
@@ -42,8 +43,9 @@ import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
  * A block of random values.
  * @param values the values as java object
  * @param block randomly built block
+ * @param valueMaxByteSize the maximum byte size of any single value in the block
  */
-public record RandomBlock(List<List<Object>> values, Block block) {
+public record RandomBlock(List<List<Object>> values, Block block, int valueMaxByteSize) {
     /**
      * A random {@link ElementType} for which we can build a {@link RandomBlock}.
      */
@@ -218,8 +220,26 @@ public record RandomBlock(List<List<Object>> values, Block block) {
             if (ESTestCase.randomBoolean()) {
                 builder.mvOrdering(mvOrdering);
             }
-            return new RandomBlock(values, builder.build());
+            Block builtBlock = builder.build();
+            return new RandomBlock(values, builtBlock, computeValueMaxByteSize(elementType, values));
         }
+    }
+
+    private static int computeValueMaxByteSize(ElementType elementType, List<List<Object>> values) {
+        return switch (elementType) {
+            case BOOLEAN -> Byte.BYTES;
+            case INT -> Integer.BYTES;
+            case LONG -> Long.BYTES;
+            case FLOAT -> Float.BYTES;
+            case DOUBLE -> Double.BYTES;
+            case BYTES_REF -> values.stream()
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .mapToInt(v -> ((BytesRef) v).length)
+                .max()
+                .orElse(0);
+            default -> throw new IllegalArgumentException("valueMaxByteSize not supported for element type [" + elementType + "]");
+        };
     }
 
     public int valueCount() {
@@ -256,7 +276,8 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                 mergedBlock.copyFrom(rhs.block, r, r + 1);
                 r++;
             }
-            return new RandomBlock(mergedValues, mergedBlock.build());
+            Block builtBlock = mergedBlock.build();
+            return new RandomBlock(mergedValues, builtBlock, computeValueMaxByteSize(builtBlock.elementType(), mergedValues));
         }
     }
 }

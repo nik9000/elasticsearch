@@ -471,6 +471,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                     .newIntBlockBuilder(positionCount * maxValuesPerPosition);
                 BytesRefVector.Builder bytes = TestBlockFactory.getNonBreakingInstance().newBytesRefVectorBuilder(maxValuesPerPosition);
             ) {
+                int valueMaxByteSize = 0;
                 for (int p = 0; p < positionCount; p++) {
                     int valueCount = between(1, maxValuesPerPosition);
                     int dupCount = between(0, dups);
@@ -487,7 +488,9 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                             bytes.appendBytesRef(new BytesRef(k));
                             return dictionary.size();
                         });
-                        valuesAtPosition.add(new BytesRef(key));
+                        BytesRef keyBytes = new BytesRef(key);
+                        valueMaxByteSize = Math.max(valueMaxByteSize, keyBytes.length);
+                        valuesAtPosition.add(keyBytes);
                         ordinals.appendInt(ordinal);
                         ordsAtPosition.add(ordinal);
                     }
@@ -498,7 +501,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                         ordinals.endPositionEntry();
                     }
                 }
-                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
+                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()), valueMaxByteSize);
             }
         }
 

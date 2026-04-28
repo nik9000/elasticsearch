@@ -150,6 +150,18 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         return bytes.get(startOffset, length, scratch);
     }
 
+    /**
+     * {@return the maximum byte length of any entry in this array, or {@code 0} if empty}
+     */
+    public int valueMaxByteSize() {
+        int max = 0;
+        for (long i = 0; i < size; i++) {
+            int length = (int) (startOffsets.get(i + 1) - startOffsets.get(i));
+            max = Math.max(max, length);
+        }
+        return max;
+    }
+
     public long size() {
         return size;
     }

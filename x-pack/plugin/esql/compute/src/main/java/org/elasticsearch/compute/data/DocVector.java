@@ -413,6 +413,11 @@ public final class DocVector extends AbstractVector implements Vector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public boolean isConstant() {
         return shards.isConstant() && segments.isConstant() && docs.isConstant();
     }
