@@ -220,8 +220,8 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
 
     /**
      * {@return the maximum byte size of any single value in this block}
-     * For fixed-width types this is a constant. For {@code BytesRef} this
-     * scans all values.
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
      */
     int valueMaxByteSize();
 

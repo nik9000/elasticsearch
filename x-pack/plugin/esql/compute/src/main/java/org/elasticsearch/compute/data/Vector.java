@@ -90,8 +90,8 @@ public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
      * {@return the maximum byte size of any single value in this vector}
-     * For fixed-width types this is a constant. For {@code BytesRef} this
-     * scans all values.
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
      */
     int valueMaxByteSize();
 

@@ -45,7 +45,7 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     @Override
     public int valueMaxByteSize() {
-        return Integer.BYTES;
+        return 3 * Integer.BYTES;
     }
 
     @Override

@@ -414,7 +414,7 @@ public final class DocVector extends AbstractVector implements Vector {
 
     @Override
     public int valueMaxByteSize() {
-        return Integer.BYTES;
+        return 3 * Integer.BYTES;
     }
 
     @Override

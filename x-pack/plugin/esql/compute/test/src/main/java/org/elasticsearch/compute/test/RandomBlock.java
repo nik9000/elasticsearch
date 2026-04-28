@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramArrayBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
@@ -32,7 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_9999;
@@ -43,7 +43,7 @@ import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
  * A block of random values.
  * @param values the values as java object
  * @param block randomly built block
- * @param valueMaxByteSize the maximum byte size of any single value in the block
+ * @param valueMaxByteSize the maximum byte size of any single value
  */
 public record RandomBlock(List<List<Object>> values, Block block, int valueMaxByteSize) {
     /**
@@ -112,6 +112,20 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             boolean bytesRefFromPoints = ESTestCase.randomBoolean();
             Supplier<Point> pointSupplier = ESTestCase.randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
+            int valueMaxByteSize = switch (elementType) {
+                case BOOLEAN -> Byte.BYTES;
+                case INT -> Integer.BYTES;
+                case LONG -> Long.BYTES;
+                case FLOAT -> Float.BYTES;
+                case DOUBLE -> Double.BYTES;
+                case NULL -> 0;
+                case DOC -> 3 * Integer.BYTES;
+                case LONG_RANGE -> 2 * Long.BYTES;
+                case BYTES_REF, EXPONENTIAL_HISTOGRAM -> 0; // Updated per value below
+                case AGGREGATE_METRIC_DOUBLE -> 3 * Double.BYTES + Integer.BYTES;
+                case TDIGEST -> 0; // TDIGEST has no well-defined single-value byte size
+                case COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("can't build a random " + elementType + " block");
+            };
             for (int p = 0; p < positionCount; p++) {
                 if (elementType == ElementType.NULL) {
                     assert nullAllowed;
@@ -159,6 +173,7 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                                 : new BytesRef(ESTestCase.randomRealisticUnicodeOfLength(4));
                             valuesAtPosition.add(b);
                             ((BytesRefBlock.Builder) builder).appendBytesRef(b);
+                            valueMaxByteSize = Math.max(valueMaxByteSize, b.length);
                         }
                         case BOOLEAN -> {
                             boolean b = ESTestCase.randomBoolean();
@@ -182,12 +197,17 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                             ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
                             b.append(histogram);
                             valuesAtPosition.add(histogram);
+                            valueMaxByteSize = Math.max(
+                                valueMaxByteSize,
+                                5 * Double.BYTES + ExponentialHistogramArrayBlock.encode(histogram).encodedHistogram().length
+                            );
                         }
                         case TDIGEST -> {
                             TDigestBlockBuilder b = (TDigestBlockBuilder) builder;
                             TDigestHolder digest = BlockTestUtils.randomTDigest();
                             b.appendTDigest(digest);
                             valuesAtPosition.add(digest);
+                            valueMaxByteSize = Math.max(valueMaxByteSize, 3 * Double.BYTES + Long.BYTES + digest.getEncodedDigest().length);
                         }
                         case LONG_RANGE -> {
                             var b = (LongRangeBlockBuilder) builder;
@@ -221,25 +241,8 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 builder.mvOrdering(mvOrdering);
             }
             Block builtBlock = builder.build();
-            return new RandomBlock(values, builtBlock, computeValueMaxByteSize(elementType, values));
+            return new RandomBlock(values, builtBlock, valueMaxByteSize);
         }
-    }
-
-    private static int computeValueMaxByteSize(ElementType elementType, List<List<Object>> values) {
-        return switch (elementType) {
-            case BOOLEAN -> Byte.BYTES;
-            case INT -> Integer.BYTES;
-            case LONG -> Long.BYTES;
-            case FLOAT -> Float.BYTES;
-            case DOUBLE -> Double.BYTES;
-            case BYTES_REF -> values.stream()
-                .filter(Objects::nonNull)
-                .flatMap(List::stream)
-                .mapToInt(v -> ((BytesRef) v).length)
-                .max()
-                .orElse(0);
-            default -> throw new IllegalArgumentException("valueMaxByteSize not supported for element type [" + elementType + "]");
-        };
     }
 
     public int valueCount() {
@@ -277,7 +280,8 @@ public record RandomBlock(List<List<Object>> values, Block block, int valueMaxBy
                 r++;
             }
             Block builtBlock = mergedBlock.build();
-            return new RandomBlock(mergedValues, builtBlock, computeValueMaxByteSize(builtBlock.elementType(), mergedValues));
+            return new RandomBlock(mergedValues, builtBlock, Math.max(valueMaxByteSize, rhs.valueMaxByteSize));
         }
     }
+
 }

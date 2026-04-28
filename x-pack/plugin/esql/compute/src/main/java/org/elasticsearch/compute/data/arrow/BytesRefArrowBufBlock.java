@@ -160,10 +160,11 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
     @Override
     public int valueMaxByteSize() {
         int max = 0;
-        for (int i = 0; i < getTotalValueCount(); i++) {
-            int start = valueOffsetsBuffer.getInt((long) i * Integer.BYTES);
-            int end = valueOffsetsBuffer.getInt((long) (i + 1) * Integer.BYTES);
-            max = Math.max(max, end - start);
+        int prev = valueOffsetsBuffer.getInt(0);
+        for (int i = 1; i <= getTotalValueCount(); i++) {
+            int curr = valueOffsetsBuffer.getInt((long) i * Integer.BYTES);
+            max = Math.max(max, curr - prev);
+            prev = curr;
         }
         return max;
     }
