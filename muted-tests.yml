@@ -300,6 +300,9 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
   method: testComputeNeighbours
   issue: https://github.com/elastic/elasticsearch/issues/147649
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/310_rrf_retriever_simplified/Expansion to equivalent custom sub-retrievers returns the same results}
+  issue: https://github.com/elastic/elasticsearch/issues/146464
 
 # Examples:
 #
