@@ -297,6 +297,9 @@ tests:
 - class: org.elasticsearch.search.fetch.ChunkedFetchPhaseCircuitBreakerTrippingIT
   method: testCircuitBreakerTripsWithConcurrentSearches
   issue: https://github.com/elastic/elasticsearch/issues/147391
+- class: org.elasticsearch.index.codec.vectors.cluster.KMeansLocalTests
+  method: testComputeNeighbours
+  issue: https://github.com/elastic/elasticsearch/issues/147649
 
 # Examples:
 #
