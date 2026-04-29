@@ -325,20 +325,43 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     public void testFlattenedField() throws IOException {
         assumeFlattenedDatatype();
-        new Test("flattened").test(
-            Map.of("a", "foo", "b.c", "bar"),
-            matchesMap().entry("a", "foo").entry("b", matchesMap().entry("c", "bar"))
-        );
+        int count = between(1, 3);
+        Map<String, Object> input = new TreeMap<>();
+        Map<String, Object> expected = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            boolean nested = randomBoolean();
+            boolean array = randomBoolean();
+            String leafKey = "leaf" + i;
+            String fullKey = nested ? "parent" + i + "." + leafKey : leafKey;
+            Object value;
+            if (array) {
+                ArrayList<String> vals = new ArrayList<>();
+                vals.add(randomAlphaOfLength(5));
+                vals.add(randomValueOtherThan(vals.get(0), () -> randomAlphaOfLength(5)));
+                Collections.sort(vals);
+                value = vals;
+            } else {
+                value = randomAlphaOfLength(5);
+            }
+            input.put(fullKey, value);
+            if (nested) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> parentMap = (Map<String, Object>) expected.computeIfAbsent(
+                    "parent" + i,
+                    k -> new TreeMap<>()
+                );
+                parentMap.put(leafKey, value);
+            } else {
+                expected.put(leafKey, value);
+            }
+        }
+        new Test("flattened").test(input, equalTo(expected));
     }
 
-    public void testFlattenedFieldEmptyObject() throws IOException {
+    public void testFlattenedFieldNullResult() throws IOException {
         assumeFlattenedDatatype();
-        new Test("flattened").test(Map.of(), null);
-    }
-
-    public void testFlattenedFieldMissing() throws IOException {
-        assumeFlattenedDatatype();
-        new Test("flattened").test(null, null);
+        // Both an empty object and a missing field load as null
+        new Test("flattened").test(randomBoolean() ? Map.of() : null, null);
     }
 
     public void testEmptyMapping() throws IOException {
