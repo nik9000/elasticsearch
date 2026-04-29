@@ -346,10 +346,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             input.put(fullKey, value);
             if (nested) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> parentMap = (Map<String, Object>) expected.computeIfAbsent(
-                    "parent" + i,
-                    k -> new TreeMap<>()
-                );
+                Map<String, Object> parentMap = (Map<String, Object>) expected.computeIfAbsent("parent" + i, k -> new TreeMap<>());
                 parentMap.put(leafKey, value);
             } else {
                 expected.put(leafKey, value);
