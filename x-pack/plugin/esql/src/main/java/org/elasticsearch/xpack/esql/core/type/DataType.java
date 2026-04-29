@@ -446,6 +446,13 @@ public enum DataType implements Writeable {
                 DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION,
                 DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
             )
+    ),
+
+    /**
+     * Fields with this type are flattened objects, rendered as JSON strings.
+     */
+    FLATTENED(
+        builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -1196,5 +1203,10 @@ public enum DataType implements Writeable {
          * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
          */
         public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
+
+        /**
+         * Development version for flattened field type support.
+         */
+        public static final TransportVersion ESQL_FLATTENED_DATATYPE = TransportVersion.fromName("esql_flattened_datatype");
     }
 }

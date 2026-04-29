@@ -243,6 +243,17 @@ public abstract class PositionToXContent {
                     }
                 }
             };
+            case FLATTENED -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    BytesRef val = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                    try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(val))) {
+                        parser.nextToken();
+                        return builder.copyCurrentStructure(parser);
+                    }
+                }
+            };
             case DENSE_VECTOR -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
