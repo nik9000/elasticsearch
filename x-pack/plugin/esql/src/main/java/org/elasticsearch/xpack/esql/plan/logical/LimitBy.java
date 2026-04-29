@@ -9,22 +9,28 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
 /**
  * Retains at most N rows per group defined by one or more grouping key expressions.
  * This is the {@code LIMIT N BY expr1, expr2, ...} command.
  */
-public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreaker {
+public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, PipelineBreaker {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "LimitBy", LimitBy::new);
 
     private final Expression limitPerGroup;
@@ -101,6 +107,15 @@ public class LimitBy extends UnaryPlan implements TelemetryAware, PipelineBreake
 
     public LimitBy withDuplicated(boolean duplicated) {
         return new LimitBy(source(), limitPerGroup, child(), groupings, duplicated);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (Expression grouping : groupings) {
+            if (grouping instanceof FieldAttribute f && f.dataType() == DataType.FLATTENED) {
+                failures.add(fail(grouping, "cannot group by on [flattened] type for grouping [{}]", grouping.sourceText()));
+            }
+        }
     }
 
     @Override

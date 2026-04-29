@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -226,7 +227,7 @@ public class Aggregate extends UnaryPlan
             if (attr != null) {
                 groupRefsBuilder.add(attr);
             }
-            if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
+            if (e instanceof FieldAttribute f && (f.dataType().isCounter() || f.dataType() == DataType.FLATTENED)) {
                 failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
             }
         });
