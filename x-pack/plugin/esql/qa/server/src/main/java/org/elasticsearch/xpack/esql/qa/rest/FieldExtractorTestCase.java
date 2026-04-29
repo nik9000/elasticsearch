@@ -323,14 +323,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         intTest().createAlias().test(randomInt());
     }
 
-    public void testFlattenedUnsupported() throws IOException {
-        assumeOriginalTypesReported();
-        new Test("flattened").createIndex("test", "flattened");
-        index("test", """
-            {"flattened": {"a": "foo"}}""");
-        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
-
-        assertResultMap(result, List.of(unsupportedColumnInfo("flattened", "flattened")), List.of(matchesList().item(null)));
+    public void testFlattenedField() throws IOException {
+        assumeFlattenedDatatype();
+        new Test("flattened").test(
+            Map.of("a", "foo", "b.c", "bar"),
+            matchesMap().entry("a", "foo").entry("b", matchesMap().entry("c", "bar"))
+        );
     }
 
     public void testEmptyMapping() throws IOException {
@@ -1520,6 +1518,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         var capsName = EsqlCapabilities.Cap.REPORT_ORIGINAL_TYPES.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("This test makes sense for versions that report original types", requiredClusterCapability);
+    }
+
+    private void assumeFlattenedDatatype() throws IOException {
+        var capsName = EsqlCapabilities.Cap.FLATTENED_DATATYPE.name().toLowerCase(Locale.ROOT);
+        boolean supported = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("Requires flattened datatype support", supported);
     }
 
     private void assumeSuggestedCastReported() throws IOException {
