@@ -449,7 +449,31 @@ public enum DataType implements Writeable {
     ),
 
     /**
-     * Fields with this type are flattened objects, rendered as JSON strings.
+     * Objects "flattened" into subfields for searching without creating distinct Lucene fields.
+     * This exists because Lucene fields are expensive, and sometimes you really just need to have
+     * thousands of values. Flattened supports those cases.
+     * <p>
+     *     It takes whole JSON documents and "flattens" them. So if it receives
+     * </p>
+     * {@snippet lang="json" :
+     * {
+     *   "flattened": {
+     *     "f": "foo",
+     *     "o.f": "bar"
+     *   }
+     * }
+     * }
+     * <p>
+     *     then it'll be indexed and returned by ES|QL using the same synthetic source rules like
+     * </p>
+     * {@snippet lang="json" :
+     * {
+     *   "f": "foo",
+     *   "o": {
+     *     "f": "bar"
+     *   }
+     * }
+     * }
      */
     FLATTENED(
         builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
