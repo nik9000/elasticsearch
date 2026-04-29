@@ -331,6 +331,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
+    public void testFlattenedFieldEmptyObject() throws IOException {
+        assumeFlattenedDatatype();
+        new Test("flattened").test(Map.of(), null);
+    }
+
+    public void testFlattenedFieldMissing() throws IOException {
+        assumeFlattenedDatatype();
+        new Test("flattened").test(null, null);
+    }
+
     public void testEmptyMapping() throws IOException {
         createIndex("test", index -> {});
         index("test", """
