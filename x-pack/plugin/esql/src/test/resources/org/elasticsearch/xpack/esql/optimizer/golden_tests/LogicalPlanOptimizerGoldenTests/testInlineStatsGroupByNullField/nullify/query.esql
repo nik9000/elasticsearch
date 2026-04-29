@@ -1,2 +1,0 @@
-SET unmapped_fields="nullify"; FROM employees
-| INLINE STATS s = MAX(salary) BY does_not_exist
