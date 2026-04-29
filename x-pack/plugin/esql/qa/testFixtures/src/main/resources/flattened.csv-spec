@@ -1,4 +1,15 @@
-flattened root fields
+load
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+;
+
+@timestamp:date          | attributes:flattened                                        | resource.attributes:flattened
+2020-01-01T00:02:48.461Z | "{""rally"":{""message_size"":""192""},""type"":""beats""}" | "{""agent"":{""id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""type"":""filebeat""},""host"":{""name"":""infra-filebeat-6vjxr""}}"
+;
+
+sort
 required_capability: flattened_datatype
 
 FROM flattened_otel_logs
