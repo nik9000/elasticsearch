@@ -454,6 +454,7 @@ public class EsqlFunctionRegistry {
                 Signum.DEFINITION,
                 Sin.DEFINITION,
                 Sinh.DEFINITION,
+                Sparkline.DEFINITION,
                 Sqrt.DEFINITION,
                 Tan.DEFINITION,
                 Tanh.DEFINITION,
@@ -644,7 +645,6 @@ public class EsqlFunctionRegistry {
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,
                 ToDateRange.DEFINITION,
-                Sparkline.DEFINITION,
                 ToText.DEFINITION } };
     }
 
