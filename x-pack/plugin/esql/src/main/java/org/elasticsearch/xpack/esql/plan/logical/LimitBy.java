@@ -14,17 +14,15 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.plan.logical.Aggregate.checkUnsupportedGroupingType;
 
 /**
  * Retains at most N rows per group defined by one or more grouping key expressions.
@@ -110,17 +108,13 @@ public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware,
     }
 
     @Override
-    public void postAnalysisVerification(Failures failures) {
-        for (Expression grouping : groupings) {
-            if (grouping instanceof FieldAttribute f && f.dataType() == DataType.FLATTENED) {
-                failures.add(fail(grouping, "cannot group by on [flattened] type for grouping [{}]", grouping.sourceText()));
-            }
-        }
+    public boolean expressionsResolved() {
+        return limitPerGroup.resolved() && Resolvables.resolved(groupings);
     }
 
     @Override
-    public boolean expressionsResolved() {
-        return limitPerGroup.resolved() && Resolvables.resolved(groupings);
+    public void postAnalysisVerification(Failures failures) {
+        groupings.forEach(e -> checkUnsupportedGroupingType(e, failures));
     }
 
     @Override
