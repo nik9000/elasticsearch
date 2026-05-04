@@ -366,13 +366,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 value = randomAlphaOfLength(5);
             }
             input.put(fullKey, value);
-            if (nested) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> parentMap = (Map<String, Object>) expected.computeIfAbsent("parent" + i, k -> new TreeMap<>());
-                parentMap.put(leafKey, value);
-            } else {
-                expected.put(leafKey, value);
-            }
+            expected.put(fullKey, value);
         }
         new Test("flattened").test(input, equalTo(expected));
     }
