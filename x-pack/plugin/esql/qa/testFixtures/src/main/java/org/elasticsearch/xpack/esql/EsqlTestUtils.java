@@ -1308,23 +1308,26 @@ public final class EsqlTestUtils {
             int numFields = between(1, 5);
             for (int i = 0; i < numFields; i++) {
                 String key = randomAlphaOfLength(between(3, 8));
-                int choice = between(0, 2);
-                if (choice == 0) {
-                    // Nested object, as produced from a dotted key like "parent.child"
-                    builder.startObject(key);
-                    builder.field(randomAlphaOfLength(between(3, 8)), randomAlphaOfLength(between(5, 15)));
-                    builder.endObject();
-                } else if (choice == 1) {
-                    // Array of strings, as produced from a multi-valued flattened field
-                    int numValues = between(2, 4);
-                    builder.startArray(key);
-                    for (int j = 0; j < numValues; j++) {
-                        builder.value(randomAlphaOfLength(between(5, 15)));
+                switch (between(0, 2)) {
+                    case 0 -> {
+                        // Nested object, as produced from a dotted key like "parent.child"
+                        builder.startObject(key);
+                        builder.field(randomAlphaOfLength(between(3, 8)), randomAlphaOfLength(between(5, 15)));
+                        builder.endObject();
                     }
-                    builder.endArray();
-                } else {
-                    // Simple string field
-                    builder.field(key, randomAlphaOfLength(between(5, 15)));
+                    case 1 -> {
+                        // Array of strings, as produced from a multi-valued flattened field
+                        int numValues = between(2, 4);
+                        builder.startArray(key);
+                        for (int j = 0; j < numValues; j++) {
+                            builder.value(randomAlphaOfLength(between(5, 15)));
+                        }
+                        builder.endArray();
+                    }
+                    default -> {
+                        // Simple string field
+                        builder.field(key, randomAlphaOfLength(between(5, 15)));
+                    }
                 }
             }
             builder.endObject();
