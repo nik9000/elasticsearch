@@ -536,8 +536,7 @@ public class Verifier {
 
         for (Attribute attribute : attributes) {
             if (attribute instanceof FieldAttribute fa) {
-                if (fa.field() instanceof UnsupportedEsField uef
-                    && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                if (fa.field() instanceof UnsupportedEsField uef && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
                     names.add(fa.name());
                 } else if (fa.dataType() == DataType.FLATTENED) {
                     names.add(fa.name());
