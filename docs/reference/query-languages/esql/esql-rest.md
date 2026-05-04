@@ -585,6 +585,10 @@ Useful if you use a tabular text format like `txt`, `csv` or `tsv`, as you won't
 
 ## `documents_found` and `values_loaded` [esql-rest-documents-found]
 
+```{applies_to}
+stack: ga 9.1
+```
+
 In addition to {{es}}'s traditional `took` time, {{esql}} returns `documents_found` and `values_loaded` which you can think
 of as rough proxies for how much effort Elasticsearch had to expend to run the query. Generally, bigger numbers mean the
 query took more effort.
