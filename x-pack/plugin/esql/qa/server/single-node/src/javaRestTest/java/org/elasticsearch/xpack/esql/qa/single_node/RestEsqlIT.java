@@ -860,6 +860,14 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 }
                 """);
         }
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled()) {
+            typesAndValues = new HashMap<>(typesAndValues);
+            typesAndValues.put(DataType.FLATTENED, """
+                {
+                  "a": "b"
+                }
+                """);
+        }
         Set<DataType> shouldBeSupported = Stream.of(DataType.values()).filter(DataType::isRepresentable).collect(Collectors.toSet());
         shouldBeSupported.remove(DataType.CARTESIAN_POINT);
         shouldBeSupported.remove(DataType.CARTESIAN_SHAPE);
@@ -876,6 +884,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.HISTOGRAM);
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
+        }
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled() == false) {
+            shouldBeSupported.remove(DataType.FLATTENED);
         }
         for (DataType type : shouldBeSupported) {
             assertTrue(type.typeName(), typesAndValues.containsKey(type));
