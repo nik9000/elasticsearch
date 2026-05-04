@@ -157,17 +157,17 @@ highest count (`172.21.3.15` with 4 occurrences) is included when combined with
 The [`METADATA` directive](/reference/query-languages/esql/esql-metadata-fields.md) is supported both inside and outside a subquery.
 If the directive is used only outside the subquery, it will report `null` for the values within the subquery:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
 :::
 
 To see the combined values from within the subquery include the directive inside as well:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata.md
 :::
 
 If you only have the directive within the subquery, null values will be returned for the indices outside the subquery:
 
-:::{include} _snippets/commands/examples/subquery.csv-spec/subquery_with_metadata_outer.md
+:::{include} _snippets/generated/x-pack-esql/commands/examples/subquery.csv-spec/subquery_with_metadata_inner.md
 :::
 
 ## Comparing views, subqueries and FORK
