@@ -118,6 +118,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "integer",
                 "ip",
                 "keyword",
+                "flattened",
                 "long",
                 "tdigest",
                 "text",
