@@ -49,6 +49,7 @@ FROM flattened_otel_logs
 
 count
 required_capability: flattened_datatype
+required_capability: fn_count_flattened
 
 FROM flattened_otel_logs
 | STATS count = COUNT(attributes)
@@ -60,7 +61,7 @@ count:long
 
 to_string
 required_capability: flattened_datatype
-required_capability: fn_to_string_from_flattened
+required_capability: fn_to_string_flattened
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"

@@ -74,7 +74,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
         .unaryConfig(ToString::new)
-        .capabilities("from_flattened")
+        .capabilities("flattened")
         .name("to_string", "to_str");
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
