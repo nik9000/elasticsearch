@@ -3828,7 +3828,7 @@ SUM(a):long | a:integer | b:integer
 ;
 
 
-statsByMvFieldAggExpr
+statsByMvFieldAggExpr#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees 
 | STATS SUM(salary_change) + salary_change BY salary_change 
 | SORT salary_change 
@@ -3863,7 +3863,7 @@ SUM(salary_change):double   | salary_change:double  | x:double
 ;
 
 
-statsByMvFieldWhere
+statsByMvFieldWhere#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees 
 | STATS SUM(salary_change) BY salary_change 
 | WHERE salary_change > 1 
